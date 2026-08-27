@@ -31,6 +31,8 @@ session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 
 class ImmutableBase(DeclarativeBase):
+    __abstract__ = True
+
     id: Mapped[int] = mapped_column(primary_key=True)
 
     create_at: Mapped[datetime] = mapped_column(
@@ -38,7 +40,9 @@ class ImmutableBase(DeclarativeBase):
     )
 
 
-class Base(ImmutableBase):
+class MutableBase(ImmutableBase):
+    __abstract__ = True
+
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
