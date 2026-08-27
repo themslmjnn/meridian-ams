@@ -1,10 +1,46 @@
-# Python-generated files
+# Environment
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
 *.py[oc]
-build/
-dist/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
 wheels/
-*.egg-info
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# Virtual environments
-.venv
+# uv
+.venv/
+.uv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.xml
+
+# mypy
+.mypy_cache/
+
+# Ruff
+.ruff_cache/
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
