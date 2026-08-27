@@ -45,3 +45,8 @@ class Base(ImmutableBase):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+async def dispose_engine() -> None:
+    """Dispose the engine connection pool. Called during lifespan shutdown."""
+    await engine.dispose()
