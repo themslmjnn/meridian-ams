@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
     DB_POOL_RECYCLE: int = 3600
 
     # Computed in derive_computed_fields — do not set in .env
