@@ -13,6 +13,7 @@ dependencies = [
     "fastapi>=0.141.1",
     "psycopg2>=2.9.12",
     "pydantic-settings>=2.15.0",
+    "redis>=8.1.0",
     "sqlalchemy>=2.0.52",
     "structlog>=26.1.0",
     "uvicorn>=0.52.4",
