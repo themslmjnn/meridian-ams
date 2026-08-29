@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP401, HTTP403
+from src.utils.constants import HTTP401, HTTP403, HTTP409
 
 
 class InvalidAccessTokenError(AppException):
@@ -26,6 +26,28 @@ class AccessDeniedError(AppException):
     status_code = 403
     detail = HTTP403.ACCESS_DENIED
     error_code = "ACCESS_DENIED"
+
+
+class InvalidCredentialsError(AppException):
+    status_code = 401
+    detail = HTTP401.INVALID_CREDENTIALS
+    error_code = "INVALID_CREDENTIALS"
+
+
+class AccountLockedError(AppException):
+    status_code = 403
+    error_code = "ACCOUNT_LOCKED"
+
+
+class AccountInactiveError(AppException):
+    status_code = 401
+    detail = HTTP401.ACCOUNT_NOT_ACTIVATED
+
+
+class GracePeriodExpiredError(AppException):
+    status_code = 401
+    detail = HTTP401.ACCOUNT_DELETION_EXPIRED
+    error_code = "ACCOUNT_DELETION_EXPIRED"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:

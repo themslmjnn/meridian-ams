@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 
 from pydantic import BaseModel
 
@@ -11,3 +12,14 @@ class CreateAccessToken(BaseModel):
     account_type: AccountType
     session_id: int
     access_token_version: int
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+@dataclass
+class CreateRefreshToken:
+    public_id: uuid.UUID
+    session_id: int

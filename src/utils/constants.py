@@ -15,6 +15,7 @@ class HTTP401:
     INVALID_ACCESS_TOKEN = "Invalid access token"
     EXPIRED_ACCESS_TOKEN = "Expired access token"
     INVALID_TOKEN_TYPE = "Invalid token type"
+    ACCOUNT_DELETION_EXPIRED = "Account deletion grace period has expired"
 
 
 class HTTP403:
