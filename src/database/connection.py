@@ -35,7 +35,7 @@ class ImmutableBase(DeclarativeBase):
 
     id: Mapped[int] = mapped_column(primary_key=True)
 
-    create_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
