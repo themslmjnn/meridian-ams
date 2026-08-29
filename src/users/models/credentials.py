@@ -50,6 +50,11 @@ class UserCredentials(MutableBase):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    password_reset: Mapped["UserPasswordReset | None"] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     __table_args__ = (
         Index(

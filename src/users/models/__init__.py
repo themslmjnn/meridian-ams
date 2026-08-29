@@ -1,8 +1,9 @@
+from .activation import UserActivation
 from .credentials import UserCredentials
 from .identity import UserIdentity
-from .activation import UserActivation
-from .session import UserSession
 from .login_lockout import UserLoginLockout
+from .password_reset import UserPasswordReset
+from .session import UserSession
 
 __all__ = [
     "UserIdentity",
@@ -10,4 +11,5 @@ __all__ = [
     "UserActivation",
     "UserSession",
     "UserLoginLockout",
+    "UserPasswordReset",
 ]
