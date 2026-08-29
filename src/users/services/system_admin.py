@@ -33,7 +33,7 @@ from src.users.utils.exceptions import (
     handle_username_integrity_error,
 )
 from src.users.utils.helpers import check_contact_limit
-from src.utils.base_exceptions import raise_unhandled_integrity_error
+from src.utils.exceptions import raise_unhandled_integrity_error
 
 logger = structlog.get_logger(__name__)
 settings = get_settings()

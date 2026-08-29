@@ -9,12 +9,15 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src.api.health import router as health_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
 from src.core.exceptions import AppException, register_exception_handlers
+from src.core.limiter import limiter, rate_limit_exceeded_handler
 from src.core.logging import configure_logging
 from src.core.middleware import (
     CorrelationIDMiddleware,
@@ -117,6 +120,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.state.limiter = limiter
     # -------------------------------------------------------------------------
     # Middleware — registration order is REVERSE of execution order.
     # Starlette applies middleware bottom-up (last added = outermost wrapper).
@@ -129,6 +133,7 @@ def create_app() -> FastAPI:
     #   5. CORSMiddleware            — handles preflight and CORS headers
     #   6. SlowAPIMiddleware         — rate limiting
     # -------------------------------------------------------------------------
+    app.add_middleware(SlowAPIMiddleware)
 
     app.add_middleware(
         CORSMiddleware,
@@ -150,6 +155,8 @@ def create_app() -> FastAPI:
 
     # Exception handlers
     register_exception_handlers(app)
+
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     # Routers
     app.include_router(health_router)
