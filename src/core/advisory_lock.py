@@ -4,8 +4,6 @@ import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.users.utils.enums import AccountType
-
 logger = structlog.get_logger(__name__)
 
 NAMESPACE_PHONE = 9001
@@ -26,7 +24,7 @@ async def acquire_contact_locks(
     *,
     phone_number: str | None,
     email: str | None,
-    account_type: AccountType,
+    is_student: bool,
 ) -> None:
     if phone_number:
         key = _compute_lock_key(phone_number)
@@ -50,7 +48,7 @@ async def acquire_contact_locks(
             key=key,
         )
 
-    if email and account_type == AccountType.STUDENT:
+    if email and is_student:
         key = _compute_lock_key(email)
 
         logger.debug(
