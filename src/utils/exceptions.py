@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP401
+from src.utils.constants import HTTP401, HTTP403
 
 
 class InvalidAccessTokenError(AppException):
@@ -20,6 +20,12 @@ class InvalidTokenTypeError(AppException):
     status_code = 401
     detail = HTTP401.INVALID_TOKEN_TYPE
     error_code = "INVALID_TOKEN_TYPE"
+
+
+class AccessDeniedError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCESS_DENIED
+    error_code = "ACCESS_DENIED"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:

@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
+from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType
 
 
@@ -104,6 +105,16 @@ class UserCredentialsRepository:
         )
         return result.scalar_one_or_none()
 
+    @staticmethod
+    async def get_user_credentials_by_id(
+        session: AsyncSession, credentials_id: int
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(UserCredentials.id == credentials_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
 
 class UserIdentityRepository:
     @staticmethod
@@ -111,6 +122,18 @@ class UserIdentityRepository:
         session: AsyncSession, user_identity_id: int
     ) -> UserIdentity | None:
         query = select(UserIdentity).where(UserIdentity.id == user_identity_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+
+class UserSessionRepository:
+    @staticmethod
+    async def get_user_session_by_id(
+        session: AsyncSession, session_id: int
+    ) -> UserSession | None:
+        query = select(UserSession).where(UserSession.id == session_id)
 
         result = await session.execute(query)
 
