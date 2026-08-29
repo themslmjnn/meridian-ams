@@ -60,6 +60,10 @@ class UserCredentials(MutableBase):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    login_history: Mapped[list["LoginHistory"]] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index(

@@ -5,3 +5,4 @@ from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
+from src.users.models.login_history import LoginHistory, LoginHistorySummary
