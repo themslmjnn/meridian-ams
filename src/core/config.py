@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
     CURSOR_SECRET: str
 
+    ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
+
     WORK_EMAIL_DOMAIN: str
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = 30

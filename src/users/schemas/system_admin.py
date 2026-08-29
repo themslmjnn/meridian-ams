@@ -18,12 +18,12 @@ class UserResponseBase(BaseModel):
 class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
     public_id: uuid.UUID
 
+    date_of_birth: date | None
+    address: str | None
+
     username: str
     phone_number: str
     email: str
-
-    date_of_birth: date | None
-    address: str | None
 
     role: UserRole
     account_type: AccountType

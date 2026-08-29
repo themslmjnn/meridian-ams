@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger(__name__)
 
-NAMESPACE_PHONE = 9001
+NAMESPACE_PHONE_NUMBER = 9001
 NAMESPACE_STUDENT_EMAIL = 9002
 
 ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(:ns, :key)"
@@ -31,20 +31,20 @@ async def acquire_contact_locks(
 
         logger.debug(
             "acquiring_advisory_lock",
-            lock_type="student_phone",
-            namespace=NAMESPACE_PHONE,
+            lock_type="phone_number",
+            namespace=NAMESPACE_PHONE_NUMBER,
             key=key,
         )
 
         await session.execute(
             text(ADVISORY_LOCK_SQL),
-            {"ns": NAMESPACE_PHONE, "key": key},
+            {"ns": NAMESPACE_PHONE_NUMBER, "key": key},
         )
 
         logger.debug(
             "advisory_lock_acquired",
-            lock_type="student_phone",
-            namespace=NAMESPACE_PHONE,
+            lock_type="phone_number",
+            namespace=NAMESPACE_PHONE_NUMBER,
             key=key,
         )
 

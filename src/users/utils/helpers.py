@@ -2,7 +2,10 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.repository.user import UserCredentialsRepository
-from src.users.utils.constants import STUDENT_MAX_SHARED_CONTACT
+from src.users.utils.constants import (
+    STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT,
+    STUDENT_MAX_SHARED_CONTACT,
+)
 from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.exceptions import (
     MaxStudentsPerEmailError,
@@ -11,6 +14,7 @@ from src.users.utils.exceptions import (
 )
 
 logger = structlog.get_logger(__name__)
+
 
 async def check_contact_limit(
     session: AsyncSession,
@@ -33,7 +37,11 @@ async def check_contact_limit(
             exclude_credentials_id=exclude_credentials_id,
         )
 
-        limit = STUDENT_MAX_SHARED_CONTACT if is_student else 1
+        limit = (
+            STUDENT_MAX_SHARED_CONTACT
+            if is_student
+            else STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT
+        )
 
         if phone_count >= limit:
             logger.warning(

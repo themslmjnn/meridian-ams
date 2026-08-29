@@ -32,7 +32,6 @@ class UserCredentialsRepository:
 
         return result.scalar_one()
 
-
     @staticmethod
     async def count_by_email_and_account_type(
         session: AsyncSession,
@@ -41,14 +40,30 @@ class UserCredentialsRepository:
         *,
         exclude_credentials_id: int | None = None,
     ) -> int:
-        query = select(func.count()).select_from(UserCredentials).where(
-            UserCredentials.email == email,
-            UserCredentials.account_type == account_type,
+        query = (
+            select(func.count())
+            .select_from(UserCredentials)
+            .where(
+                UserCredentials.email == email,
+                UserCredentials.account_type == account_type,
+            )
         )
 
         if exclude_credentials_id is not None:
             query = query.where(UserCredentials.id != exclude_credentials_id)
 
         result = await session.execute(query)
-        
+
         return result.scalar_one()
+
+
+class UserIdentityRepository:
+    @staticmethod
+    async def get_user_identity_by_id(
+        session: AsyncSession, user_identity_id: int
+    ) -> UserIdentity:
+        query = select(UserIdentity).where(UserIdentity.id == user_identity_id)
+
+        result = await session.execute(query)
+
+        return result.scalars()
