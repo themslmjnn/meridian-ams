@@ -8,9 +8,10 @@ from src.users.utils.constants import (
 )
 from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.exceptions import (
+    DuplicateEmailError,
+    DuplicatePhoneNumberError,
     MaxStudentsPerEmailError,
     MaxStudentsPerPhoneNumberError,
-    PhoneNumberAlreadyExistsError,
 )
 
 logger = structlog.get_logger(__name__)
@@ -53,13 +54,9 @@ async def check_contact_limit(
             )
 
             if is_student:
-                raise MaxStudentsPerPhoneNumberError(
-                    "Maximum number of students with this phone number reached"
-                )
+                raise MaxStudentsPerPhoneNumberError()
 
-            raise PhoneNumberAlreadyExistsError(
-                "An account with this phone number already exists"
-            )
+            raise DuplicatePhoneNumberError()
 
     if email is not None and is_student:
         email_count = await UserCredentialsRepository.count_by_email_and_account_type(
@@ -77,6 +74,8 @@ async def check_contact_limit(
                 requested_role=resolved_role,
                 denial_reason="maximum_number_of_identical_emails_reached",
             )
-            raise MaxStudentsPerEmailError(
-                "Maximum number of students with this email reached"
-            )
+
+            if is_student:
+                raise MaxStudentsPerEmailError()
+
+            raise DuplicateEmailError()

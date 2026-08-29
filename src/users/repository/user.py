@@ -1,9 +1,44 @@
-from sqlalchemy import func, select
+import uuid
+
+from sqlalchemy import RowMapping, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.utils.enums import AccountType
+
+
+class UserRepositoryBase:
+    @staticmethod
+    async def get_registered_user_response(
+        session: AsyncSession,
+        public_id: uuid.UUID,
+    ) -> RowMapping | None:
+        query = (
+            select(
+                UserCredentials.public_id,
+                UserCredentials.username,
+                UserCredentials.email,
+                UserCredentials.role,
+                UserCredentials.account_type,
+                UserCredentials.status,
+                UserCredentials.deletion_scheduled_for,
+                UserCredentials.created_at,
+                UserCredentials.updated_at,
+                UserIdentity.firstname,
+                UserIdentity.lastname,
+                UserIdentity.middlename,
+                UserIdentity.phone_number,
+                UserIdentity.date_of_birth,
+                UserIdentity.address,
+            )
+            .join(UserIdentity, UserCredentials.identity_id == UserIdentity.id)
+            .where(UserCredentials.public_id == public_id)
+        )
+
+        result = await session.execute(query)
+
+        return result.mappings().one_or_none()
 
 
 class UserCredentialsRepository:

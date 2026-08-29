@@ -18,9 +18,6 @@ class UserResponseBase(BaseModel):
 class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
     public_id: uuid.UUID
 
-    date_of_birth: date | None
-    address: str | None
-
     username: str
     phone_number: str
     email: str
@@ -32,6 +29,9 @@ class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
     deletion_scheduled_for: datetime | None
     created_at: datetime
     updated_at: datetime
+
+    date_of_birth: date | None
+    address: str | None
 
 
 class CreateUserBase(BaseModel):

@@ -1,18 +1,18 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.users.utils.constants import HTTP409
+from src.users.utils.constants import HTTP404, HTTP409
 
 
 class UsernameAlreadyTakenError(AppException):
     status_code = 409
-    detail = HTTP409.USERNAME
+    detail = HTTP409.DUPLICATE_USERNAME
     error_code = "USERNAME_ALREADY_TAKEN"
 
 
 class MaxStudentsPerPhoneNumberError(AppException):
     status_code = 409
-    detail = HTTP409.MAX_STUDENTS_PER_PHONE
+    detail = HTTP409.MAX_STUDENTS_PER_PHONE_NUMBER
     error_code = "MAX_STUDENTS_PER_PHONE_NUMBER"
 
 
@@ -28,19 +28,15 @@ class DuplicatePhoneNumberError(AppException):
     error_code = "DUPLICATE_PHONE_NUMBER"
 
 
-class PhoneNumberAlreadyExistsError(AppException):
-    status_code = 409
-
-
 class DuplicateEmailError(AppException):
     status_code = 409
-    detail = HTTP409.DUPLICATE_PHONE_NUMBER
-    error_code = "DUPLICATE_PHONE_NUMBER"
+    detail = HTTP409.DUPLICATE_EMAIL
+    error_code = "DUPLICATE_EMAIL"
 
 
 class IdentityNotFoundError(AppException):
     status_code = 404
-    detail = "No identity found with the provided ID"
+    detail = HTTP404.IDENTITY
     error_code = "IDENTITY_NOT_FOUND"
 
 

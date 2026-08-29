@@ -13,7 +13,7 @@ from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
-from src.users.repository.user import UserIdentityRepository
+from src.users.repository.user import UserIdentityRepository, UserRepositoryBase
 from src.users.schemas.system_admin import (
     CreateGuardianAdmin,
     CreateStaffAdmin,
@@ -42,13 +42,13 @@ class UserServiceAdmin:
         create_request: CreateUserRequest,
     ) -> UserResponseAdminDetailed:
         match create_request:
-            case CreateStaffAdmin():
-                resolved_role = create_request.role
-                account_type = AccountType.WORK
-
             case CreateStudentAdmin():
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
+
+            case CreateStaffAdmin():
+                resolved_role = create_request.role
+                account_type = AccountType.WORK
 
             case CreateGuardianAdmin():
                 resolved_role = UserRole.GUARDIAN
@@ -85,11 +85,11 @@ class UserServiceAdmin:
             isinstance(create_request, CreateGuardianAdmin)
             and create_request.existing_identity_id
         ):
-            existing_identity = await UserIdentityRepository.get_by_id(
+            existing_identity = await UserIdentityRepository.get_user_identity_by_id(
                 session, create_request.existing_identity_id
             )
             if existing_identity is None:
-                raise IdentityNotFoundError("No identity found with the provided ID")
+                raise IdentityNotFoundError()
 
             identity_id = existing_identity.id
         else:
@@ -145,24 +145,9 @@ class UserServiceAdmin:
                 created_by=current_user_id,
             )
 
-            user_response = UserResponseAdminDetailed(
-                firstname=new_user_identity.firstname,
-                lastname=new_user_identity.lastname,
-                middlename=new_user_identity.middlename,
-                date_of_birth=new_user_identity.date_of_birth,
-                address=new_user_identity.address,
-                username=new_user_credentials.username,
-                phone_number=new_user_identity.phone_number,
-                email=new_user_credentials.email,
-                role=new_user_credentials.role,
-                account_type=new_user_credentials.account_type,
-                status=new_user_credentials.status,
-                deletion_scheduled_for=new_user_credentials.deletion_scheduled_for,
-                created_at=new_user_credentials.created_at,
-                updated_at=new_user_credentials.updated_at,
+            return await UserRepositoryBase.get_registered_user_response(
+                session, new_user_credentials.public_id
             )
-
-            return user_response
 
         except IntegrityError as exc:
             await session.rollback()
