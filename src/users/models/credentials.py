@@ -34,6 +34,14 @@ class UserCredentials(MutableBase):
     )
     pre_deletion_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
 
+    identity: Mapped["UserIdentity"] = relationship(back_populates="credentials")  # type: ignore # noqa: F821
+
+    activation: Mapped["UserActivation | None"] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
     __table_args__ = (
         Index(
             "uix_non_student_unique_email",
@@ -48,5 +56,3 @@ class UserCredentials(MutableBase):
             postgresql_ops={"email": "gin_trgm_ops"},
         ),
     )
-
-    identity: Mapped["UserIdentity"] = relationship(back_populates="credentials")  # type: ignore # noqa: F821
