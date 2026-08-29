@@ -22,6 +22,7 @@ from src.core.middleware import (
     SecurityHeadersMiddleware,
 )
 from src.database.connection import dispose_engine
+from src.users.routers.system_admin import router as users_system_admin_router
 
 logger = structlog.get_logger(__name__)
 
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(users_system_admin_router)
 
     return app
 

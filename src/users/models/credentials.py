@@ -73,6 +73,12 @@ class UserCredentials(MutableBase):
             postgresql_where=text("account_type != 'STUDENT'"),
         ),
         Index(
+            "uix_one_personal_account_per_identity",
+            "identity_id",
+            unique=True,
+            postgresql_where=text("account_type = 'PERSONAL'"),
+        ),
+        Index(
             "ix_gin_credentials_email",
             "email",
             postgresql_using="gin",

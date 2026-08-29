@@ -18,4 +18,4 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-async_session_dependency = Annotated[AsyncSession, Depends(get_session)]
+session_dependency = Annotated[AsyncSession, Depends(get_session)]

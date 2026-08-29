@@ -13,7 +13,11 @@ from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
-from src.users.repository.user import UserIdentityRepository, UserRepositoryBase
+from src.users.repository.user import (
+    UserCredentialsRepository,
+    UserIdentityRepository,
+    UserRepositoryBase,
+)
 from src.users.schemas.system_admin import (
     CreateGuardianAdmin,
     CreateStaffAdmin,
@@ -23,6 +27,7 @@ from src.users.schemas.system_admin import (
 )
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.exceptions import (
+    GuardianAccountAlreadyExistsError,
     IdentityNotFoundError,
     handle_non_student_unique_contact_error,
     handle_username_integrity_error,
@@ -91,7 +96,15 @@ class UserServiceAdmin:
             if existing_identity is None:
                 raise IdentityNotFoundError()
 
-            identity_id = existing_identity.id
+            existing_personal = (
+                await UserCredentialsRepository.get_personal_credentials_by_identity_id(
+                    session, existing_identity.id
+                )
+            )
+            if existing_personal is not None:
+                raise GuardianAccountAlreadyExistsError()
+
+            identity_id = create_request.existing_identity_id
         else:
             new_user_identity = UserIdentity(
                 firstname=create_request.firstname,
@@ -138,7 +151,7 @@ class UserServiceAdmin:
 
             logger.info(
                 "user_registered",
-                new_user_identity_id=new_user_identity.id,
+                new_user_identity_id=identity_id,
                 new_user_credentials_id=new_user_credentials.id,
                 target_username=create_request.username,
                 role=resolved_role,
