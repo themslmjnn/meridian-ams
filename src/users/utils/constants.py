@@ -17,3 +17,4 @@ class HTTP409:
         "Maximum number of students with this phone number reached"
     )
     MAX_STUDENTS_PER_EMAIL = "Maximum number of students with this email reached"
+    DUPLICATE_GUARDIAN_ACCOUNT = "Guardian account already exists"

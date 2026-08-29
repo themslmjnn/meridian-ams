@@ -91,14 +91,27 @@ class UserCredentialsRepository:
 
         return result.scalar_one()
 
+    @staticmethod
+    async def get_personal_credentials_by_identity_id(
+        session: AsyncSession,
+        identity_id: int,
+    ) -> UserCredentials | None:
+        result = await session.execute(
+            select(UserCredentials).where(
+                UserCredentials.identity_id == identity_id,
+                UserCredentials.account_type == AccountType.PERSONAL,
+            )
+        )
+        return result.scalar_one_or_none()
+
 
 class UserIdentityRepository:
     @staticmethod
     async def get_user_identity_by_id(
         session: AsyncSession, user_identity_id: int
-    ) -> UserIdentity:
+    ) -> UserIdentity | None:
         query = select(UserIdentity).where(UserIdentity.id == user_identity_id)
 
         result = await session.execute(query)
 
-        return result.scalars()
+        return result.scalar_one_or_none()

@@ -40,6 +40,12 @@ class IdentityNotFoundError(AppException):
     error_code = "IDENTITY_NOT_FOUND"
 
 
+class GuardianAccountAlreadyExistsError(AppException):
+    status_code = 409
+    detail = HTTP409.DUPLICATE_GUARDIAN_ACCOUNT
+    error_code = "GUARDIAN_ACCOUNT_ALREADY_EXISTS"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()
@@ -50,3 +56,6 @@ def handle_non_student_unique_contact_error(error: IntegrityError) -> None:
 
     if "uix_non_student_unique_email" in error_detail:
         raise DuplicateEmailError()
+
+    if "uix_one_personal_account_per_identity" in error_detail:
+        raise GuardianAccountAlreadyExistsError()
