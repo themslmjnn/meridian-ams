@@ -41,6 +41,10 @@ class UserCredentials(MutableBase):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    sessions: Mapped[list["UserSession"]] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         Index(
