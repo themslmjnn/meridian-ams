@@ -55,6 +55,11 @@ class UserCredentials(MutableBase):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    email_change: Mapped["UserEmailChange | None"] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     __table_args__ = (
         Index(
