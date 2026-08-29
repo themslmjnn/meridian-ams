@@ -45,6 +45,11 @@ class UserCredentials(MutableBase):
         back_populates="credentials",
         cascade="all, delete-orphan",
     )
+    login_lockout: Mapped["UserLoginLockout | None"] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     __table_args__ = (
         Index(
