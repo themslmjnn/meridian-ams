@@ -75,12 +75,6 @@ class EmailRepository:
             record.status = EmailStatus.FAILED
 
     @staticmethod
-    async def get_by_id(session: AsyncSession, email_id: int) -> Email | None:
-        result = await session.execute(select(Email).where(Email.id == email_id))
-
-        return result.scalar_one_or_none()
-
-    @staticmethod
     async def reset_for_retry(record: Email) -> None:
         """Reset a FAILED email back to PENDING for manual retry."""
         record.status = EmailStatus.PENDING
@@ -140,3 +134,11 @@ class EmailRepository:
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
         )
+
+    @staticmethod
+    async def get_email_by_id(session: AsyncSession, email_id: int) -> Email | None:
+        query = select(Email).where(Email.id == email_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()

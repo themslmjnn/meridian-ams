@@ -25,7 +25,7 @@ class EmailResponseBase(BaseModel):
     triggered_by: int | None
 
 
-class EmailDetailResponse(EmailResponseBase, BaseSchema):
+class EmailResponseDetailed(EmailResponseBase, BaseSchema):
     id: int
     scheduled_for: datetime
     sent_at: datetime | None

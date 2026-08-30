@@ -1,10 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from src.core.dependencies import CurrentUser, require_system_admin, session_dependency
 from src.core.pagination import CursorPage
-from src.emails.schemas import EmailResponseBase, SearchEmail
+from src.emails.schemas import EmailResponseBase, EmailResponseDetailed, SearchEmail
 from src.emails.service import EmailService
 from src.emails.utils.enums import EmailSortField
 from src.utils.enums import OrderBy
@@ -39,3 +39,16 @@ async def get_emails(
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
     )
+
+
+@router.get(
+    "/{email_id}",
+    response_model=EmailResponseDetailed,
+    status_code=status.HTTP_200_OK,
+)
+async def get_email_by_id(
+    _: Annotated[CurrentUser, Depends(require_system_admin)],
+    session: session_dependency,
+    email_id: Annotated[int, Path(ge=1)],
+):
+    return await EmailService.get_email_by_id(session, email_id)

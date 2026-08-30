@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP401, HTTP403
+from src.utils.constants import HTTP401, HTTP403, HTTP400
 
 
 class InvalidAccessTokenError(AppException):
@@ -48,6 +48,12 @@ class GracePeriodExpiredError(AppException):
     status_code = 401
     detail = HTTP401.ACCOUNT_DELETION_EXPIRED
     error_code = "ACCOUNT_DELETION_EXPIRED"
+
+
+class NoChangesDetectedError(AppException):
+    status_code = 400
+    detail = HTTP400.NO_CHANGES_DETECTED
+    error_code = "NO_CHANGES_DETECTED"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
