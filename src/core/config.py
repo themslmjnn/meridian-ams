@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
-    CURSOR_SECRET: str
+    CURSOR_SECRET_KEY: str
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
 
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
 
         return v.strip()
 
-    @field_validator("JWT_SECRET_KEY", "JWT_SECRET_KEY_PREVIOUS", "CURSOR_SECRET")
+    @field_validator("JWT_SECRET_KEY", "JWT_SECRET_KEY_PREVIOUS", "CURSOR_SECRET_KEY")
     @classmethod
     def validate_secrets_length(cls, v: str) -> str:
         if len(v) < 32:
