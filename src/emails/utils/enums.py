@@ -18,3 +18,10 @@ class EmailStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
     FAILED = "failed"
+
+
+class EmailSortField(StrEnum):
+    CREATED_AT = "created_at"
+    EMAIL_TYPE = "email_type"
+    STATUS = "status"
+    SENT_AT = "sent_at"

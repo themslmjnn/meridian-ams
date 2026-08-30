@@ -156,6 +156,9 @@ def require_roles(*roles: UserRole):
     return guard
 
 
+require_system_admin = require_roles(UserRole.SYSTEM_ADMIN)
+
+
 def _verify_status(credentials: UserCredentials) -> None:
     if credentials.status == UserStatus.ACTIVE:
         return

@@ -1,12 +1,14 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import String, select
+from sqlalchemy import Select, String, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.pagination import CursorPage, paginate
 from src.emails.models import Email
-from src.emails.schemas import CreateEmail, EmailFilters
+from src.emails.schemas import CreateEmail, EmailFilters, SearchEmail
+from src.emails.utils.enums import EmailSortField
 from src.users.utils.enums import EmailStatus
+from src.utils.enums import OrderBy
 
 
 class EmailRepository:
@@ -73,27 +75,6 @@ class EmailRepository:
             record.status = EmailStatus.FAILED
 
     @staticmethod
-    async def get_list(
-        session: AsyncSession,
-        *,
-        filters: EmailFilters | None = None,
-        limit: int = 20,
-        next_cursor: str | None = None,
-        prev_cursor: str | None = None,
-    ) -> CursorPage:
-        query = select(Email)
-        query = EmailRepository._apply_filters(query, filters)
-
-        return await paginate(
-            session,
-            query,
-            model=Email,
-            limit=limit,
-            next_cursor=next_cursor,
-            prev_cursor=prev_cursor,
-        )
-
-    @staticmethod
     async def get_by_id(session: AsyncSession, email_id: int) -> Email | None:
         result = await session.execute(select(Email).where(Email.id == email_id))
 
@@ -107,18 +88,55 @@ class EmailRepository:
         record.last_error = None
 
     @staticmethod
-    def _apply_filters(query, filters: EmailFilters | None):
+    def _apply_filters(base_query: Select, filters: SearchEmail | None) -> Select:
         if filters is None:
-            return query
+            return base_query
+
         if filters.status is not None:
-            query = query.where(Email.status == filters.status)
+            base_query = base_query.where(Email.status == filters.status)
         if filters.email_type is not None:
-            query = query.where(Email.email_type == filters.email_type)
+            base_query = base_query.where(Email.email_type == filters.email_type)
         if filters.triggered_by is not None:
-            query = query.where(Email.triggered_by == filters.triggered_by)
+            base_query = base_query.where(Email.triggered_by == filters.triggered_by)
         if filters.recipient_email is not None:
-            query = query.where(
+            base_query = base_query.where(
                 Email.recipient_email.cast(String).ilike(f"%{filters.recipient_email}%")
             )
 
-        return query
+        return base_query
+
+    @staticmethod
+    def apply_sorting(base_query: Select, sort_by: str, order: str) -> Select:
+        if sort_by not in EmailSortField:
+            sort_by = EmailSortField.CREATED_AT
+
+        sort_column = getattr(Email, sort_by)
+
+        if order == OrderBy.DESC:
+            return base_query.order_by(sort_column.desc())
+
+        return base_query.order_by(sort_column.asc())
+
+    @staticmethod
+    async def get_emails(
+        session: AsyncSession,
+        *,
+        filters: EmailFilters | None = None,
+        limit: int = 20,
+        sort_by: str = EmailSortField.CREATED_AT,
+        order: str = OrderBy.DESC,
+        next_cursor: str | None = None,
+        prev_cursor: str | None = None,
+    ) -> CursorPage:
+        query = select(Email)
+        query = EmailRepository._apply_filters(query, filters)
+        query = EmailRepository.apply_sorting(query, sort_by, order)
+
+        return await paginate(
+            session,
+            query,
+            model=Email,
+            limit=limit,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+        )

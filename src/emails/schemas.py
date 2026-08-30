@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from src.emails.utils.enums import EmailStatus, EmailType
 from src.utils.base_schema import BaseSchema
@@ -33,7 +33,7 @@ class EmailDetailResponse(EmailResponseBase, BaseSchema):
     last_error: str | None
 
 
-class EmailFilters(BaseModel):
+class SearchEmail(BaseModel):
     status: EmailStatus | None = None
     email_type: EmailType | None = None
     triggered_by: int | None = None
