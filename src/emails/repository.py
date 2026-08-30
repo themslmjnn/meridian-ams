@@ -88,7 +88,7 @@ class EmailRepository:
         record.last_error = None
 
     @staticmethod
-    def _apply_filters(base_query: Select, filters: SearchEmail | None) -> Select:
+    def apply_filters(base_query: Select, filters: SearchEmail | None) -> Select:
         if filters is None:
             return base_query
 
@@ -129,7 +129,7 @@ class EmailRepository:
         prev_cursor: str | None = None,
     ) -> CursorPage:
         query = select(Email)
-        query = EmailRepository._apply_filters(query, filters)
+        query = EmailRepository.apply_filters(query, filters)
         query = EmailRepository.apply_sorting(query, sort_by, order)
 
         return await paginate(

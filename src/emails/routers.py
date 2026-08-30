@@ -34,6 +34,8 @@ async def get_emails(
         session,
         filters=filters,
         limit=limit,
+        sort_by=sort_by,
+        order=order,
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
     )
