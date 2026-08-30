@@ -57,3 +57,15 @@ class EmailService:
         await set_cache(cache_key, cached.model_dump(mode="json"), 900)
 
         return EmailResponseDetailed.model_validate(email)
+
+    @staticmethod
+    async def retry_failed_email(
+        session: AsyncSession,
+        email_id: int,
+    ) -> None:
+        failed_email = await EmailRepository.get_email_by_id(session, email_id)
+        ensure_exists(failed_email, EmailNotFoundError())
+
+        await EmailRepository.reset_for_retry(failed_email)
+
+        await session.commit()

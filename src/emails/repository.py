@@ -5,9 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.pagination import CursorPage, paginate
 from src.emails.models import Email
-from src.emails.schemas import CreateEmail, EmailFilters, SearchEmail
-from src.emails.utils.enums import EmailSortField
-from src.users.utils.enums import EmailStatus
+from src.emails.schemas import CreateEmail, SearchEmail
+from src.emails.utils.enums import EmailSortField, EmailStatus
 from src.utils.enums import OrderBy
 
 
@@ -29,10 +28,6 @@ class EmailRepository:
 
         session.add(email)
         return email
-
-    # ---------------------------------------------------------------------------
-    # Worker queries
-    # ---------------------------------------------------------------------------
 
     @staticmethod
     async def get_pending_batch(
@@ -115,7 +110,7 @@ class EmailRepository:
     async def get_emails(
         session: AsyncSession,
         *,
-        filters: EmailFilters | None = None,
+        filters: SearchEmail | None = None,
         limit: int = 20,
         sort_by: str = EmailSortField.CREATED_AT,
         order: str = OrderBy.DESC,
