@@ -11,7 +11,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.caching import get_cache_critical, get_redis, set_cache_critical
-from src.core.config import settings
+from src.core.config import get_settings
 from src.core.exceptions import AppException
 from src.core.security import decode_access_token
 from src.database.connection import session_factory
@@ -22,6 +22,8 @@ from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.exceptions import AccessDeniedError, InvalidAccessTokenError
 
 logger = structlog.get_logger(__name__)
+
+settings = get_settings()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 

@@ -7,12 +7,14 @@ import jwt
 from passlib.context import CryptContext
 
 from src.auth.schemas import CreateAccessToken
-from src.core.config import settings
+from src.core.config import get_settings
 from src.utils.exceptions import (
     ExpiredAccessTokenError,
     InvalidAccessTokenError,
     InvalidTokenTypeError,
 )
+
+settings = get_settings()
 
 ALGORITHM = "HS256"
 

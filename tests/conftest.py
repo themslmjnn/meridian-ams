@@ -2,7 +2,7 @@ import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -51,6 +51,11 @@ def clear_settings_cache(_guard_test_environment) -> None:  # type: ignore[misc]
 @pytest.fixture(scope="session", autouse=True)
 def create_tables(_guard_test_environment):
     sync_engine = create_engine(SYNC_DB_URL)
+
+    with sync_engine.connect() as conn:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+        conn.commit()
+
     ImmutableBase.metadata.create_all(sync_engine)
 
     yield
