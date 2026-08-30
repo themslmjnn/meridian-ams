@@ -46,6 +46,12 @@ class GuardianAccountAlreadyExistsError(AppException):
     error_code = "GUARDIAN_ACCOUNT_ALREADY_EXISTS"
 
 
+class UserNotFoundError(AppException):
+    status_code = 404
+    detail = HTTP404.USER
+    error_code = "USER_NOT_FOUND"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

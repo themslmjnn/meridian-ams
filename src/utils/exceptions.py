@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP401, HTTP403, HTTP409
+from src.utils.constants import HTTP401, HTTP403
 
 
 class InvalidAccessTokenError(AppException):

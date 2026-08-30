@@ -1,4 +1,3 @@
-import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -95,33 +94,6 @@ async def redis_error_handler(
     )
 
 
-async def unhandled_exception_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """
-    Catch-all for unhandled exceptions.
-
-    Captures to Sentry (if configured) and returns a generic 500 without
-    leaking any internal detail to the client.
-    """
-    logger.exception(
-        "unhandled_exception",
-        path=request.url.path,
-        method=request.method,
-        exc_info=exc,
-    )
-    sentry_sdk.capture_exception(exc)
-
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error_code": "INTERNAL_SERVER_ERROR",
-            "detail": "An unexpected error occurred.",
-        },
-    )
-
-
 # Registration helper
 def register_exception_handlers(app: "object") -> None:
     """
@@ -135,4 +107,3 @@ def register_exception_handlers(app: "object") -> None:
     app.add_exception_handler(AppException, app_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RedisError, redis_error_handler)  # type: ignore[arg-type]
-    app.add_exception_handler(Exception, unhandled_exception_handler)  # type: ignore[arg-type]

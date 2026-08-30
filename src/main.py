@@ -21,6 +21,7 @@ from src.core.limiter import limiter, rate_limit_exceeded_handler
 from src.core.logging import configure_logging
 from src.core.middleware import (
     CorrelationIDMiddleware,
+    ExceptionHandlerMiddleware,
     RequestLoggingMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
+    app.add_middleware(ExceptionHandlerMiddleware)
 
     # Exception handlers
     register_exception_handlers(app)

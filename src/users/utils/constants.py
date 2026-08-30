@@ -7,6 +7,7 @@ STUDENT_MAX_SHARED_CONTACT = 3
 
 class HTTP404:
     IDENTITY = "Identity not found"
+    USER = "User not found"
 
 
 class HTTP409:

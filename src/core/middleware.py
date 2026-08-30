@@ -1,6 +1,8 @@
 import time
 import uuid
 
+from fastapi.responses import JSONResponse
+import sentry_sdk
 import structlog
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -62,6 +64,40 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
 
         return response
+
+
+class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
+    """
+    Catches unhandled exceptions before they escape the middleware stack.
+
+    BaseHTTPMiddleware with call_next re-raises exceptions instead of routing
+    them to FastAPI exception handlers. This middleware catches them first
+    and returns the correct 500 response.
+    """
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        try:
+            return await call_next(request)
+
+        except Exception as exc:
+            logger.exception(
+                "unhandled_exception",
+                path=request.url.path,
+                method=request.method,
+                exc_info=exc,
+            )
+
+            sentry_sdk.capture_exception(exc)
+
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "error_code": "INTERNAL_SERVER_ERROR",
+                    "detail": "An unexpected error occurred.",
+                },
+            )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):

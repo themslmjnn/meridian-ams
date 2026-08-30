@@ -100,6 +100,15 @@ async def client(session):
         yield async_client
 
 
+@pytest_asyncio.fixture(scope="function")
+async def unit_client():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as async_client:
+        yield async_client
+
+
 @pytest_asyncio.fixture(scope="function", autouse=True)
 async def flush_cache():
     fresh_client = aioredis.Redis(
