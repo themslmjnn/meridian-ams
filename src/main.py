@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -27,6 +28,8 @@ from src.core.middleware import (
 )
 from src.database.connection import dispose_engine
 from src.users.routers.system_admin import router as users_system_admin_router
+from src.utils.email import close_email_client
+from src.workers.email_worker import run_email_worker
 
 logger = structlog.get_logger(__name__)
 
@@ -63,11 +66,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     logger.info("application_ready")
 
+    email_task = asyncio.create_task(run_email_worker())
+
+    logger.info("email_task_started")
+
     yield
 
     # --- Shutdown ---
     logger.info("application_shutting_down")
 
+    email_task.cancel()
+
+    results = await asyncio.gather(email_task, return_exceptions=True)
+
+    for result in results:
+        if isinstance(result, BaseException) and not isinstance(
+            result, asyncio.CancelledError
+        ):
+            logger.error(
+                "worker_shutdown_error",
+                error=str(result),
+                error_type=type(result).__name__,
+            )
+    await close_email_client()
     await close_redis(app)
     await dispose_engine()
 
