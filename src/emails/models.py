@@ -32,10 +32,6 @@ class Email(MutableBase):
         DateTime(timezone=True), nullable=True
     )
 
-    scheduled_for: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default="now()", nullable=False
-    )
-
     triggered_by: Mapped[int | None] = mapped_column(
         ForeignKey("user_credentials.id", ondelete="SET NULL"),
         nullable=True,
