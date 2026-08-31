@@ -93,11 +93,6 @@ def validate_username(username: str) -> str:
     return username
 
 
-_EMAIL_PATTERN = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9.+_-]*@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$"
-)
-
-
 def validate_phone_number(phone_number: str) -> str:
     phone_number = phone_number.strip()
 
@@ -127,6 +122,11 @@ def validate_phone_number(phone_number: str) -> str:
         )
 
     return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+
+_EMAIL_PATTERN = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9.+_-]*@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$"
+)
 
 
 def validate_email(email: str) -> str:

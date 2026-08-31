@@ -16,3 +16,9 @@ class UserCacheKey:
     @staticmethod
     def user_detail_key_self(public_id: int) -> str:
         return f"users:detail:{public_id}:self"
+
+
+class SessionCacheKey:
+    @staticmethod
+    def access_token_version_key(public_key: int) -> str:
+        return f"user:token_version:{public_key}"

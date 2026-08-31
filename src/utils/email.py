@@ -386,3 +386,250 @@ async def send_account_info_updated_email(email: str) -> None:
         to_email=email,
         html_body=html,
     )
+
+
+def build_admin_credentials_override_notification_email(
+    old_username: str | None = None,
+    new_username: str | None = None,
+    old_email: str | None = None,
+    new_email: str | None = None,
+) -> tuple[str, str]:
+    changes_html = ""
+
+    subject = "Your Meridian account credentials were changed"
+    login_link = f"{settings.APP_URL}/auth/login"
+
+    if old_username is not None and new_username is not None:
+        changes_html += f"""
+            <tr>
+                <td
+                    style="
+                        padding: 10px 0;
+                        color: #6b7280;
+                        font-size: 14px;
+                    "
+                >
+                    Old username
+                </td>
+                <td
+                    style="
+                        padding: 10px 0;
+                        font-weight: bold;
+                        color: #374151;
+                    "
+                >
+                    {old_username}
+                </td>
+            </tr>
+
+            <tr>
+                <td
+                    style="
+                        padding: 10px 0;
+                        color: #6b7280;
+                        font-size: 14px;
+                    "
+                >
+                    New username
+                </td>
+                <td
+                    style="
+                        padding: 10px 0;
+                        font-weight: bold;
+                        color: #374151;
+                    "
+                >
+                    {new_username}
+                </td>
+            </tr>
+        """
+
+    if old_email is not None and new_email is not None:
+        changes_html += f"""
+            <tr>
+                <td
+                    style="
+                        padding: 10px 0;
+                        color: #6b7280;
+                        font-size: 14px;
+                    "
+                >
+                    Old email
+                </td>
+                <td
+                    style="
+                        padding: 10px 0;
+                        font-weight: bold;
+                        color: #374151;
+                    "
+                >
+                    {old_email}
+                </td>
+            </tr>
+
+            <tr>
+                <td
+                    style="
+                        padding: 10px 0;
+                        color: #6b7280;
+                        font-size: 14px;
+                    "
+                >
+                    New email
+                </td>
+                <td
+                    style="
+                        padding: 10px 0;
+                        font-weight: bold;
+                        color: #374151;
+                    "
+                >
+                    {new_email}
+                </td>
+            </tr>
+        """
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body
+        style="
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f6f8;
+            color: #374151;
+        "
+    >
+        <div style="padding: 40px 20px;">
+            <div
+                style="
+                    max-width: 560px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    border-radius: 10px;
+                    padding: 40px;
+                    box-sizing: border-box;
+                "
+            >
+                <h1
+                    style="
+                        margin: 0 0 30px;
+                        font-size: 22px;
+                        color: #1f2937;
+                    "
+                >
+                    Meridian
+                </h1>
+
+                <h2
+                    style="
+                        margin: 0 0 20px;
+                        font-size: 20px;
+                        color: #1f2937;
+                    "
+                >
+                    Your account credentials were changed
+                </h2>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    An administrator has updated the credentials associated
+                    with your account.
+                </p>
+
+                <div
+                    style="
+                        margin: 24px 0;
+                        padding: 16px 20px;
+                        background-color: #f9fafb;
+                        border-radius: 6px;
+                    "
+                >
+                    <table
+                        style="
+                            width: 100%;
+                            border-collapse: collapse;
+                        "
+                    >
+                        {changes_html}
+                    </table>
+                </div>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    If you were expecting this change, no further action is
+                    required. You will need to log in again using your new
+                    credentials.
+                </p>
+
+                <div style="text-align: center; margin: 32px 0;">
+                    <a
+                        href="{login_link}"
+                        style="
+                            display: inline-block;
+                            background-color: #2563eb;
+                            color: #ffffff;
+                            padding: 13px 26px;
+                            border-radius: 6px;
+                            text-decoration: none;
+                            font-weight: bold;
+                        "
+                    >
+                        Log In
+                    </a>
+                </div>
+
+                <p
+                    style="
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #6b7280;
+                        margin: 24px 0 0;
+                    "
+                >
+                    If you were not expecting this change, please contact your
+                    administrator as soon as possible.
+                </p>
+            </div>
+
+            <p
+                style="
+                    text-align: center;
+                    font-size: 12px;
+                    color: #9ca3af;
+                    margin-top: 20px;
+                "
+            >
+                © Meridian
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    return subject, html
+
+
+async def send_admin_credentials_override_notification(
+    email: str,
+    old_username: str | None = None,
+    new_username: str | None = None,
+    old_email: str | None = None,
+    new_email: str | None = None,
+) -> None:
+    subject, html = build_admin_credentials_override_notification_email(
+        old_username=old_username,
+        new_username=new_username,
+        old_email=old_email,
+        new_email=new_email,
+    )
+
+    await send_email(
+        subject=subject,
+        to_email=email,
+        html_body=html,
+    )
