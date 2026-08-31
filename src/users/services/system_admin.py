@@ -1,13 +1,15 @@
 import asyncio
+import uuid
 from datetime import UTC, datetime, timedelta
 from typing import assert_never
 
 import structlog
+from fastapi import Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache
+from src.core.caching import delete_cache, get_redis
 from src.core.config import get_settings
 from src.core.security import generate_activation_token
 from src.emails.models import Email
@@ -27,6 +29,7 @@ from src.users.schemas.system_admin import (
     CreateStudentAdmin,
     CreateUserRequest,
     UpdateStudentAdmin,
+    UpdateUserCredentials,
     UpdateUserRequest,
     UserResponseAdminDetailed,
 )
@@ -42,7 +45,7 @@ from src.users.utils.exceptions import (
 )
 from src.users.utils.helpers import check_contact_limit
 from src.utils import email as emails
-from src.utils.cache_keys import UserCacheKey
+from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
 from src.utils.helpers import ensure_exists, update_object
 
@@ -202,6 +205,7 @@ class UserServiceAdmin:
 
     @staticmethod
     async def update_user(
+        request: Request,
         session: AsyncSession,
         current_user_id: int,
         public_id: int,
@@ -262,8 +266,9 @@ class UserServiceAdmin:
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
-
+            redis = get_redis(request)
             await delete_cache(
+                redis,
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
@@ -287,6 +292,151 @@ class UserServiceAdmin:
                 method="admin_update",
             )
 
+            if not is_student:
+                handle_non_student_unique_contact_error(exc)
+            raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def update_user_credentials(
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+        update_request: UpdateUserCredentials,
+    ) -> None:
+        target_user = await UserCredentialsRepository.get_user_credentials_by_uuid(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_session=True,
+            load_activation=True,
+        )
+        ensure_exists(target_user, UserNotFoundError())
+
+        is_student = target_user.role == UserRole.STUDENT
+        email_changing = (
+            update_request.email is not None
+            and update_request.email != target_user.email
+        )
+        should_reissue_activation_token = (
+            email_changing and target_user.status == UserStatus.PENDING_ACTIVATION
+        )
+
+        if is_student and email_changing:
+            await acquire_contact_locks(
+                session, phone_number=None, email=update_request.email, is_student=True
+            )
+
+            await check_contact_limit(
+                session,
+                current_user_id,
+                target_username=target_user.username,
+                phone_number=None,
+                email=update_request.email,
+                resolved_role=UserRole.STUDENT,
+                account_type=AccountType.STUDENT,
+                exclude_user_id=public_id,
+            )
+
+        try:
+            old_email = target_user.email
+            old_username = target_user.username
+
+            update_object(target_user, update_request)
+
+            target_user.session.access_token_version += 1
+            target_user.session.refresh_token_hash = None
+            target_user.session.refresh_token_family = None
+            target_user.session.refresh_token_expires_at = None
+            target_user.email_change.pending_new_email = None
+            target_user.email_change.email_change_code_hash = None
+            target_user.email_change.email_change_code_expires_at = None
+
+            if should_reissue_activation_token:
+                raw_activation_token, hashed_activation_token = (
+                    generate_activation_token()
+                )
+                activation_token_expires_at = datetime.now(UTC) + timedelta(
+                    hours=get_settings().INVITE_TOKEN_EXPIRES_HOURS
+                )
+
+                target_user.activation.activation_token_hash = hashed_activation_token
+                target_user.activation.activation_token_expires_at = (
+                    activation_token_expires_at
+                )
+
+                (
+                    subject,
+                    html_body,
+                ) = emails.build_activation_email(
+                    raw_activation_token, target_user.username
+                )
+
+                new_pending_email = Email(
+                    recipient=target_user.email,
+                    subject=subject,
+                    html_body=html_body,
+                    email_type=EmailType.ACTIVATION,
+                    triggered_by=current_user_id,
+                )
+
+                session.add(new_pending_email)
+
+            username_changed = old_username != target_user.username
+            email_changed = old_email != target_user.email
+
+            if not should_reissue_activation_token:
+                notify_old_username = old_username if username_changed else None
+                notify_new_username = target_user.username if username_changed else None
+                notify_old_email = old_email if email_changed else None
+                notify_new_email = target_user.email if email_changed else None
+
+                subject, html_body = (
+                    emails.build_admin_credentials_override_notification_email(
+                        notify_old_username,
+                        notify_new_username,
+                        notify_old_email,
+                        notify_new_email,
+                    )
+                )
+
+                new_pending_email = Email(
+                    recipient=old_email,
+                    subject=subject,
+                    html_body=html_body,
+                    email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
+                    triggered_by=current_user_id,
+                )
+
+                session.add(new_pending_email)
+
+            await session.commit()
+
+            await delete_cache(
+                SessionCacheKey.access_token_version_key(public_id),
+                UserCacheKey.user_detail_key_admin(public_id),
+                UserCacheKey.user_detail_key_staff(public_id),
+                UserCacheKey.user_detail_key_self(public_id),
+            )
+
+            logger.info(
+                "user_credentials_updated",
+                public_id=public_id,
+                updated_by=current_user_id,
+                method="admin_credentials_override",
+            )
+
+        except IntegrityError as exc:
+            await session.rollback()
+
+            logger.error(
+                "user_credentials_update_failed",
+                public_id=public_id,
+                requested_by=current_user_id,
+                reason=str(exc.orig),
+                method="admin_credentials_override",
+            )
+
+            handle_username_integrity_error(exc)
             if not is_student:
                 handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)

@@ -7,7 +7,7 @@ from sqlalchemy.orm import joinedload
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.session import UserSession
-from src.users.utils.enums import AccountType
+from src.users.utils.enums import AccountType, UserRole
 
 
 class UserRepositoryBase:
@@ -118,7 +118,13 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_user_credentials_by_uuid(
-        session: AsyncSession, public_id: int, excluded_roles: frozenset
+        session: AsyncSession,
+        public_id: int,
+        excluded_roles: frozenset[UserRole] | None = None,
+        load_session: bool = False,
+        load_activation: bool = False,
+        load_login_lockout: bool = False,
+        load_email_change: bool = False,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(
             UserCredentials.role.not_in(excluded_roles)
@@ -128,6 +134,15 @@ class UserCredentialsRepository:
             .where(UserCredentials.public_id == public_id)
             .options(joinedload(UserCredentials.identity))
         )
+
+        if load_session:
+            query = query.options(joinedload(UserCredentials.session))
+        if load_activation:
+            query = query.options(joinedload(UserCredentials.activation))
+        if load_login_lockout:
+            query = query.options(joinedload(UserCredentials.login_lockout))
+        if load_email_change:
+            query = query.options(joinedload(UserCredentials.email_change))
 
         result = await session.execute(query)
 
