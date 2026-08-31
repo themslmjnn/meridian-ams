@@ -77,7 +77,7 @@ async def send_email(subject: str, to_email: str, html_body: str) -> None:
         await _send_via_resend(subject, to_email, html_body)
 
 
-async def send_email_safe(subject: str, to_email: str, html_body: str) -> None:
+async def send_email_safe(coro, **log_context) -> None:
     """
     Fire-and-forget send. Swallows all exceptions and logs them as warnings.
     Use for informational emails where delivery failure is acceptable
@@ -87,15 +87,14 @@ async def send_email_safe(subject: str, to_email: str, html_body: str) -> None:
     so it can record failures and drive retry logic.
     """
     try:
-        await send_email(subject, to_email, html_body)
+        await coro
 
     except Exception as exc:
-        logger.warning(
-            "email_safe_send_failed",
-            to_email=to_email,
-            subject=subject,
-            error_type=type(exc).__name__,
+        logger.error(
+            "background_email_task_failed",
             error=str(exc),
+            error_type=type(exc).__name__,
+            **log_context,
         )
 
 
@@ -269,5 +268,121 @@ async def send_activation_email(
     await send_email(
         subject=subject,
         to_email=to_email,
+        html_body=html,
+    )
+
+
+async def send_account_info_updated_email(email: str) -> None:
+    subject = "Your account information has been updated"
+
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body
+        style="
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f6f8;
+            color: #374151;
+        "
+    >
+        <div style="padding: 40px 20px;">
+            <div
+                style="
+                    max-width: 560px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    border-radius: 10px;
+                    padding: 40px;
+                    box-sizing: border-box;
+                "
+            >
+                <h1
+                    style="
+                        margin: 0 0 30px;
+                        font-size: 22px;
+                        color: #1f2937;
+                    "
+                >
+                    Meridian
+                </h1>
+
+                <h2
+                    style="
+                        margin: 0 0 20px;
+                        font-size: 20px;
+                        color: #1f2937;
+                    "
+                >
+                    Your account information has been updated
+                </h2>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    Hello,
+                </p>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    A school administrator has updated some information
+                    associated with your account.
+                </p>
+
+                <div
+                    style="
+                        margin: 28px 0;
+                        padding: 16px;
+                        background-color: #f9fafb;
+                        border-radius: 6px;
+                    "
+                >
+                    <p
+                        style="
+                            margin: 0;
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                        "
+                    >
+                        If you were expecting this update, no further action
+                        is required.
+                    </p>
+                </div>
+
+                <p
+                    style="
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #6b7280;
+                        margin: 24px 0 0;
+                    "
+                >
+                    If you did not expect this change, please contact your
+                    school administration as soon as possible.
+                </p>
+            </div>
+
+            <p
+                style="
+                    text-align: center;
+                    font-size: 12px;
+                    color: #9ca3af;
+                    margin-top: 20px;
+                "
+            >
+                © Meridian
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    await send_email(
+        subject=subject,
+        to_email=email,
         html_body=html,
     )

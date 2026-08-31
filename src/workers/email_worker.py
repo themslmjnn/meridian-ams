@@ -105,6 +105,7 @@ async def run_email_worker() -> None:
 
         except asyncio.CancelledError:
             logger.info("email_worker_stopping")
+
             raise
 
         except Exception as exc:
