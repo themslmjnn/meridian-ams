@@ -5,30 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.pagination import CursorPage, paginate
 from src.emails.models import Email
-from src.emails.schemas import CreateEmail, SearchEmail
+from src.emails.schemas import SearchEmail
 from src.emails.utils.enums import EmailSortField, EmailStatus
 from src.utils.enums import OrderBy
 
 
 class EmailRepository:
-    @staticmethod
-    async def queue(session: AsyncSession, data: CreateEmail) -> Email:
-        """
-        Insert a pending email row. Never commits — caller owns the transaction.
-        Always called within the same transaction as the triggering auth operation.
-        """
-        email = Email(
-            recipient_email=str(data.recipient_email),
-            subject=data.subject,
-            body_html=data.body_html,
-            email_type=data.email_type,
-            triggered_by=data.triggered_by,
-            **({"scheduled_for": data.scheduled_for} if data.scheduled_for else {}),
-        )
-
-        session.add(email)
-        return email
-
     @staticmethod
     async def get_pending_batch(
         session: AsyncSession, *, limit: int = 20
