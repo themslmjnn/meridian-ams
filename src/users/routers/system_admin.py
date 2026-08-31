@@ -1,6 +1,9 @@
-from fastapi import APIRouter, status
+from typing import Annotated
 
-from src.core.dependencies import session_dependency
+from fastapi import APIRouter, Depends, Request, status
+
+from src.core.dependencies import CurrentUser, require_system_admin, session_dependency
+from src.core.limiter import user_limiter
 from src.users.schemas.system_admin import CreateUserRequest, UserResponseAdminDetailed
 from src.users.services.system_admin import UserServiceAdmin
 
@@ -13,8 +16,13 @@ router = APIRouter(
 @router.post(
     "", response_model=UserResponseAdminDetailed, status_code=status.HTTP_201_CREATED
 )
+@user_limiter.limit("10/minute")
 async def register_user(
+    request: Request,
     session: session_dependency,
+    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
     create_request: CreateUserRequest,
 ):
-    return await UserServiceAdmin.register_user(session, 1, create_request)
+    return await UserServiceAdmin.register_user(
+        session, current_user.credentials_id, create_request
+    )
