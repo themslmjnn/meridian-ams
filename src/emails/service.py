@@ -49,12 +49,12 @@ class EmailService:
         cached = await get_cache(cache_key)
 
         if cached is not None:
-            return EmailResponseDetailed.model_validate(cached.model_dump())
+            return EmailResponseDetailed.model_validate(cached)
 
         email = await EmailRepository.get_email_by_id(session, email_id)
         ensure_exists(email, EmailNotFoundError())
 
-        await set_cache(cache_key, cached.model_dump(mode="json"), 900)
+        await set_cache(cache_key, email.model_dump(mode="json"), 900)
 
         return EmailResponseDetailed.model_validate(email)
 
