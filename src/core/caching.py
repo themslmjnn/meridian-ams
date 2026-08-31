@@ -89,17 +89,17 @@ async def set_cache(
         logger.warning("redis_cache_set_failed", key=key, error=str(exc))
 
 
-async def delete_cache(redis: Redis, key: str) -> None:
+async def delete_cache(redis: Redis, *keys: str) -> None:
     """
     Delete a key from Redis.
 
     Swallows RedisError — cache eviction failure is non-fatal.
     """
     try:
-        await redis.delete(key)
+        await redis.delete(*keys)
 
     except RedisError as exc:
-        logger.warning("redis_cache_delete_failed", key=key, error=str(exc))
+        logger.warning("redis_cache_delete_failed", key=keys, error=str(exc))
 
 
 # ---------------------------------------------------------------------------
