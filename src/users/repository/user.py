@@ -2,6 +2,7 @@ import uuid
 
 from sqlalchemy import RowMapping, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
@@ -110,6 +111,23 @@ class UserCredentialsRepository:
         session: AsyncSession, credentials_id: int
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.id == credentials_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_user_credentials_by_uuid(
+        session: AsyncSession, public_id: int, excluded_roles: frozenset
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(
+            UserCredentials.role.not_in(excluded_roles)
+        )
+        query = (
+            query.select(UserCredentials)
+            .where(UserCredentials.public_id == public_id)
+            .options(joinedload(UserCredentials.identity))
+        )
 
         result = await session.execute(query)
 

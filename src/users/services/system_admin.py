@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import assert_never
 
@@ -6,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.advisory_locks import acquire_contact_locks
+from src.core.caching import delete_cache
 from src.core.config import get_settings
 from src.core.security import generate_activation_token
 from src.emails.models import Email
@@ -24,18 +26,25 @@ from src.users.schemas.system_admin import (
     CreateStaffAdmin,
     CreateStudentAdmin,
     CreateUserRequest,
+    UpdateStudentAdmin,
+    UpdateUserRequest,
     UserResponseAdminDetailed,
 )
+from src.users.utils.constants import SYSTEM_ADMIN_INVISIBLE_ROLES
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.exceptions import (
     GuardianAccountAlreadyExistsError,
     IdentityNotFoundError,
+    UserNotFoundError,
+    UserTypeMismatchError,
     handle_non_student_unique_contact_error,
     handle_username_integrity_error,
 )
 from src.users.utils.helpers import check_contact_limit
 from src.utils import email as emails
+from src.utils.cache_keys import UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
+from src.utils.helpers import ensure_exists, update_object
 
 logger = structlog.get_logger(__name__)
 
@@ -187,6 +196,97 @@ class UserServiceAdmin:
             )
 
             handle_username_integrity_error(exc)
+            if not is_student:
+                handle_non_student_unique_contact_error(exc)
+            raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def update_user(
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: int,
+        update_request: UpdateUserRequest,
+    ) -> None:
+        target_user = await UserCredentialsRepository.get_user_credentials_by_uuid(
+            session, public_id, excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES
+        )
+        ensure_exists(target_user, UserNotFoundError())
+
+        is_student = target_user.role == UserRole.STUDENT
+        request_is_student_shaped = isinstance(update_request, UpdateStudentAdmin)
+
+        if is_student != request_is_student_shaped:
+            logger.warning(
+                "update_user_type_mismatch",
+                actor_user_id=current_user_id,
+                public_id=public_id,
+                target_user_role=target_user.role.value,
+                submitted_type=update_request.type,
+            )
+
+            raise UserTypeMismatchError()
+
+        phone_number_changing = (
+            update_request.phone_number is not None
+            and update_request.phone_number != target_user.identity.phone_number
+        )
+
+        if is_student and phone_number_changing:
+            await acquire_contact_locks(
+                session,
+                phone_number=update_request.phone_number,
+                email=None,
+                is_student=True,
+            )
+
+            await check_contact_limit(
+                session,
+                current_user_id,
+                target_username=target_user.username,
+                phone_number=update_request.phone_number,
+                email=None,
+                resolved_role=UserRole.STUDENT,
+                account_type=AccountType.STUDENT,
+                exclude_user_id=public_id,
+            )
+
+        try:
+            update_object(target_user, update_request)
+
+            await session.commit()
+            await session.refresh(target_user)
+
+            asyncio.create_task(
+                emails.send_email_safe(
+                    emails.send_account_info_updated_email(target_user.email),
+                    email_type=EmailType.UPDATING_ACCOUNT,
+                )
+            )
+
+            await delete_cache(
+                UserCacheKey.user_detail_key_admin(public_id),
+                UserCacheKey.user_detail_key_staff(public_id),
+                UserCacheKey.user_detail_key_self(public_id),
+            )
+
+            logger.info(
+                "user_updated",
+                public_id=public_id,
+                updated_by=current_user_id,
+                method="admin_update",
+            )
+
+        except IntegrityError as exc:
+            await session.rollback()
+
+            logger.error(
+                "update_user_failed",
+                public_id=public_id,
+                requested_by=current_user_id,
+                reason=str(exc.orig),
+                method="admin_update",
+            )
+
             if not is_student:
                 handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
