@@ -52,6 +52,12 @@ class UserNotFoundError(AppException):
     error_code = "USER_NOT_FOUND"
 
 
+class UserTypeMismatchError(AppException):
+    status_code = 400
+    detail = "Submitted update payload type does not match the target user's role"
+    error_code = "USER_TYPE_MISMATCH"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

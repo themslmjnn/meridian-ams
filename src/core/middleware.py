@@ -1,9 +1,9 @@
 import time
 import uuid
 
-from fastapi.responses import JSONResponse
 import sentry_sdk
 import structlog
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response

@@ -111,3 +111,68 @@ CreateUserRequest = Annotated[
     CreateStudentAdmin | CreateStaffAdmin | CreateGuardianAdmin,
     Field(discriminator="type"),
 ]
+
+
+class UpdateUserBase(BaseModel):
+    firstname: str | None = Field(min_length=3, max_length=50, default=None)
+    lastname: str | None = Field(min_length=3, max_length=50, default=None)
+    middlename: str | None = Field(min_length=3, max_length=50, default=None)
+
+    phone_number: str | None = None
+
+    @field_validator("firstname")
+    @classmethod
+    def _validate_firstname(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_firstname(v)
+
+    @field_validator("lastname")
+    @classmethod
+    def _validate_lastname(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_lastname(v)
+
+    @field_validator("middlename")
+    @classmethod
+    def _validate_middlename(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_middlename(v)
+
+    @field_validator("phone_number", mode="after")
+    @classmethod
+    def validate_phone_number(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_phone_number(v)
+
+
+class UpdateStaffOrGuardianAdmin(UpdateUserBase):
+    type: Literal["staff_or_guardian"] = "staff_or_guardian"
+
+
+class UpdateStudentAdmin(UpdateUserBase):
+    type: Literal["student"] = "student"
+
+    date_of_birth: date | None = None
+    address: str | None = Field(min_length=15, max_length=100, default=None)
+
+    @field_validator("date_of_birth", mode="after")
+    @classmethod
+    def validate_date_of_birth(cls, v: date | None) -> date | None:
+        if v is None:
+            return None
+
+        return validators.validate_date_of_birth(v)
+
+
+UpdateUserRequest = Annotated[
+    UpdateStaffOrGuardianAdmin | UpdateStudentAdmin,
+    Field(discriminator="type"),
+]
