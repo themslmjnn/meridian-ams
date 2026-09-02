@@ -37,12 +37,27 @@ async def login(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
-    db: session_dependency,
+    session: session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
 ) -> None:
     await AuthService.logout(
-        db=db,
+        session=session,
+        redis=redis,
+        response=response,
+        current_user=current_user,
+    )
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+async def logout_all(
+    response: Response,
+    session: session_dependency,
+    redis: redis_dependency,
+    current_user: current_user_dependency,
+) -> None:
+    await AuthService.logout_all(
+        session=session,
         redis=redis,
         response=response,
         current_user=current_user,

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.session import UserSession
@@ -69,3 +69,25 @@ class AuthRepository:
     ) -> None:
         await session.delete(user_session)
         await session.flush()
+
+    @staticmethod
+    async def delete_all_sessions(
+        session: AsyncSession,
+        credentials_id: int,
+    ) -> None:
+        query = delete(UserSession).where(UserSession.credentials_id == credentials_id)
+
+        await session.execute(query)
+        await session.flush()
+
+    @staticmethod
+    async def get_session_ids(
+        session: AsyncSession, credentials_id: int
+    ) -> list[UserSession]:
+        query = select(UserSession.id).where(
+            UserSession.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return result.scalars().all()

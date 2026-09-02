@@ -380,3 +380,33 @@ class AuthService:
             credentials_id=current_user.credentials_id,
             session_id=current_user.session_id,
         )
+
+    @staticmethod
+    async def logout_all(
+        session: AsyncSession,
+        redis: Redis,
+        response: Response,
+        current_user: CurrentUser,
+    ) -> None:
+        # Fetch all session IDs before deleting — needed for cache invalidation
+        session_ids = await AuthRepository.get_session_ids(
+            session, current_user.credentials_id
+        )
+
+        await AuthRepository.delete_all_sessions(session, current_user.credentials_id)
+        await session.commit()
+
+        for session_id in session_ids:
+            await delete_cache(
+                redis, SessionCacheKey.access_token_version_key(session_id)
+            )
+
+        AuthService._clear_refresh_cookie(response)
+        AuthService._clear_refresh_family_cookie(response)
+        AuthService._clear_device_id_cookie(response)
+
+        logger.info(
+            "logout_all",
+            credentials_id=current_user.credentials_id,
+            sessions_revoked=len(session_ids),
+        )
