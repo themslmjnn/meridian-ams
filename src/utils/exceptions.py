@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP401, HTTP403, HTTP400
+from src.utils.constants import HTTP400, HTTP401, HTTP403
 
 
 class InvalidAccessTokenError(AppException):
@@ -13,7 +13,7 @@ class InvalidAccessTokenError(AppException):
 class ExpiredAccessTokenError(AppException):
     status_code = 401
     detail = HTTP401.EXPIRED_ACCESS_TOKEN
-    error = "EXPIRED_ACCESS_TOKEN"
+    error_code = "EXPIRED_ACCESS_TOKEN"
 
 
 class InvalidTokenTypeError(AppException):
@@ -42,6 +42,7 @@ class AccountLockedError(AppException):
 class AccountInactiveError(AppException):
     status_code = 401
     detail = HTTP401.ACCOUNT_NOT_ACTIVATED
+    error_code = "ACCOUNT_NOT_ACTIVATED"
 
 
 class GracePeriodExpiredError(AppException):

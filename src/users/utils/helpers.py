@@ -8,7 +8,6 @@ from src.users.utils.constants import (
 )
 from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.exceptions import (
-    DuplicateEmailError,
     DuplicatePhoneNumberError,
     MaxStudentsPerEmailError,
     MaxStudentsPerPhoneNumberError,
@@ -77,5 +76,3 @@ async def check_contact_limit(
 
             if is_student:
                 raise MaxStudentsPerEmailError()
-
-            raise DuplicateEmailError()
