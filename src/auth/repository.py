@@ -61,3 +61,11 @@ class AuthRepository:
         if oldest is not None:
             await session.delete(oldest)
             await session.flush()
+
+    @staticmethod
+    async def delete_session(
+        session: AsyncSession,
+        user_session: UserSession,
+    ) -> None:
+        await session.delete(user_session)
+        await session.flush()
