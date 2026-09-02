@@ -17,7 +17,7 @@ class UserCredentialsRepository:
     @staticmethod
     def _build_load_options(
         query: Select,
-        load_options: LoadOptionsSchema,
+        load_options: LoadOptionsSchema | None = None,
     ) -> Select:
         """
         Apply joinedload options to a credentials query.
@@ -44,7 +44,8 @@ class UserCredentialsRepository:
     async def get_by_id(
         session: AsyncSession,
         credentials_id: int,
-        **load_options: LoadOptionsSchema,
+        *,
+        load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.id == credentials_id)
         query = UserCredentialsRepository._build_load_options(query, load_options)
@@ -59,7 +60,7 @@ class UserCredentialsRepository:
         public_id: uuid.UUID,
         *,
         excluded_roles: frozenset[UserRole] | None = None,
-        **load_options: LoadOptionsSchema,
+        load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.public_id == public_id)
 
@@ -76,7 +77,7 @@ class UserCredentialsRepository:
     async def get_by_username(
         session: AsyncSession,
         username: str,
-        **load_options: LoadOptionsSchema,
+        load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.username == username)
         query = UserCredentialsRepository._build_load_options(query, load_options)
@@ -91,7 +92,7 @@ class UserCredentialsRepository:
         email: str,
         *,
         account_type: AccountType | None = None,
-        **load_options: LoadOptionsSchema,
+        load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         """
         Look up credentials by email address.
