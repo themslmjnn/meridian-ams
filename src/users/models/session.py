@@ -28,6 +28,7 @@ class UserSession(MutableBase):
 
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     last_active_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
