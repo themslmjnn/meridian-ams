@@ -16,6 +16,18 @@ class ExpiredAccessTokenError(AppException):
     error_code = "EXPIRED_ACCESS_TOKEN"
 
 
+class ExpiredRefreshTokenError(AppException):
+    status_code = 401
+    detail = HTTP401.EXPIRED_REFRESH_TOKEN
+    error_code = "EXPIRED_REFRESH_TOKEN"
+
+
+class InvalidRefreshTokenError(AppException):
+    status_code = 401
+    detail = HTTP401.INVALID_REFRESH_TOKEN
+    error_code = "INVALID_REFRESH_TOKEN"
+
+
 class InvalidTokenTypeError(AppException):
     status_code = 401
     detail = HTTP401.INVALID_TOKEN_TYPE

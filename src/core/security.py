@@ -7,11 +7,13 @@ import jwt
 from fastapi.concurrency import run_in_threadpool
 from passlib.context import CryptContext
 
-from src.auth.schemas import CreateAccessToken
+from src.auth.schemas import CreateAccessToken, CreateRefreshToken
 from src.core.config import get_settings
 from src.utils.exceptions import (
     ExpiredAccessTokenError,
+    ExpiredRefreshTokenError,
     InvalidAccessTokenError,
+    InvalidRefreshTokenError,
     InvalidTokenTypeError,
 )
 
@@ -61,10 +63,50 @@ def _decode_token(token: str, secret: str) -> dict:
 def decode_access_token(token: str) -> dict:
     try:
         return _decode_token(token, settings.JWT_SECRET_KEY)
+
     except ValueError:
         if not settings.JWT_SECRET_KEY_PREVIOUS:
             raise
+
         return _decode_token(token, settings.JWT_SECRET_KEY_PREVIOUS)
+
+
+def create_refresh_token(payload: CreateRefreshToken) -> tuple[str, str]:
+    raw_refresh_token = jwt.encode(
+        {
+            "sub": str(payload.public_id),
+            "type": "refresh",
+            "jti": secrets.token_urlsafe(16),
+            "exp": datetime.now(UTC)
+            + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
+        },
+        settings.JWT_SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+    hashed_refresh_token = hashlib.sha256(raw_refresh_token.encode()).hexdigest()
+
+    return raw_refresh_token, hashed_refresh_token
+
+
+def decode_refresh_token(refresh_token: str) -> dict:
+    try:
+        payload = jwt.decode(
+            refresh_token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+
+        if payload.get("type") != "refresh":
+            raise InvalidTokenTypeError()
+
+        return payload
+
+    except jwt.ExpiredSignatureError as exc:
+        raise ExpiredRefreshTokenError() from exc
+
+    except jwt.InvalidTokenError as exc:
+        raise InvalidRefreshTokenError() from exc
 
 
 def generate_activation_token() -> tuple[str, str]:
