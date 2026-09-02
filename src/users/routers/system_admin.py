@@ -47,16 +47,14 @@ async def update_user(
     update_request: UpdateUserRequest,
 ):
     await UserServiceAdmin.update_user(
-        session, current_user.credentials_id, public_id, update_request
+        request, session, current_user.credentials_id, public_id, update_request
     )
 
 
-router.patch(
+@router.patch(
     "/{public_id}/credentials",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-
-
 @user_limiter.limit("5/minute")
 async def update_user_credentials(
     request: Request,
@@ -66,5 +64,5 @@ async def update_user_credentials(
     update_request: UpdateUserCredentials,
 ):
     await UserServiceAdmin.update_user_credentials(
-        session, current_user.credentials_id, public_id, update_request
+        request, session, current_user.credentials_id, public_id, update_request
     )

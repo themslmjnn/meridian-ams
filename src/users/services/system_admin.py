@@ -213,9 +213,11 @@ class UserServiceAdmin:
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_options=LoadOptionsSchema(load_identity=True),
         )
         ensure_exists(target_user, UserNotFoundError())
+        target_identity = await UserIdentityRepository.get_by_id(
+            session, target_user.identity_id
+        )
 
         is_student = target_user.role == UserRole.STUDENT
         request_is_student_shaped = isinstance(update_request, UpdateStudentAdmin)
@@ -233,7 +235,7 @@ class UserServiceAdmin:
 
         phone_number_changing = (
             update_request.phone_number is not None
-            and update_request.phone_number != target_user.identity.phone_number
+            and update_request.phone_number != target_identity.phone_number
         )
 
         if is_student and phone_number_changing:
@@ -252,14 +254,14 @@ class UserServiceAdmin:
                 email=None,
                 resolved_role=UserRole.STUDENT,
                 account_type=AccountType.STUDENT,
-                exclude_user_id=public_id,
+                exclude_credentials_id=target_user.id,
             )
 
         try:
-            update_object(target_user, update_request)
+            update_object(target_identity, update_request)
 
             await session.commit()
-            await session.refresh(target_user)
+            await session.refresh(target_identity)
 
             asyncio.create_task(
                 emails.send_email_safe(
@@ -300,6 +302,7 @@ class UserServiceAdmin:
 
     @staticmethod
     async def update_user_credentials(
+        request: Request,
         session: AsyncSession,
         current_user_id: int,
         public_id: uuid.UUID,
@@ -310,7 +313,7 @@ class UserServiceAdmin:
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(
-                load_session=True,
+                load_sessions=True,
                 load_activation=True,
                 load_email_change=True,
             ),
@@ -339,7 +342,7 @@ class UserServiceAdmin:
                 email=update_request.email,
                 resolved_role=UserRole.STUDENT,
                 account_type=AccountType.STUDENT,
-                exclude_user_id=public_id,
+                exclude_credentials_id=target_user.id,
             )
 
         try:
@@ -348,13 +351,14 @@ class UserServiceAdmin:
 
             update_object(target_user, update_request)
 
-            target_user.session.access_token_version += 1
-            target_user.session.refresh_token_hash = None
-            target_user.session.refresh_token_family = None
-            target_user.session.refresh_token_expires_at = None
-            target_user.email_change.pending_new_email = None
-            target_user.email_change.email_change_code_hash = None
-            target_user.email_change.email_change_code_expires_at = None
+            for session_row in target_user.sessions:
+                session_row.access_token_version += 1
+                session_row.refresh_token_hash = None
+                session_row.refresh_token_family = None
+                session_row.refresh_token_expires_at = None
+
+            if target_user.email_change is not None:
+                await session.delete(target_user.email_change)
 
             if should_reissue_activation_token:
                 raw_activation_token, hashed_activation_token = (
@@ -413,7 +417,9 @@ class UserServiceAdmin:
 
             await session.commit()
 
+            redis = get_redis(request)
             await delete_cache(
+                redis,
                 SessionCacheKey.access_token_version_key(public_id),
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
