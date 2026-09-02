@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.users.utils import validators
 from src.users.utils.enums import AccountType, UserRole, UserStatus
@@ -146,7 +146,7 @@ class UpdateUserBase(BaseModel):
 
     @field_validator("phone_number", mode="after")
     @classmethod
-    def validate_phone_number(cls, v: str | None) -> str | None:
+    def _validate_phone_number(cls, v: str | None) -> str | None:
         if v is None:
             return None
 
@@ -165,7 +165,7 @@ class UpdateStudentAdmin(UpdateUserBase):
 
     @field_validator("date_of_birth", mode="after")
     @classmethod
-    def validate_date_of_birth(cls, v: date | None) -> date | None:
+    def _validate_date_of_birth(cls, v: date | None) -> date | None:
         if v is None:
             return None
 
