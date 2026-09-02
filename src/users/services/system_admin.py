@@ -21,7 +21,7 @@ from src.users.models.login_lockout import UserLoginLockout
 from src.users.repository.user import (
     UserCredentialsRepository,
     UserIdentityRepository,
-    UserRepositoryBase,
+    UserResponseRepository,
 )
 from src.users.schemas.system_admin import (
     CreateGuardianAdmin,
@@ -44,6 +44,7 @@ from src.users.utils.exceptions import (
     handle_username_integrity_error,
 )
 from src.users.utils.helpers import check_contact_limit
+from src.users.utils.schemas import LoadOptionsSchema
 from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
@@ -105,16 +106,13 @@ class UserServiceAdmin:
                 isinstance(create_request, CreateGuardianAdmin)
                 and create_request.existing_identity_id
             ):
-                existing_identity = (
-                    await UserIdentityRepository.get_user_identity_by_id(
-                        session, create_request.existing_identity_id
-                    )
+                existing_identity = await UserIdentityRepository.get_by_id(
+                    session, create_request.existing_identity_id
                 )
-
                 if existing_identity is None:
                     raise IdentityNotFoundError()
 
-                existing_personal = await UserCredentialsRepository.get_personal_credentials_by_identity_id(
+                existing_personal = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
                     session, existing_identity.id
                 )
                 if existing_personal is not None:
@@ -184,7 +182,7 @@ class UserServiceAdmin:
                 created_by=current_user_id,
             )
 
-            return await UserRepositoryBase.get_registered_user_response(
+            return await UserResponseRepository.get_registered_user_response(
                 session, new_user_credentials.public_id
             )
 
@@ -211,8 +209,11 @@ class UserServiceAdmin:
         public_id: int,
         update_request: UpdateUserRequest,
     ) -> None:
-        target_user = await UserCredentialsRepository.get_user_credentials_by_uuid(
-            session, public_id, excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES
+        target_user = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_options=LoadOptionsSchema(load_identity=True),
         )
         ensure_exists(target_user, UserNotFoundError())
 
@@ -266,6 +267,7 @@ class UserServiceAdmin:
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
+
             redis = get_redis(request)
             await delete_cache(
                 redis,
@@ -303,12 +305,15 @@ class UserServiceAdmin:
         public_id: uuid.UUID,
         update_request: UpdateUserCredentials,
     ) -> None:
-        target_user = await UserCredentialsRepository.get_user_credentials_by_uuid(
+        target_user = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_session=True,
-            load_activation=True,
+            load_options=LoadOptionsSchema(
+                load_session=True,
+                load_activation=True,
+                load_email_change=True,
+            ),
         )
         ensure_exists(target_user, UserNotFoundError())
 
@@ -364,10 +369,7 @@ class UserServiceAdmin:
                     activation_token_expires_at
                 )
 
-                (
-                    subject,
-                    html_body,
-                ) = emails.build_activation_email(
+                subject, html_body = emails.build_activation_email(
                     raw_activation_token, target_user.username
                 )
 

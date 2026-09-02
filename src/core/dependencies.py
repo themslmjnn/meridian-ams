@@ -16,9 +16,9 @@ from src.core.exceptions import AppException
 from src.core.security import decode_access_token
 from src.database.connection import session_factory
 from src.users.models.credentials import UserCredentials
-from src.users.models.session import UserSession
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
+from src.utils.cache_keys import SessionCacheKey
 from src.utils.exceptions import AccessDeniedError, InvalidAccessTokenError
 
 logger = structlog.get_logger(__name__)
@@ -71,7 +71,7 @@ async def get_current_user(
     except (ValueError, KeyError, TypeError) as exc:
         raise InvalidAccessTokenError() from exc
 
-    atv_key = _atv_cache_key(session_id)
+    atv_key = SessionCacheKey.access_token_version_key(session_id)
     cached = await get_cache_critical(redis, atv_key)
 
     if cached is not None:
@@ -98,9 +98,9 @@ async def get_current_user(
 
         return current_user
 
-    user_session: (
-        UserSession | None
-    ) = await UserSessionRepository.get_user_session_by_id(session, session_id)
+    user_session = await UserSessionRepository.get_user_session_by_id(
+        session, session_id
+    )
 
     if user_session is None:
         raise AppException(
@@ -109,9 +109,7 @@ async def get_current_user(
             error_code="INVALID_ACCESS_TOKEN",
         )
 
-    credentials: (
-        UserCredentials | None
-    ) = await UserCredentialsRepository.get_user_credentials_by_id(
+    credentials = await UserCredentialsRepository.get_user_credentials_by_id(
         session, user_session.credentials_id
     )
 
@@ -203,10 +201,6 @@ def _verify_status(credentials: UserCredentials) -> None:
     )
 
     raise AppException(status_code=401, detail=detail, error_code=error_code)
-
-
-def _atv_cache_key(session_id: int) -> str:
-    return f"session:{session_id}:atv"
 
 
 def _pack_atv_cache(atv: int, credentials_id: int) -> str:
