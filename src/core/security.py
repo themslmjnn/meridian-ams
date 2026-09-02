@@ -4,6 +4,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
+from fastapi.concurrency import run_in_threadpool
 from passlib.context import CryptContext
 
 from src.auth.schemas import CreateAccessToken
@@ -74,6 +75,16 @@ def generate_activation_token() -> tuple[str, str]:
 
 def verify_activation_token(raw_token: str, stored_hash: str) -> bool:
     return hmac.compare_digest(_sha256(raw_token), stored_hash)
+
+
+async def hash_password(password: str) -> str:
+    return await run_in_threadpool(bcrypt_context.hash, password)
+
+
+async def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return await run_in_threadpool(
+        bcrypt_context.verify, plain_password, hashed_password
+    )
 
 
 # Internal helpers

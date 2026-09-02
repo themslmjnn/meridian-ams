@@ -1,10 +1,10 @@
 import secrets
 from datetime import UTC, datetime, timedelta
 
-from redis.asyncio import Redis
 import structlog
 from fastapi import Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.repository import AuthRepository
