@@ -117,141 +117,141 @@ def build_activation_email(
     subject = "Activate your Meridian account"
 
     html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
-                    style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
-                    "
-                >
-                    LFGS | Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Activate your account
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    Hello,
-                </p>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    An account has been created for you in
-                    <strong>LFGS | Meridian</strong>.
-                </p>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    Your username is:
-                </p>
-
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
                 <div
                     style="
-                        display: inline-block;
-                        background-color: #f3f4f6;
-                        padding: 10px 14px;
-                        border-radius: 6px;
-                        font-family: monospace;
-                        font-size: 15px;
-                        margin-bottom: 24px;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
-                    {username}
-                </div>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    Click the button below to activate your account and create
-                    your password.
-                </p>
-
-                <div style="text-align: center; margin: 32px 0;">
-                    <a
-                        href="{activation_link}"
+                    <h1
                         style="
-                            display: inline-block;
-                            background-color: #2563eb;
-                            color: #ffffff;
-                            padding: 13px 26px;
-                            border-radius: 6px;
-                            text-decoration: none;
-                            font-weight: bold;
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
                         "
                     >
-                        Activate Account
-                    </a>
+                        LFGS | Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Activate your account
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        Hello,
+                    </p>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        An account has been created for you in
+                        <strong>LFGS | Meridian</strong>.
+                    </p>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        Your username is:
+                    </p>
+
+                    <div
+                        style="
+                            display: inline-block;
+                            background-color: #f3f4f6;
+                            padding: 10px 14px;
+                            border-radius: 6px;
+                            font-family: monospace;
+                            font-size: 15px;
+                            margin-bottom: 24px;
+                        "
+                    >
+                        {username}
+                    </div>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        Click the button below to activate your account and create
+                        your password.
+                    </p>
+
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{activation_link}"
+                            style="
+                                display: inline-block;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
+                            "
+                        >
+                            Activate Account
+                        </a>
+                    </div>
+
+                    <p
+                        style="
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                            margin: 0 0 12px;
+                        "
+                    >
+                        This activation link will expire in
+                        <strong>
+                            {settings.ACTIVATION_TOKEN_EXPIRES_HOURS} hours
+                        </strong>.
+                    </p>
+
+                    <p
+                        style="
+                            font-size: 13px;
+                            line-height: 1.6;
+                            color: #9ca3af;
+                            margin: 24px 0 0;
+                        "
+                    >
+                        If you were not expecting this email, you can safely ignore it.
+                    </p>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 0 0 12px;
-                    "
-                >
-                    This activation link will expire in
-                    <strong>
-                        {settings.ACTIVATION_TOKEN_EXPIRES_HOURS} hours
-                    </strong>.
-                </p>
-
-                <p
-                    style="
-                        font-size: 13px;
-                        line-height: 1.6;
+                        text-align: center;
+                        font-size: 12px;
                         color: #9ca3af;
-                        margin: 24px 0 0;
+                        margin-top: 20px;
                     "
                 >
-                    If you were not expecting this email, you can safely ignore it.
+                    © LFGS | Meridian
                 </p>
             </div>
-
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © LFGS | Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+        </body>
+        </html>
     """
 
     return subject, html
@@ -278,109 +278,109 @@ async def send_account_info_updated_email(email: str) -> None:
     subject = "Your account information has been updated"
 
     html = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
-                    style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
-                    "
-                >
-                    Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Your account information has been updated
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    Hello,
-                </p>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    A school administrator has updated some information
-                    associated with your account.
-                </p>
-
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
                 <div
                     style="
-                        margin: 28px 0;
-                        padding: 16px;
-                        background-color: #f9fafb;
-                        border-radius: 6px;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
+                    <h1
+                        style="
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
+                        "
+                    >
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account information has been updated
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        Hello,
+                    </p>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        A school administrator has updated some information
+                        associated with your account.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 28px 0;
+                            padding: 16px;
+                            background-color: #f9fafb;
+                            border-radius: 6px;
+                        "
+                    >
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.6;
+                                color: #6b7280;
+                            "
+                        >
+                            If you were expecting this update, no further action
+                            is required.
+                        </p>
+                    </div>
+
                     <p
                         style="
-                            margin: 0;
                             font-size: 14px;
                             line-height: 1.6;
                             color: #6b7280;
+                            margin: 24px 0 0;
                         "
                     >
-                        If you were expecting this update, no further action
-                        is required.
+                        If you did not expect this change, please contact your
+                        school administration as soon as possible.
                     </p>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 24px 0 0;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
                     "
                 >
-                    If you did not expect this change, please contact your
-                    school administration as soon as possible.
+                    © Meridian
                 </p>
             </div>
-
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+        </body>
+        </html>
     """
 
     await send_email(
@@ -492,125 +492,125 @@ def build_admin_credentials_override_notification_email(
         """
 
     html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
-                    style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
-                    "
-                >
-                    Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Your account credentials were changed
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    An administrator has updated the credentials associated
-                    with your account.
-                </p>
-
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
                 <div
                     style="
-                        margin: 24px 0;
-                        padding: 16px 20px;
-                        background-color: #f9fafb;
-                        border-radius: 6px;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
-                    <table
+                    <h1
                         style="
-                            width: 100%;
-                            border-collapse: collapse;
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
                         "
                     >
-                        {changes_html}
-                    </table>
-                </div>
+                        Meridian
+                    </h1>
 
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    If you were expecting this change, no further action is
-                    required. You will need to log in again using your new
-                    credentials.
-                </p>
-
-                <div style="text-align: center; margin: 32px 0;">
-                    <a
-                        href="{login_link}"
+                    <h2
                         style="
-                            display: inline-block;
-                            background-color: #2563eb;
-                            color: #ffffff;
-                            padding: 13px 26px;
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account credentials were changed
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        An administrator has updated the credentials associated
+                        with your account.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 24px 0;
+                            padding: 16px 20px;
+                            background-color: #f9fafb;
                             border-radius: 6px;
-                            text-decoration: none;
-                            font-weight: bold;
                         "
                     >
-                        Log In
-                    </a>
+                        <table
+                            style="
+                                width: 100%;
+                                border-collapse: collapse;
+                            "
+                        >
+                            {changes_html}
+                        </table>
+                    </div>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        If you were expecting this change, no further action is
+                        required. You will need to log in again using your new
+                        credentials.
+                    </p>
+
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{login_link}"
+                            style="
+                                display: inline-block;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
+                            "
+                        >
+                            Log In
+                        </a>
+                    </div>
+
+                    <p
+                        style="
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                            margin: 24px 0 0;
+                        "
+                    >
+                        If you were not expecting this change, please contact your
+                        administrator as soon as possible.
+                    </p>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 24px 0 0;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
                     "
                 >
-                    If you were not expecting this change, please contact your
-                    administrator as soon as possible.
+                    © Meridian
                 </p>
             </div>
-
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+        </body>
+        </html>
     """
 
     return subject, html
@@ -641,104 +641,104 @@ async def send_account_deactivation_email(email: str) -> None:
     subject = "Your Meridian account has been deactivated"
 
     html = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
-                    style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
-                    "
-                >
-                    Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Your account has been deactivated
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    An administrator has deactivated your account.
-                </p>
-
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
                 <div
                     style="
-                        margin: 24px 0;
-                        padding: 16px;
-                        background-color: #f9fafb;
-                        border-radius: 6px;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
+                    <h1
+                        style="
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
+                        "
+                    >
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account has been deactivated
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        An administrator has deactivated your account.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 24px 0;
+                            padding: 16px;
+                            background-color: #f9fafb;
+                            border-radius: 6px;
+                        "
+                    >
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.6;
+                                color: #6b7280;
+                            "
+                        >
+                            You will no longer be able to access your account
+                            while it remains deactivated.
+                        </p>
+                    </div>
+
                     <p
                         style="
-                            margin: 0;
                             font-size: 14px;
                             line-height: 1.6;
                             color: #6b7280;
+                            margin: 24px 0 0;
                         "
                     >
-                        You will no longer be able to access your account
-                        while it remains deactivated.
+                        If you believe this was done in error, please contact
+                        your school administrator.
                     </p>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 24px 0 0;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
                     "
                 >
-                    If you believe this was done in error, please contact
-                    your school administrator.
+                    © Meridian
                 </p>
             </div>
-
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+        </body>
+        </html>
     """
 
     await send_email(
@@ -754,101 +754,101 @@ async def send_account_activation_email(email: str) -> None:
     subject = "Your Meridian account has been activated"
 
     html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
+                <div
                     style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
-                    Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Your account has been activated
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    An administrator has activated your account.
-                    You can now log in and access the system.
-                </p>
-
-                <div style="text-align: center; margin: 32px 0;">
-                    <a
-                        href="{login_link}"
+                    <h1
                         style="
-                            display: inline-block;
-                            background-color: #2563eb;
-                            color: #ffffff;
-                            padding: 13px 26px;
-                            border-radius: 6px;
-                            text-decoration: none;
-                            font-weight: bold;
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
                         "
                     >
-                        Log In
-                    </a>
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account has been activated
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        An administrator has activated your account.
+                        You can now log in and access the system.
+                    </p>
+
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{login_link}"
+                            style="
+                                display: inline-block;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
+                            "
+                        >
+                            Log In
+                        </a>
+                    </div>
+
+                    <p
+                        style="
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                            margin: 24px 0 0;
+                        "
+                    >
+                        If you were not expecting this, please contact your
+                        administrator as soon as possible.
+                    </p>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 24px 0 0;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
                     "
                 >
-                    If you were not expecting this, please contact your
-                    administrator as soon as possible.
+                    © Meridian
                 </p>
             </div>
-
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+        </body>
+        </html>
     """
 
     await send_email(
@@ -988,7 +988,7 @@ def build_reset_password_email(
             </div>
         </body>
         </html>
-        """
+    """
 
     return subject, html
 
@@ -1012,127 +1012,258 @@ async def send_account_deletion_email(email: str) -> None:
     subject = "Your Meridian account is scheduled for deletion"
 
     html = f"""
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    </head>
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
 
-    <body
-        style="
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f6f8;
-            color: #374151;
-        "
-    >
-        <div style="padding: 40px 20px;">
-            <div
-                style="
-                    max-width: 560px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    border-radius: 10px;
-                    padding: 40px;
-                    box-sizing: border-box;
-                "
-            >
-                <h1
-                    style="
-                        margin: 0 0 30px;
-                        font-size: 22px;
-                        color: #1f2937;
-                    "
-                >
-                    Meridian
-                </h1>
-
-                <h2
-                    style="
-                        margin: 0 0 20px;
-                        font-size: 20px;
-                        color: #1f2937;
-                    "
-                >
-                    Your account is scheduled for deletion
-                </h2>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    A school administrator has scheduled your account for
-                    deletion.
-                </p>
-
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
                 <div
                     style="
-                        margin: 24px 0;
-                        padding: 16px;
-                        background-color: #f9fafb;
-                        border-radius: 6px;
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
                     "
                 >
+                    <h1
+                        style="
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
+                        "
+                    >
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account is scheduled for deletion
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        A school administrator has scheduled your account for
+                        deletion.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 24px 0;
+                            padding: 16px;
+                            background-color: #f9fafb;
+                            border-radius: 6px;
+                        "
+                    >
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.6;
+                                color: #6b7280;
+                            "
+                        >
+                            Your account will be
+                            <strong>permanently deleted in 30 days</strong>.
+                        </p>
+                    </div>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        You can still log in and use your account normally during
+                        this 30-day period.
+                    </p>
+
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{login_link}"
+                            style="
+                                display: inline-block;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
+                            "
+                        >
+                            Log In
+                        </a>
+                    </div>
+
                     <p
                         style="
-                            margin: 0;
                             font-size: 14px;
                             line-height: 1.6;
                             color: #6b7280;
+                            margin: 24px 0 0;
                         "
                     >
-                        Your account will be
-                        <strong>permanently deleted in 30 days</strong>.
+                        If you believe this was done in error, please contact your
+                        school administrator before the deletion date.
                     </p>
-                </div>
-
-                <p style="line-height: 1.6; margin: 0 0 16px;">
-                    You can still log in and use your account normally during
-                    this 30-day period.
-                </p>
-
-                <div style="text-align: center; margin: 32px 0;">
-                    <a
-                        href="{login_link}"
-                        style="
-                            display: inline-block;
-                            background-color: #2563eb;
-                            color: #ffffff;
-                            padding: 13px 26px;
-                            border-radius: 6px;
-                            text-decoration: none;
-                            font-weight: bold;
-                        "
-                    >
-                        Log In
-                    </a>
                 </div>
 
                 <p
                     style="
-                        font-size: 14px;
-                        line-height: 1.6;
-                        color: #6b7280;
-                        margin: 24px 0 0;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
                     "
                 >
-                    If you believe this was done in error, please contact your
-                    school administrator before the deletion date.
+                    © Meridian
                 </p>
             </div>
+        </body>
+        </html>
+    """
 
-            <p
-                style="
-                    text-align: center;
-                    font-size: 12px;
-                    color: #9ca3af;
-                    margin-top: 20px;
-                "
-            >
-                © Meridian
-            </p>
-        </div>
-    </body>
-    </html>
+    await send_email(
+        subject=subject,
+        to_email=email,
+        html_body=html,
+    )
+
+
+async def send_account_deletion_canceled_email(email: str) -> None:
+    login_link = f"{settings.APP_URL}/auth/login"
+
+    subject = "Your Meridian account deletion has been canceled"
+
+    html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
+                <div
+                    style="
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <h1
+                        style="
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
+                        "
+                    >
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Your account deletion has been canceled
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        The scheduled deletion of your account has been
+                        <strong>canceled</strong> by a school administrator.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 24px 0;
+                            padding: 16px;
+                            background-color: #f9fafb;
+                            border-radius: 6px;
+                        "
+                    >
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.6;
+                                color: #6b7280;
+                            "
+                        >
+                            Your account remains active. You can continue logging
+                            in and using Meridian as normal.
+                        </p>
+                    </div>
+
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{login_link}"
+                            style="
+                                display: inline-block;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
+                            "
+                        >
+                            Log In
+                        </a>
+                    </div>
+
+                    <p
+                        style="
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                            margin: 24px 0 0;
+                        "
+                    >
+                        If you have any questions, please contact your school
+                        administrator.
+                    </p>
+                </div>
+
+                <p
+                    style="
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
+                    "
+                >
+                    © Meridian
+                </p>
+            </div>
+        </body>
+        </html>
     """
 
     await send_email(
