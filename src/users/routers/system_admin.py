@@ -68,7 +68,7 @@ async def update_user_credentials(
     )
 
 
-@router.patch("/{target_user_id}/deactivation", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{public_id}/deactivation", status_code=status.HTTP_204_NO_CONTENT)
 @user_limiter.limit("5/minute")
 async def deactivate_user(
     request: Request,
