@@ -27,10 +27,10 @@ async def register_user(
     request: Request,
     session: session_dependency,
     current_user: Annotated[CurrentUser, Depends(require_system_admin)],
-    create_request: CreateUserRequest,
+    payload: CreateUserRequest,
 ):
     return await UserServiceAdmin.register_user(
-        session, current_user.credentials_id, create_request
+        session, current_user.credentials_id, payload
     )
 
 

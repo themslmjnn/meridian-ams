@@ -58,15 +58,15 @@ class UserServiceAdmin:
     async def register_user(
         session: AsyncSession,
         current_user_id: int,
-        create_request: CreateUserRequest,
+        payload: CreateUserRequest,
     ) -> UserResponseAdminDetailed:
-        match create_request:
+        match payload:
             case CreateStudentAdmin():
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
             case CreateStaffAdmin():
-                resolved_role = create_request.role
+                resolved_role = payload.role
                 account_type = AccountType.WORK
 
             case CreateGuardianAdmin():
@@ -74,23 +74,23 @@ class UserServiceAdmin:
                 account_type = AccountType.PERSONAL
 
             case _:
-                assert_never(create_request)
+                assert_never(payload)
 
         is_student = resolved_role == UserRole.STUDENT
 
         await acquire_contact_locks(
             session,
-            phone_number=create_request.phone_number,
-            email=create_request.email,
+            phone_number=payload.phone_number,
+            email=payload.email,
             is_student=is_student,
         )
 
         await check_contact_limit(
             session,
             current_user_id,
-            target_username=create_request.username,
-            phone_number=create_request.phone_number,
-            email=create_request.email,
+            target_username=payload.username,
+            phone_number=payload.phone_number,
+            email=payload.email,
             account_type=account_type,
             resolved_role=resolved_role,
         )
@@ -103,11 +103,11 @@ class UserServiceAdmin:
 
         try:
             if (
-                isinstance(create_request, CreateGuardianAdmin)
-                and create_request.existing_identity_id
+                isinstance(payload, CreateGuardianAdmin)
+                and payload.existing_identity_id
             ):
                 existing_identity = await UserIdentityRepository.get_by_id(
-                    session, create_request.existing_identity_id
+                    session, payload.existing_identity_id
                 )
                 if existing_identity is None:
                     raise IdentityNotFoundError()
@@ -118,15 +118,15 @@ class UserServiceAdmin:
                 if existing_personal is not None:
                     raise GuardianAccountAlreadyExistsError()
 
-                identity_id = create_request.existing_identity_id
+                identity_id = payload.existing_identity_id
             else:
                 new_user_identity = UserIdentity(
-                    firstname=create_request.firstname,
-                    lastname=create_request.lastname,
-                    middlename=create_request.middlename,
-                    phone_number=create_request.phone_number,
-                    date_of_birth=create_request.date_of_birth if is_student else None,
-                    address=create_request.address if is_student else None,
+                    firstname=payload.firstname,
+                    lastname=payload.lastname,
+                    middlename=payload.middlename,
+                    phone_number=payload.phone_number,
+                    date_of_birth=payload.date_of_birth if is_student else None,
+                    address=payload.address if is_student else None,
                 )
 
                 session.add(new_user_identity)
@@ -136,8 +136,8 @@ class UserServiceAdmin:
 
             new_user_credentials = UserCredentials(
                 identity_id=identity_id,
-                username=create_request.username,
-                email=create_request.email,
+                username=payload.username,
+                email=payload.email,
                 role=resolved_role,
                 account_type=account_type,
                 status=UserStatus.PENDING_ACTIVATION,
@@ -156,11 +156,11 @@ class UserServiceAdmin:
             )
 
             subject, html_body = emails.build_activation_email(
-                raw_activation_token, create_request.username
+                raw_activation_token, payload.username
             )
 
             new_email = Email(
-                recipient_email=create_request.email,
+                recipient_email=payload.email,
                 subject=subject,
                 body_html=html_body,
                 email_type=EmailType.ACTIVATION,
@@ -177,7 +177,7 @@ class UserServiceAdmin:
                 "user_registered",
                 new_user_identity_id=identity_id,
                 new_user_credentials_id=new_user_credentials.id,
-                target_username=create_request.username,
+                target_username=payload.username,
                 role=resolved_role,
                 created_by=current_user_id,
             )
