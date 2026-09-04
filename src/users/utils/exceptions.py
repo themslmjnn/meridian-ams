@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.users.utils.constants import HTTP404, HTTP409
+from src.users.utils.constants import HTTP400, HTTP404, HTTP409
 
 
 class UsernameAlreadyTakenError(AppException):
@@ -54,7 +54,7 @@ class UserNotFoundError(AppException):
 
 class UserTypeMismatchError(AppException):
     status_code = 400
-    detail = "Submitted update payload type does not match the target user's role"
+    detail = HTTP400.USER_TYPE_MISMATCH
     error_code = "USER_TYPE_MISMATCH"
 
 

@@ -21,6 +21,7 @@ class InvalidRefreshTokenError(AppException):
     detail = HTTP401.INVALID_REFRESH_TOKEN
     error_code = "INVALID_REFRESH_TOKEN"
 
+
 class ExpiredRefreshTokenError(AppException):
     status_code = 401
     detail = HTTP401.EXPIRED_REFRESH_TOKEN

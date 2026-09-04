@@ -104,7 +104,7 @@ async def close_email_client() -> None:
     Close the shared httpx client. Called in lifespan shutdown.
     Prevents ResourceWarning in tests and ensures clean shutdown.
     """
-    
+
     await _resend_client.aclose()
 
 

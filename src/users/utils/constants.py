@@ -8,6 +8,12 @@ STUDENT_MAX_SHARED_CONTACT = 3
 SYSTEM_ADMIN_INVISIBLE_ROLES = frozenset({UserRole.SYSTEM_ADMIN})
 
 
+class HTTP400:
+    USER_TYPE_MISMATCH = (
+        "Submitted update payload type does not match the target user's role"
+    )
+
+
 class HTTP404:
     IDENTITY = "Identity not found"
     USER = "User not found"
