@@ -74,8 +74,7 @@ class TestSecurityHeadersMiddleware:
         )
 
     async def test_all_security_headers_present_on_success_response(
-        self,
-        integration_client: AsyncClient,
+        self, integration_client: AsyncClient
     ):
         response = await integration_client.get("/health/live")
 
@@ -84,8 +83,7 @@ class TestSecurityHeadersMiddleware:
         assert "referrer-policy" in response.headers
 
     async def test_all_security_headers_present_on_404_response(
-        self,
-        integration_client: AsyncClient,
+        self, integration_client: AsyncClient
     ):
         """Security headers must be appended even when the route does not exist."""
 
@@ -98,8 +96,7 @@ class TestSecurityHeadersMiddleware:
 
 class TestRequestLoggingMiddleware:
     async def test_request_logging_does_not_alter_status_code(
-        self,
-        integration_client: AsyncClient,
+        self, integration_client: AsyncClient
     ):
         """RequestLoggingMiddleware must not modify the response status code."""
 
@@ -108,8 +105,7 @@ class TestRequestLoggingMiddleware:
         assert response.status_code == 200
 
     async def test_request_logging_does_not_alter_response_body(
-        self,
-        integration_client: AsyncClient,
+        self, integration_client: AsyncClient
     ):
         """RequestLoggingMiddleware must not modify the response body."""
 
