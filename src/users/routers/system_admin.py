@@ -88,3 +88,16 @@ async def activate_user(
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.activate_user(request, session, current_user.id, public_id)
+
+
+@router.post("/{target_user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+@user_limiter.limit("5/minute")
+async def create_reset_password_request(
+    request: Request,
+    session: session_dependency,
+    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    public_id: uuid.UUID,
+):
+    await UserServiceAdmin.create_reset_password_request(
+        session, current_user.id, public_id
+    )

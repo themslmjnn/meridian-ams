@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_redis
 from src.core.config import get_settings
-from src.core.security import generate_activation_token
+from src.core.security import generate_activation_token, generate_reset_password_token
 from src.emails.models import Email
 from src.emails.utils.enums import EmailType
 from src.users.models.activation import UserActivation
@@ -413,7 +413,7 @@ class UserServiceAdmin:
                     )
                 )
 
-                new_pending_email = Email(
+                new_email = Email(
                     recipient=old_email,
                     subject=subject,
                     html_body=html_body,
@@ -421,7 +421,7 @@ class UserServiceAdmin:
                     triggered_by=current_user_id,
                 )
 
-                session.add(new_pending_email)
+                session.add(new_email)
 
             await session.commit()
 
@@ -547,7 +547,7 @@ class UserServiceAdmin:
         await session.commit()
 
         asyncio.create_task(
-            emails.send_safe(
+            emails.send_email_safe(
                 emails.send_account_activation_email(user_credentials.email),
                 email_type=EmailType.ACCOUNT_ACTIVATION,
             )
@@ -561,4 +561,47 @@ class UserServiceAdmin:
             "user_activated",
             public_id=public_id,
             activated_by=current_user_id,
+        )
+
+    @staticmethod
+    async def create_reset_password_request(
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_password_reset=True,
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        raw_reset_token, hashed_reset_token = generate_reset_password_token()
+
+        user_credentials.password_reset.reset_password_token_hash = hashed_reset_token
+        user_credentials.password_reset.reset_password_token_expires_at = datetime.now(
+            UTC
+        ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+
+        subject, html_body = emails.build_reset_password_email(raw_reset_token)
+
+        new_email = Email(
+            recipient=user_credentials.email,
+            subject=subject,
+            html_body=html_body,
+            email_type=EmailType.PASSWORD_RESET_ADMIN,
+            triggered_by=current_user_id,
+        )
+
+        session.add(new_email)
+        await session.commit()
+
+        print(raw_reset_token)
+
+        logger.info(
+            "reset_password_request_created",
+            public_id=public_id,
+            created_by=current_user_id,
         )
