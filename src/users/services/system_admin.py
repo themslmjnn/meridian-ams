@@ -48,7 +48,7 @@ from src.users.utils.schemas import LoadOptionsSchema
 from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
-from src.utils.helpers import ensure_exists, update_object
+from src.utils.helpers import update_object
 
 logger = structlog.get_logger(__name__)
 
@@ -88,7 +88,7 @@ class UserServiceAdmin:
         await check_contact_limit(
             session,
             current_user_id,
-            target_username=payload.username,
+            username=payload.username,
             phone_number=payload.phone_number,
             email=payload.email,
             account_type=account_type,
@@ -175,9 +175,9 @@ class UserServiceAdmin:
 
             logger.info(
                 "user_registered",
-                new_user_identity_id=identity_id,
-                new_user_credentials_id=new_user_credentials.id,
-                target_username=payload.username,
+                identity_id=identity_id,
+                credentials_id=new_user_credentials.id,
+                public_id=str(new_user_credentials.public_id),
                 role=resolved_role,
                 created_by=current_user_id,
             )
@@ -207,41 +207,43 @@ class UserServiceAdmin:
         session: AsyncSession,
         current_user_id: int,
         public_id: int,
-        update_request: UpdateUserRequest,
+        payload: UpdateUserRequest,
     ) -> None:
-        target_user = await UserCredentialsRepository.get_by_public_id(
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
         )
-        ensure_exists(target_user, UserNotFoundError())
-        target_identity = await UserIdentityRepository.get_by_id(
-            session, target_user.identity_id
+        if user_credentials is None:
+            raise UserNotFoundError()
+
+        user_identity = await UserIdentityRepository.get_by_id(
+            session, user_credentials.identity_id
         )
 
-        is_student = target_user.role == UserRole.STUDENT
-        request_is_student_shaped = isinstance(update_request, UpdateStudentAdmin)
+        is_student = user_credentials.role == UserRole.STUDENT
+        is_request_student_shaped = isinstance(payload, UpdateStudentAdmin)
 
-        if is_student != request_is_student_shaped:
+        if is_student != is_request_student_shaped:
             logger.warning(
                 "update_user_type_mismatch",
                 actor_user_id=current_user_id,
                 public_id=public_id,
-                target_user_role=target_user.role.value,
-                submitted_type=update_request.type,
+                user_role=user_credentials.role.value,
+                submitted_type=payload.type,
             )
 
             raise UserTypeMismatchError()
 
-        phone_number_changing = (
-            update_request.phone_number is not None
-            and update_request.phone_number != target_identity.phone_number
+        is_phone_number_changing = (
+            payload.phone_number is not None
+            and payload.phone_number != user_identity.phone_number
         )
 
-        if is_student and phone_number_changing:
+        if is_student and is_phone_number_changing:
             await acquire_contact_locks(
                 session,
-                phone_number=update_request.phone_number,
+                phone_number=payload.phone_number,
                 email=None,
                 is_student=True,
             )
@@ -249,23 +251,23 @@ class UserServiceAdmin:
             await check_contact_limit(
                 session,
                 current_user_id,
-                target_username=target_user.username,
-                phone_number=update_request.phone_number,
+                username=user_credentials.username,
+                phone_number=payload.phone_number,
                 email=None,
                 resolved_role=UserRole.STUDENT,
                 account_type=AccountType.STUDENT,
-                exclude_credentials_id=target_user.id,
+                exclude_credentials_id=user_credentials.id,
             )
 
         try:
-            update_object(target_identity, update_request)
+            update_object(user_identity, payload)
 
             await session.commit()
-            await session.refresh(target_identity)
+            await session.refresh(user_identity)
 
             asyncio.create_task(
                 emails.send_email_safe(
-                    emails.send_account_info_updated_email(target_user.email),
+                    emails.send_account_info_updated_email(user_identity.email),
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
@@ -279,7 +281,7 @@ class UserServiceAdmin:
             )
 
             logger.info(
-                "user_updated",
+                "user_profile_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
                 method="admin_update",
@@ -306,9 +308,9 @@ class UserServiceAdmin:
         session: AsyncSession,
         current_user_id: int,
         public_id: uuid.UUID,
-        update_request: UpdateUserCredentials,
+        payload: UpdateUserCredentials,
     ) -> None:
-        target_user = await UserCredentialsRepository.get_by_public_id(
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
@@ -318,47 +320,48 @@ class UserServiceAdmin:
                 load_email_change=True,
             ),
         )
-        ensure_exists(target_user, UserNotFoundError())
+        if user_credentials is None:
+            raise UserNotFoundError()
 
-        is_student = target_user.role == UserRole.STUDENT
-        email_changing = (
-            update_request.email is not None
-            and update_request.email != target_user.email
+        is_student = user_credentials.role == UserRole.STUDENT
+        is_email_changing = (
+            payload.email is not None and payload.email != user_credentials.email
         )
         should_reissue_activation_token = (
-            email_changing and target_user.status == UserStatus.PENDING_ACTIVATION
+            is_email_changing
+            and user_credentials.status == UserStatus.PENDING_ACTIVATION
         )
 
-        if is_student and email_changing:
+        if is_student and is_email_changing:
             await acquire_contact_locks(
-                session, phone_number=None, email=update_request.email, is_student=True
+                session, phone_number=None, email=payload.email, is_student=True
             )
 
             await check_contact_limit(
                 session,
                 current_user_id,
-                target_username=target_user.username,
+                username=user_credentials.username,
                 phone_number=None,
-                email=update_request.email,
+                email=payload.email,
                 resolved_role=UserRole.STUDENT,
                 account_type=AccountType.STUDENT,
-                exclude_credentials_id=target_user.id,
+                exclude_credentials_id=user_credentials.id,
             )
 
         try:
-            old_email = target_user.email
-            old_username = target_user.username
+            old_email = user_credentials.email
+            old_username = user_credentials.username
 
-            update_object(target_user, update_request)
+            update_object(user_credentials, payload)
 
-            for session_row in target_user.sessions:
+            for session_row in user_credentials.sessions:
                 session_row.access_token_version += 1
                 session_row.refresh_token_hash = None
                 session_row.refresh_token_family = None
                 session_row.refresh_token_expires_at = None
 
-            if target_user.email_change is not None:
-                await session.delete(target_user.email_change)
+            if user_credentials.email_change is not None:
+                await session.delete(user_credentials.email_change)
 
             if should_reissue_activation_token:
                 raw_activation_token, hashed_activation_token = (
@@ -368,17 +371,19 @@ class UserServiceAdmin:
                     hours=get_settings().INVITE_TOKEN_EXPIRES_HOURS
                 )
 
-                target_user.activation.activation_token_hash = hashed_activation_token
-                target_user.activation.activation_token_expires_at = (
+                user_credentials.activation.activation_token_hash = (
+                    hashed_activation_token
+                )
+                user_credentials.activation.activation_token_expires_at = (
                     activation_token_expires_at
                 )
 
                 subject, html_body = emails.build_activation_email(
-                    raw_activation_token, target_user.username
+                    raw_activation_token, user_credentials.username
                 )
 
                 new_pending_email = Email(
-                    recipient=target_user.email,
+                    recipient=user_credentials.email,
                     subject=subject,
                     html_body=html_body,
                     email_type=EmailType.ACTIVATION,
@@ -387,14 +392,16 @@ class UserServiceAdmin:
 
                 session.add(new_pending_email)
 
-            username_changed = old_username != target_user.username
-            email_changed = old_email != target_user.email
+            username_changed = old_username != user_credentials.username
+            email_changed = old_email != user_credentials.email
 
             if not should_reissue_activation_token:
                 notify_old_username = old_username if username_changed else None
-                notify_new_username = target_user.username if username_changed else None
+                notify_new_username = (
+                    user_credentials.username if username_changed else None
+                )
                 notify_old_email = old_email if email_changed else None
-                notify_new_email = target_user.email if email_changed else None
+                notify_new_email = user_credentials.email if email_changed else None
 
                 subject, html_body = (
                     emails.build_admin_credentials_override_notification_email(

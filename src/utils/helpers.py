@@ -1,17 +1,10 @@
-from typing import Any
-
 from pydantic import BaseModel
 
-from src.utils.constants import HTTP400
-from src.utils.exceptions import AppException, NoChangesDetectedError
+from src.database.connection import MutableBase
+from src.utils.exceptions import NoChangesDetectedError
 
 
-def ensure_exists(obj: Any, exception: AppException) -> None:
-    if obj is None:
-        raise exception
-
-
-def update_object(instance: Any, request: BaseModel) -> None:
+def update_object(instance: MutableBase, request: BaseModel) -> None:
     changed = False
 
     for field, value in request.model_dump(
@@ -22,4 +15,4 @@ def update_object(instance: Any, request: BaseModel) -> None:
             changed = True
 
     if not changed:
-        raise NoChangesDetectedError(HTTP400.NO_CHANGES_DETECTED)
+        raise NoChangesDetectedError()

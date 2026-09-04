@@ -22,7 +22,7 @@ router = APIRouter(
 @router.post(
     "", response_model=UserResponseAdminDetailed, status_code=status.HTTP_201_CREATED
 )
-@user_limiter.limit("10/minute")
+@user_limiter.limit("7/minute")
 async def register_user(
     request: Request,
     session: session_dependency,
@@ -44,10 +44,10 @@ async def update_user(
     session: session_dependency,
     current_user: Annotated[CurrentUser, Depends(require_system_admin)],
     public_id: uuid.UUID,
-    update_request: UpdateUserRequest,
+    payload: UpdateUserRequest,
 ):
     await UserServiceAdmin.update_user(
-        request, session, current_user.credentials_id, public_id, update_request
+        request, session, current_user.credentials_id, public_id, payload
     )
 
 
@@ -61,8 +61,8 @@ async def update_user_credentials(
     session: session_dependency,
     current_user: Annotated[CurrentUser, Depends(require_system_admin)],
     public_id: uuid.UUID,
-    update_request: UpdateUserCredentials,
+    payload: UpdateUserCredentials,
 ):
     await UserServiceAdmin.update_user_credentials(
-        request, session, current_user.credentials_id, public_id, update_request
+        request, session, current_user.credentials_id, public_id, payload
     )

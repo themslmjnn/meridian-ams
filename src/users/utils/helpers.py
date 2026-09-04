@@ -20,7 +20,7 @@ async def check_contact_limit(
     session: AsyncSession,
     current_user_id: int,
     *,
-    target_username: str,
+    username: str,
     phone_number: str | None,
     email: str | None,
     resolved_role: UserRole,
@@ -47,7 +47,7 @@ async def check_contact_limit(
             logger.warning(
                 "user_registration_denied",
                 actor_user_id=current_user_id,
-                target_username=target_username,
+                username=username,
                 requested_role=resolved_role,
                 denial_reason="maximum_number_of_identical_phone_numbers_reached",
             )
@@ -69,7 +69,7 @@ async def check_contact_limit(
             logger.warning(
                 "user_registration_denied",
                 actor_user_id=current_user_id,
-                target_username=target_username,
+                username=username,
                 requested_role=resolved_role,
                 denial_reason="maximum_number_of_identical_emails_reached",
             )
