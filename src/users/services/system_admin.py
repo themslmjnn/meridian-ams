@@ -41,6 +41,7 @@ from src.users.utils.exceptions import (
     IdentityNotFoundError,
     UserAlreadyActiveError,
     UserAlreadyInactiveError,
+    UserNotPendingActivationError,
     UserTypeMismatchError,
     handle_non_student_unique_contact_error,
     handle_username_integrity_error,
@@ -369,7 +370,7 @@ class UserServiceAdmin:
                     generate_activation_token()
                 )
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
-                    hours=get_settings().INVITE_TOKEN_EXPIRES_HOURS
+                    hours=get_settings().activation_TOKEN_EXPIRES_HOURS
                 )
 
                 user_credentials.activation.activation_token_hash = (
@@ -604,4 +605,61 @@ class UserServiceAdmin:
             "reset_password_request_created",
             public_id=public_id,
             created_by=current_user_id,
+        )
+
+    @staticmethod
+    async def resend_activation_invite(
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_activation=True,
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        if user_credentials.status != UserStatus.PENDING_ACTIVATION:
+            logger.warning(
+                "invite_resend_denied",
+                public_id=public_id,
+                actor_user_id=current_user_id,
+                denial_reason="user_not_pending_activation",
+            )
+
+            raise UserNotPendingActivationError()
+
+        raw_activation_token, hashed_activation_token = generate_activation_token()
+
+        activation_token_expires_at = datetime.now(UTC) + timedelta(
+            hours=get_settings().activation_TOKEN_EXPIRES_HOURS
+        )
+
+        user_credentials.activation.activation_token_hash = hashed_activation_token
+        user_credentials.activation.activation_token_expires_at = (
+            activation_token_expires_at
+        )
+
+        subject, html_body = emails.build_activation_email(
+            raw_activation_token, user_credentials.username
+        )
+
+        new_email = Email(
+            recipient=user_credentials.email,
+            subject=subject,
+            html_body=html_body,
+            email_type=EmailType.INVITE,
+            triggered_by=current_user_id,
+        )
+
+        session.add(new_email)
+        await session.commit()
+
+        logger.info(
+            "invite_resent",
+            public_id=public_id,
+            actor_user_id=current_user_id,
         )

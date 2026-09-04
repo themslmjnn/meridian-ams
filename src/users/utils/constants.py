@@ -28,3 +28,5 @@ class HTTP409:
     )
     MAX_STUDENTS_PER_EMAIL = "Maximum number of students with this email reached"
     DUPLICATE_GUARDIAN_ACCOUNT = "Guardian account already exists"
+    USER_ACTIVE = "User is already active"
+    USER_INACTIVE = "User is already inactive"

@@ -60,13 +60,19 @@ class UserTypeMismatchError(AppException):
 
 class UserAlreadyInactiveError(AppException):
     status_code = 409
-    detail = "User is already inactive"
+    detail = HTTP409.USER_INACTIVE
     error_code = "USER_ALREADY_INACTIVE"
 
 
 class UserAlreadyActiveError(AppException):
     status_code = 409
-    detail = "User is already active"
+    detail = HTTP409.USER_ACTIVE
+    error_code = "USER_ALREADY_ACTIVE"
+
+
+class UserNotPendingActivationError(AppException):
+    status_code = 409
+    detail = HTTP409.USER_ACTIVE
     error_code = "USER_ALREADY_ACTIVE"
 
 
