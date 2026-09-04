@@ -2,15 +2,39 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import RowMapping, Select, func, select, update
+from sqlalchemy import RowMapping, Select, asc, desc, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from src.core.pagination import CursorPage, decode_cursor, encode_cursor
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.session import UserSession
+from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.schemas import LoadOptionsSchema
+
+_CREDENTIALS_IDENTITY_COLUMNS = [
+    UserCredentials.public_id,
+    UserCredentials.username,
+    UserCredentials.email,
+    UserCredentials.role,
+    UserCredentials.account_type,
+    UserCredentials.status,
+    UserCredentials.deletion_scheduled_for,
+    UserCredentials.created_at,
+    UserCredentials.updated_at,
+    UserIdentity.firstname,
+    UserIdentity.lastname,
+    UserIdentity.middlename,
+    UserIdentity.phone_number,
+    UserIdentity.date_of_birth,
+    UserIdentity.address,
+]
+
+_BASE_JOIN = select(*_CREDENTIALS_IDENTITY_COLUMNS).join(
+    UserIdentity, UserCredentials.identity_id == UserIdentity.id
+)
 
 
 class UserCredentialsRepository:
@@ -298,3 +322,164 @@ class UserResponseRepository:
         )
 
         return result.mappings().one_or_none()
+
+
+class UserRepositoryBase:
+    @staticmethod
+    def _apply_filters(
+        base_query: Select,
+        filters: SearchUserBase | None,
+        allowed_roles: frozenset[UserRole] | None = None,
+    ) -> Select:
+        if filters is not None:
+            if filters.firstname:
+                base_query = base_query.filter(
+                    UserCredentials.firstname.ilike(f"%{filters.firstname}%")
+                )
+            if filters.lastname:
+                base_query = base_query.filter(
+                    UserCredentials.lastname.ilike(f"%{filters.lastname}%")
+                )
+            if filters.phone_number:
+                base_query = base_query.filter(
+                    UserIdentity.phone_number.ilike(f"%{filters.phone_number}%")
+                )
+            if filters.email:
+                base_query = base_query.filter(
+                    UserCredentials.email.ilike(f"%{filters.email}%")
+                )
+
+        if allowed_roles:
+            base_query = base_query.filter(UserCredentials.role.in_(allowed_roles))
+
+        return base_query
+
+    @staticmethod
+    async def _paginate_mapped(
+        session: AsyncSession,
+        query: Select,
+        *,
+        limit: int,
+        next_cursor: str | None,
+        prev_cursor: str | None,
+    ) -> CursorPage:
+        """
+        Cursor-based pagination for flat RowMapping queries (joined projections).
+
+        Mirrors the logic in core/pagination.py but uses mappings() instead of
+        scalars() since the query selects individual columns across two tables
+        rather than a single ORM model.
+        """
+
+        limit = max(1, min(limit, 100))
+        fetch = limit + 1
+
+        if next_cursor:
+            created_at, record_id = decode_cursor(next_cursor)
+
+            query = (
+                query.where(
+                    text(
+                        "(user_credentials.created_at, user_credentials.id) < (:cur_created_at, :cur_id)"
+                    ).bindparams(cur_created_at=created_at, cur_id=record_id)
+                )
+                .order_by(desc(UserCredentials.created_at), desc(UserCredentials.id))
+                .limit(fetch)
+            )
+
+            direction = "forward"
+
+        elif prev_cursor:
+            created_at, record_id = decode_cursor(prev_cursor)
+
+            query = (
+                query.where(
+                    text(
+                        "(user_credentials.created_at, user_credentials.id) > (:cur_created_at, :cur_id)"
+                    ).bindparams(cur_created_at=created_at, cur_id=record_id)
+                )
+                .order_by(asc(UserCredentials.created_at), asc(UserCredentials.id))
+                .limit(fetch)
+            )
+
+            direction = "backward"
+
+        else:
+            query = query.order_by(
+                desc(UserCredentials.created_at), desc(UserCredentials.id)
+            ).limit(fetch)
+
+            direction = "forward"
+
+        result = await session.execute(query)
+        rows = list(result.mappings().all())
+
+        has_more = len(rows) > limit
+        if has_more:
+            rows = rows[:limit]
+
+        if direction == "backward":
+            rows.reverse()
+
+        if not rows:
+            return CursorPage(items=[], next_cursor=None, prev_cursor=None, limit=limit)
+
+        first = rows[0]
+        last = rows[-1]
+
+        built_next = (
+            encode_cursor(last["created_at"], last["id"])
+            if has_more or direction == "backward"
+            else None
+        )
+        built_prev = (
+            encode_cursor(first["created_at"], first["id"])
+            if next_cursor or (direction == "backward" and has_more)
+            else None
+        )
+
+        return CursorPage(
+            items=rows,
+            next_cursor=built_next,
+            prev_cursor=built_prev,
+            limit=limit,
+        )
+
+    @staticmethod
+    async def get_staff(
+        session: AsyncSession,
+        *,
+        filters: SearchUserBase | None = None,
+        limit: int = 20,
+        next_cursor: str | None = None,
+        prev_cursor: str | None = None,
+        allowed_roles: frozenset[UserRole] | None = None,
+    ) -> CursorPage:
+        """
+        Paginated list of WORK account credentials with identity fields joined.
+
+        role filter allows narrowing to TEACHER or DIRECTOR specifically.
+        Without it, all WORK accounts are returned (SYSTEM_ADMIN excluded —
+        system admins are not visible to other admins in list views).
+        """
+
+        query = (
+            _BASE_JOIN.where(
+                UserCredentials.account_type == AccountType.WORK,
+                UserCredentials.role != UserRole.SYSTEM_ADMIN,
+            ),
+        )
+
+        query = UserRepositoryBase._apply_filters(
+            query,
+            filters=filters,
+            allowed_roles=allowed_roles,
+        )
+
+        return await UserRepositoryBase._paginate_mapped(
+            session,
+            query,
+            limit=limit,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+        )

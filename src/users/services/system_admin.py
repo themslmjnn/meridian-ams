@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_redis
 from src.core.config import get_settings
+from src.core.pagination import CursorPage
 from src.core.security import generate_activation_token, generate_reset_password_token
 from src.emails.models import Email
 from src.emails.utils.enums import EmailType
@@ -21,6 +22,7 @@ from src.users.models.login_lockout import UserLoginLockout
 from src.users.repository.user import (
     UserCredentialsRepository,
     UserIdentityRepository,
+    UserRepositoryBase,
     UserResponseRepository,
 )
 from src.users.schemas.system_admin import (
@@ -28,6 +30,7 @@ from src.users.schemas.system_admin import (
     CreateStaffAdmin,
     CreateStudentAdmin,
     CreateUserRequest,
+    SearchUserBase,
     UpdateStudentAdmin,
     UpdateUserCredentials,
     UpdateUserRequest,
@@ -785,4 +788,28 @@ class UserServiceAdmin:
             "guardian_deletion_cancelled",
             actor_user_id=current_user_id,
             public_id=public_id,
+        )
+
+    @staticmethod
+    async def get_staff(
+        session: AsyncSession,
+        *,
+        filters: SearchUserBase | None = None,
+        limit: int = 20,
+        next_cursor: str | None = None,
+        prev_cursor: str | None = None,
+    ) -> CursorPage[UserResponseAdminDetailed]:
+        page = await UserRepositoryBase.get_staff(
+            session,
+            filters=filters,
+            limit=limit,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+        )
+
+        return CursorPage[UserResponseAdminDetailed](
+            items=[UserResponseAdminDetailed.model_validate(row) for row in page.items],
+            next_cursor=page.next_cursor,
+            prev_cursor=page.prev_cursor,
+            limit=page.limit,
         )
