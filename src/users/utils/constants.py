@@ -2,6 +2,7 @@ from src.users.utils.enums import UserRole
 
 STUDENT_MIN_AGE = 6
 STUDENT_MAX_AGE = 21
+DELETION_GRACE_PERIOD_DAYS = 30
 
 STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT = 1
 STUDENT_MAX_SHARED_CONTACT = 3
@@ -30,3 +31,4 @@ class HTTP409:
     DUPLICATE_GUARDIAN_ACCOUNT = "Guardian account already exists"
     USER_ACTIVE = "User is already active"
     USER_INACTIVE = "User is already inactive"
+    PENDING_DELETION = "This account is already pending deletion"

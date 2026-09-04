@@ -33,11 +33,15 @@ from src.users.schemas.system_admin import (
     UpdateUserRequest,
     UserResponseAdminDetailed,
 )
-from src.users.utils.constants import SYSTEM_ADMIN_INVISIBLE_ROLES
+from src.users.utils.constants import (
+    DELETION_GRACE_PERIOD_DAYS,
+    SYSTEM_ADMIN_INVISIBLE_ROLES,
+)
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     GuardianAccountAlreadyExistsError,
+    GuardianAlreadyPendingDeletionError,
     IdentityNotFoundError,
     UserAlreadyActiveError,
     UserAlreadyInactiveError,
@@ -468,7 +472,7 @@ class UserServiceAdmin:
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_session=True,
+            load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
             raise CredentialsNotFoundError()
@@ -525,7 +529,7 @@ class UserServiceAdmin:
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_login_lockout=True,
+            load_options=LoadOptionsSchema(load_login_lockout=True),
         )
         if user_credentials is None:
             raise CredentialsNotFoundError()
@@ -574,7 +578,7 @@ class UserServiceAdmin:
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_password_reset=True,
+            load_options=LoadOptionsSchema(load_password_reset=True),
         )
         if user_credentials is None:
             raise CredentialsNotFoundError()
@@ -617,7 +621,9 @@ class UserServiceAdmin:
             session,
             public_id,
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_activation=True,
+            load_options=LoadOptionsSchema(
+                load_activation=True,
+            ),
         )
         if user_credentials is None:
             raise CredentialsNotFoundError()
@@ -662,4 +668,70 @@ class UserServiceAdmin:
             "invite_resent",
             public_id=public_id,
             actor_user_id=current_user_id,
+        )
+
+    @staticmethod
+    async def create_guardian_deletion_request(
+        request: Request,
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: int,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            allowed_roles=frozenset({UserRole.GUARDIAN}),
+            load_options=LoadOptionsSchema(
+                load_sessions=True,
+            ),
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        if user_credentials.status == UserStatus.PENDING_DELETION:
+            logger.warning(
+                "guardian_deletion_denied",
+                actor_user_id=current_user_id,
+                public_id=public_id,
+                denial_reason="guardian_already_pending_deletion",
+            )
+
+            raise GuardianAlreadyPendingDeletionError()
+
+        deletion_scheduled_for = datetime.now(UTC) + timedelta(
+            days=DELETION_GRACE_PERIOD_DAYS
+        )
+
+        user_credentials.status = UserStatus.PENDING_DELETION
+        user_credentials.deletion_scheduled_for = deletion_scheduled_for
+
+        for session_row in user_credentials.sessions:
+            session_row.access_token_version += 1
+            session_row.refresh_token_hash = None
+            session_row.refresh_token_family = None
+            session_row.refresh_token_expires_at = None
+
+        user_credentials_email = user_credentials.email
+
+        await session.commit()
+
+        asyncio.create_task(
+            emails.send_email_safe(
+                emails.send_account_deletion_email(user_credentials_email),
+                email_type=EmailType.ACCOUNT_DELETION,
+            )
+        )
+
+        await delete_cache(
+            get_redis(request),
+            SessionCacheKey.access_token_version_key(public_id),
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
+        )
+
+        logger.info(
+            "guardian_deletion_scheduled",
+            actor_user_id=current_user_id,
+            public_id=public_id,
+            deletion_scheduled_for=deletion_scheduled_for.isoformat(),
         )

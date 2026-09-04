@@ -59,11 +59,14 @@ class UserCredentialsRepository:
         session: AsyncSession,
         public_id: uuid.UUID,
         *,
+        allowed_roles: frozenset[UserRole] | None = None,
         excluded_roles: frozenset[UserRole] | None = None,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.public_id == public_id)
 
+        if allowed_roles:
+            query = query.filter(UserCredentials.role.in_(allowed_roles))
         if excluded_roles:
             query = query.where(UserCredentials.role.not_in(excluded_roles))
 

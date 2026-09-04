@@ -76,6 +76,12 @@ class UserNotPendingActivationError(AppException):
     error_code = "USER_ALREADY_ACTIVE"
 
 
+class GuardianAlreadyPendingDeletionError(AppException):
+    status_code = 409
+    detail = HTTP409.PENDING_DELETION
+    error_code = "PENDING_DELETION"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

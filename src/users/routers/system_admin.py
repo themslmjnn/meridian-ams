@@ -95,7 +95,7 @@ async def activate_user(
 async def create_reset_password_request(
     request: Request,
     session: session_dependency,
-    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.create_reset_password_request(
@@ -111,7 +111,23 @@ async def create_reset_password_request(
 async def resend_activation_invite(
     request: Request,
     session: session_dependency,
-    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.resend_activation_invite(session, current_user.id, public_id)
+
+
+@router.post(
+    "/{public_id}/guardian-deletion",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@user_limiter.limit("3/minute")
+async def create_guardian_deletion_request(
+    request: Request,
+    session: session_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+):
+    await UserServiceAdmin.create_guardian_deletion_request(
+        request, session, current_user.id, public_id
+    )
