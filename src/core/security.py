@@ -45,6 +45,7 @@ def _decode_token(token: str, secret: str) -> dict:
     Decode and verify a JWT against a specific secret.
     Raises ValueError on any failure — callers handle the exception.
     """
+
     try:
         payload = jwt.decode(token, secret, algorithms=[ALGORITHM])
 
@@ -110,13 +111,13 @@ def decode_refresh_token(refresh_token: str) -> dict:
 
 
 def generate_activation_token() -> tuple[str, str]:
-    raw = secrets.token_urlsafe(32)
+    raw_token = secrets.token_urlsafe(32)
 
-    return raw, _sha256(raw)
+    return raw_token, _sha256(raw_token)
 
 
-def verify_activation_token(raw_token: str, stored_hash: str) -> bool:
-    return hmac.compare_digest(_sha256(raw_token), stored_hash)
+def verify_activation_token(raw_token: str, hashed_token: str) -> bool:
+    return hmac.compare_digest(_sha256(raw_token), hashed_token)
 
 
 async def hash_password(password: str) -> str:
@@ -126,6 +127,19 @@ async def hash_password(password: str) -> str:
 async def verify_password(plain_password: str, hashed_password: str) -> bool:
     return await run_in_threadpool(
         bcrypt_context.verify, plain_password, hashed_password
+    )
+
+
+def generate_reset_password_token() -> tuple[str, str]:
+    raw_token = secrets.token_urlsafe(32)
+
+    return raw_token, _sha256(raw_token)
+
+
+def verify_reset_password_token(raw_token: str, hashed_token: str) -> bool:
+    return hmac.compare_digest(
+        _sha256(raw_token),
+        hashed_token,
     )
 
 
