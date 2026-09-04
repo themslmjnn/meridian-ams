@@ -20,6 +20,7 @@ async def test_ready_returns_200_when_both_healthy(
     integration_client: AsyncClient, database_health_mock, redis_health_mock
 ):
     redis_health_mock.return_value = {"status": "ok", "duration_ms": 0.5}
+
     response = await integration_client.get("/health/ready")
 
     body = response.json()
@@ -69,7 +70,11 @@ async def test_ready_returns_503_when_db_unreachable(
 async def test_ready_returns_503_when_redis_unreachable(
     integration_client: AsyncClient, database_health_mock, redis_health_mock
 ):
-    redis_health_mock.return_value = {"status": "ok", "duration_ms": 2.0}
+    redis_health_mock.return_value = {
+        "status": "error",
+        "duration_ms": 2.0,
+        "error": "connection refused",
+    }
 
     response = await integration_client.get("/health/ready")
 
