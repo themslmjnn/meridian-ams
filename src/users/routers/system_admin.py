@@ -1,12 +1,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
-from src.core.dependencies import CurrentUser, require_system_admin, session_dependency
+from src.core.dependencies import require_system_admin, session_dependency
 from src.core.limiter import user_limiter
+from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
     CreateUserRequest,
+    SearchUserBase,
     UpdateUserCredentials,
     UpdateUserRequest,
     UserResponseAdminDetailed,
@@ -147,3 +149,36 @@ async def cancel_guardian_deletion_request(
     await UserServiceAdmin.cancel_guardian_deletion_request(
         request, session, current_user.id, public_id
     )
+
+
+@router.get(
+    "/staff",
+    response_model=CursorPage[UserResponseAdminDetailed],
+)
+async def get_staff_list(
+    session: session_dependency,
+    _: require_system_admin,
+    filters: Annotated[SearchUserBase, Depends()],
+    limit: int = Query(default=20, ge=1, le=100),
+    next_cursor: str | None = Query(default=None),
+    prev_cursor: str | None = Query(default=None),
+):
+    return await UserServiceAdmin.get_staff(
+        session,
+        filters,
+        limit=limit,
+        next_cursor=next_cursor,
+        prev_cursor=prev_cursor,
+    )
+
+
+@router.get(
+    "/staff/{public_id}",
+    response_model=UserResponseAdminDetailed,
+)
+async def get_staff_by_public_id(
+    session: session_dependency,
+    _: require_system_admin,
+    public_id: uuid.UUID,
+):
+    return await UserServiceAdmin.get_staff_by_public_id(session, public_id)
