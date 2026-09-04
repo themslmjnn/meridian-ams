@@ -1,11 +1,20 @@
-from httpx import AsyncClient
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel
 from redis.exceptions import RedisError
 
-from src.core.exceptions import AppException
 from src.main import app
 from src.users.utils.exceptions import DuplicateEmailError, UserNotFoundError
 from src.utils.exceptions import AccessDeniedError
+
+
+@pytest_asyncio.fixture(scope="function")
+async def exception_client():
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://test",
+    ) as async_client:
+        yield async_client
 
 
 class StrictBody(BaseModel):

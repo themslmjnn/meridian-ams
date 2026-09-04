@@ -6,8 +6,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-import src.core.caching as cache_module
-from src.core.caching import get_settings
+from src.core.caching import get_redis, get_settings
 from src.core.dependencies import get_session
 from src.database.connection import ImmutableBase
 from src.main import app
@@ -65,23 +64,23 @@ def create_tables(_guard_test_environment):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def session():
+async def test_session():
     async with test_engine.connect() as conn:
         await conn.begin()
 
-        test_session = AsyncSession(bind=conn, expire_on_commit=False)
+        session = AsyncSession(bind=conn, expire_on_commit=False)
 
         async def override_get_session():
-            yield test_session
+            yield session
 
         app.dependency_overrides[get_session] = override_get_session
 
         try:
-            yield test_session
+            yield session
 
         finally:
             try:
-                await test_session.close()
+                await session.close()
                 await conn.rollback()
 
             except Exception as e:
@@ -92,7 +91,7 @@ async def session():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def client(session):
+async def integration_client(test_session):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -101,29 +100,28 @@ async def client(session):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def unit_client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as async_client:
-        yield async_client
-
-
-@pytest_asyncio.fixture(scope="function", autouse=True)
-async def flush_cache():
-    fresh_client = aioredis.Redis(
-        host=settings.REDIS_HOST,
-        port=settings.REDIS_PORT,
-        password=settings.REDIS_PASSWORD or None,
-        db=settings.REDIS_DB,
+async def redis_client():
+    client = aioredis.from_url(
+        settings.REDIS_URL,
+        encoding="utf-8",
         decode_responses=True,
     )
 
-    cache_module.redis_client = fresh_client
+    await client.flushdb()
 
-    await fresh_client.flushdb()
+    yield client
+
+    await client.flushdb()
+    await client.aclose()
+
+
+@pytest_asyncio.fixture(scope="function", autouse=True)
+async def override_redis(redis_client):
+    async def get_test_redis():
+        return redis_client
+
+    app.dependency_overrides[get_redis] = get_test_redis
 
     yield
 
-    await fresh_client.flushdb()
-    await fresh_client.aclose()
+    app.dependency_overrides.pop(get_redis, None)
