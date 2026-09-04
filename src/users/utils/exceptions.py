@@ -61,7 +61,13 @@ class UserTypeMismatchError(AppException):
 class UserAlreadyInactiveError(AppException):
     status_code = 409
     detail = "User is already inactive"
-    error_code = "USER_ALREADY_INACTVE"
+    error_code = "USER_ALREADY_INACTIVE"
+
+
+class UserAlreadyActiveError(AppException):
+    status_code = 409
+    detail = "User is already active"
+    error_code = "USER_ALREADY_ACTIVE"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:

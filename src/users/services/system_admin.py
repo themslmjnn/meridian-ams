@@ -39,6 +39,7 @@ from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     GuardianAccountAlreadyExistsError,
     IdentityNotFoundError,
+    UserAlreadyActiveError,
     UserAlreadyInactiveError,
     UserTypeMismatchError,
     handle_non_student_unique_contact_error,
@@ -510,4 +511,54 @@ class UserServiceAdmin:
             "user_deactivated",
             public_id=public_id,
             deactivated_by=current_user_id,
+        )
+
+    @staticmethod
+    async def activate_user(
+        request: Request,
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_login_lockout=True,
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        if user_credentials.status == UserStatus.ACTIVE:
+            logger.warning(
+                "user_activation_failed",
+                public_id=public_id,
+                requested_by=current_user_id,
+                reason="user_is_already_activated",
+            )
+
+            raise UserAlreadyActiveError()
+
+        user_credentials.status = UserStatus.ACTIVE
+
+        user_credentials.login_lockout.failed_login_attempts = 0
+        user_credentials.login_lockout.locked_until = None
+
+        await session.commit()
+
+        asyncio.create_task(
+            emails.send_safe(
+                emails.send_account_activation_email(user_credentials.email),
+                email_type=EmailType.ACCOUNT_ACTIVATION,
+            )
+        )
+
+        await delete_cache(
+            get_redis(request), UserCacheKey.user_detail_key_admin(public_id)
+        )
+
+        logger.info(
+            "user_activated",
+            public_id=public_id,
+            activated_by=current_user_id,
         )

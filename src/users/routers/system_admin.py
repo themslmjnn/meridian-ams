@@ -76,4 +76,15 @@ async def deactivate_user(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.deactivate_user(session, current_user.id, public_id)
+    await UserServiceAdmin.deactivate_user(request, session, current_user.id, public_id)
+
+
+@router.patch("/{public_id}/activation", status_code=status.HTTP_204_NO_CONTENT)
+@user_limiter.limit("10/minute")
+async def activate_user(
+    request: Request,
+    session: session_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+):
+    await UserServiceAdmin.activate_user(request, session, current_user.id, public_id)
