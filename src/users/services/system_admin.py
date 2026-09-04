@@ -38,6 +38,7 @@ from src.users.schemas.system_admin import (
 )
 from src.users.utils.constants import (
     DELETION_GRACE_PERIOD_DAYS,
+    GUARDIAN_ROLE,
     STAFF_ROLES,
     SYSTEM_ADMIN_INVISIBLE_ROLES,
 )
@@ -838,3 +839,50 @@ class UserServiceAdmin:
         await set_cache(redis, cache_key, staff.model_dump(mode="json"), 900)
 
         return UserResponseAdminDetailed.model_validate(staff)
+
+    @staticmethod
+    async def get_guardians(
+        session: AsyncSession,
+        *,
+        filters: SearchUserBase | None = None,
+        limit: int = 20,
+        next_cursor: str | None = None,
+        prev_cursor: str | None = None,
+    ) -> CursorPage[UserResponseAdminDetailed]:
+        page = await UserRepositoryBase.get_users(
+            session,
+            filters=filters,
+            limit=limit,
+            next_cursor=next_cursor,
+            prev_cursor=prev_cursor,
+            allowed_roles=GUARDIAN_ROLE,
+        )
+
+        return CursorPage[UserResponseAdminDetailed](
+            items=[UserResponseAdminDetailed.model_validate(row) for row in page.items],
+            next_cursor=page.next_cursor,
+            prev_cursor=page.prev_cursor,
+            limit=page.limit,
+        )
+
+    @staticmethod
+    async def get_guardian_by_public_id(
+        session: AsyncSession, public_id: int
+    ) -> UserResponseAdminDetailed:
+        cache_key = UserCacheKey.user_detail_key_admin(public_id)
+
+        redis = get_redis()
+        cached = await get_cache(redis, cache_key)
+
+        if cached is not None:
+            return UserResponseAdminDetailed.model_validate(cached)
+
+        guardian = await UserRepositoryBase.get_user_by_public_id(
+            session, public_id, allowed_roles=GUARDIAN_ROLE
+        )
+        if guardian is None:
+            raise UserNotFoundError()
+
+        await set_cache(redis, cache_key, guardian.model_dump(mode="json"), 900)
+
+        return UserResponseAdminDetailed.model_validate(guardian)

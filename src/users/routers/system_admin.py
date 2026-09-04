@@ -155,7 +155,7 @@ async def cancel_guardian_deletion_request(
     "/staff",
     response_model=CursorPage[UserResponseAdminDetailed],
 )
-async def get_staff_list(
+async def get_staff(
     session: session_dependency,
     _: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
@@ -182,3 +182,36 @@ async def get_staff_by_public_id(
     public_id: uuid.UUID,
 ):
     return await UserServiceAdmin.get_staff_by_public_id(session, public_id)
+
+
+@router.get(
+    "/staff",
+    response_model=CursorPage[UserResponseAdminDetailed],
+)
+async def get_guardians(
+    session: session_dependency,
+    _: require_system_admin,
+    filters: Annotated[SearchUserBase, Depends()],
+    limit: int = Query(default=20, ge=1, le=100),
+    next_cursor: str | None = Query(default=None),
+    prev_cursor: str | None = Query(default=None),
+):
+    return await UserServiceAdmin.get_guardians(
+        session,
+        filters,
+        limit=limit,
+        next_cursor=next_cursor,
+        prev_cursor=prev_cursor,
+    )
+
+
+@router.get(
+    "/staff/{public_id}",
+    response_model=UserResponseAdminDetailed,
+)
+async def get_guardian_by_public_id(
+    session: session_dependency,
+    _: require_system_admin,
+    public_id: uuid.UUID,
+):
+    return await UserServiceAdmin.get_guardian_by_public_id(session, public_id)
