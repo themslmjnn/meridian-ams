@@ -131,3 +131,19 @@ async def create_guardian_deletion_request(
     await UserServiceAdmin.create_guardian_deletion_request(
         request, session, current_user.id, public_id
     )
+
+
+@router.post(
+    "/{public_id}/cancel-deletion",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@user_limiter.limit("3/minute")
+async def cancel_guardian_deletion_request(
+    request: Request,
+    session: session_dependency,
+    current_user: require_system_admin,
+    public_id: int,
+):
+    await UserServiceAdmin.cancel_guardian_deletion_request(
+        request, session, current_user.id, public_id
+    )

@@ -675,7 +675,7 @@ class UserServiceAdmin:
         request: Request,
         session: AsyncSession,
         current_user_id: int,
-        public_id: int,
+        public_id: uuid.UUID,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
@@ -734,4 +734,55 @@ class UserServiceAdmin:
             actor_user_id=current_user_id,
             public_id=public_id,
             deletion_scheduled_for=deletion_scheduled_for.isoformat(),
+        )
+
+    @staticmethod
+    async def cancel_guardian_deletion_request(
+        request: Request,
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        user_credentials_email = user_credentials.email
+
+        reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
+            session, public_id
+        )
+
+        if not reactivated:
+            await session.rollback()
+
+            logger.warning(
+                "guardian_deletion_cancel_lost_race",
+                actor_user_id=current_user_id,
+                public_id=public_id,
+                denial_reason="user_hard_deleted_before_cancel_committed",
+            )
+
+            raise CredentialsNotFoundError()
+
+        await session.commit()
+
+        asyncio.create_task(
+            emails.send_email_safe(
+                emails.send_account_deletion_canceled_email(user_credentials_email),
+                email_type=EmailType.CANCEL_ACCOUNT_DELETION,
+            )
+        )
+
+        await delete_cache(
+            get_redis(request), UserCacheKey.user_detail_key_admin(public_id)
+        )
+
+        logger.info(
+            "guardian_deletion_cancelled",
+            actor_user_id=current_user_id,
+            public_id=public_id,
         )

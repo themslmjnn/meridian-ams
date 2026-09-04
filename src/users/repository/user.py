@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import RowMapping, Select, func, select
+from sqlalchemy import RowMapping, Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.session import UserSession
-from src.users.utils.enums import AccountType, UserRole
+from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.schemas import LoadOptionsSchema
 
 
@@ -193,6 +193,27 @@ class UserCredentialsRepository:
         result = await session.execute(query)
 
         return result.scalar_one()
+
+    @staticmethod
+    async def reactivate_pending_deletion_user(
+        session: AsyncSession, public_id: uuid.UUID
+    ) -> bool:
+        query = (
+            update(UserCredentials)
+            .where(
+                UserCredentials.public_id == public_id,
+                UserCredentials.role == UserRole.GUARDIAN,
+                UserCredentials.status == UserStatus.PENDING_DELETION,
+            )
+            .values(
+                status=UserStatus.ACTIVE,
+                deletion_scheduled_for=None,
+            )
+        )
+
+        result = await session.execute(query)
+
+        return result.rowcount > 0
 
 
 class UserIdentityRepository:
