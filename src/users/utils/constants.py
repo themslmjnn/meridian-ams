@@ -16,7 +16,7 @@ class HTTP400:
 
 class HTTP404:
     IDENTITY = "Identity not found"
-    USER = "User not found"
+    CREDENTIALS = "Credentials not found"
 
 
 class HTTP409:

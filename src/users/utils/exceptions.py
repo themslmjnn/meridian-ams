@@ -46,16 +46,22 @@ class GuardianAccountAlreadyExistsError(AppException):
     error_code = "GUARDIAN_ACCOUNT_ALREADY_EXISTS"
 
 
-class UserNotFoundError(AppException):
+class CredentialsNotFoundError(AppException):
     status_code = 404
-    detail = HTTP404.USER
-    error_code = "USER_NOT_FOUND"
+    detail = HTTP404.CREDENTIALS
+    error_code = "CREDENTIALS_NOT_FOUND"
 
 
 class UserTypeMismatchError(AppException):
     status_code = 400
     detail = HTTP400.USER_TYPE_MISMATCH
     error_code = "USER_TYPE_MISMATCH"
+
+
+class UserAlreadyInactiveError(AppException):
+    status_code = 409
+    detail = "User is already inactive"
+    error_code = "USER_ALREADY_INACTVE"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:

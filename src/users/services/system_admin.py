@@ -36,9 +36,10 @@ from src.users.schemas.system_admin import (
 from src.users.utils.constants import SYSTEM_ADMIN_INVISIBLE_ROLES
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.exceptions import (
+    CredentialsNotFoundError,
     GuardianAccountAlreadyExistsError,
     IdentityNotFoundError,
-    UserNotFoundError,
+    UserAlreadyInactiveError,
     UserTypeMismatchError,
     handle_non_student_unique_contact_error,
     handle_username_integrity_error,
@@ -215,7 +216,7 @@ class UserServiceAdmin:
             excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
         )
         if user_credentials is None:
-            raise UserNotFoundError()
+            raise CredentialsNotFoundError()
 
         user_identity = await UserIdentityRepository.get_by_id(
             session, user_credentials.identity_id
@@ -272,9 +273,8 @@ class UserServiceAdmin:
                 )
             )
 
-            redis = get_redis(request)
             await delete_cache(
-                redis,
+                get_redis(request),
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
@@ -321,7 +321,7 @@ class UserServiceAdmin:
             ),
         )
         if user_credentials is None:
-            raise UserNotFoundError()
+            raise CredentialsNotFoundError()
 
         is_student = user_credentials.role == UserRole.STUDENT
         is_email_changing = (
@@ -424,9 +424,8 @@ class UserServiceAdmin:
 
             await session.commit()
 
-            redis = get_redis(request)
             await delete_cache(
-                redis,
+                get_redis(request),
                 SessionCacheKey.access_token_version_key(public_id),
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
@@ -455,3 +454,60 @@ class UserServiceAdmin:
             if not is_student:
                 handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def deactivate_user(
+        request: Request,
+        session: AsyncSession,
+        current_user_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        user_credentials = await UserCredentialsRepository.get_by_public_id(
+            session,
+            public_id,
+            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            load_session=True,
+        )
+        if user_credentials is None:
+            raise CredentialsNotFoundError()
+
+        if user_credentials.status == UserStatus.DEACTIVATED:
+            logger.warning(
+                "user_deactivation_failed",
+                public_id=public_id,
+                requested_by=current_user_id,
+                reason="user_is_already_deactivated",
+            )
+
+            raise UserAlreadyInactiveError()
+
+        user_credentials.status = UserStatus.DEACTIVATED
+
+        for session_row in user_credentials.sessions:
+            session_row.access_token_version += 1
+            session_row.refresh_token_hash = None
+            session_row.refresh_token_family = None
+            session_row.refresh_token_expires_at = None
+
+        await session.commit()
+
+        asyncio.create_task(
+            emails.send_email_safe(
+                emails.send_account_deactivation_email(user_credentials.email),
+                email_type=EmailType.ACCOUNT_DEACTIVATION,
+            )
+        )
+
+        await delete_cache(
+            get_redis(request),
+            SessionCacheKey.access_token_version_key(public_id),
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_staff(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
+        )
+
+        logger.info(
+            "user_deactivated",
+            public_id=public_id,
+            deactivated_by=current_user_id,
+        )

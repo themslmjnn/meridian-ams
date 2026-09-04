@@ -26,7 +26,7 @@ router = APIRouter(
 async def register_user(
     request: Request,
     session: session_dependency,
-    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    current_user: require_system_admin,
     payload: CreateUserRequest,
 ):
     return await UserServiceAdmin.register_user(
@@ -38,11 +38,11 @@ async def register_user(
     "/{public_id}/profile",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@user_limiter.limit("10/minute")
+@user_limiter.limit("7/minute")
 async def update_user(
     request: Request,
     session: session_dependency,
-    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateUserRequest,
 ):
@@ -59,10 +59,21 @@ async def update_user(
 async def update_user_credentials(
     request: Request,
     session: session_dependency,
-    current_user: Annotated[CurrentUser, Depends(require_system_admin)],
+    current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateUserCredentials,
 ):
     await UserServiceAdmin.update_user_credentials(
         request, session, current_user.credentials_id, public_id, payload
     )
+
+
+@router.patch("/{target_user_id}/deactivation", status_code=status.HTTP_204_NO_CONTENT)
+@user_limiter.limit("5/minute")
+async def deactivate_user(
+    request: Request,
+    session: session_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+):
+    await UserServiceAdmin.deactivate_user(session, current_user.id, public_id)
