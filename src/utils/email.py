@@ -71,6 +71,7 @@ async def send_email(subject: str, to_email: str, html_body: str) -> None:
     Send an email via the appropriate provider for the current environment.
     Raises on delivery failure — caller (worker) handles retry logic.
     """
+
     if settings.ENVIRONMENT == "development":
         await _send_via_mailtrap(subject, to_email, html_body)
     else:
@@ -103,6 +104,7 @@ async def close_email_client() -> None:
     Close the shared httpx client. Called in lifespan shutdown.
     Prevents ResourceWarning in tests and ensures clean shutdown.
     """
+    
     await _resend_client.aclose()
 
 

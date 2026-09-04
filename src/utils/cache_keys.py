@@ -1,8 +1,8 @@
-class EmailCacheKey:
-    @staticmethod
-    def email_detail_key(email_id: int) -> str:
-        return f"emails:{email_id}:admin"
 
+class SessionCacheKey:
+    @staticmethod
+    def access_token_version_key(session_id: int) -> str:
+        return f"session:token_version:{session_id}"
 
 class UserCacheKey:
     @staticmethod
@@ -18,7 +18,7 @@ class UserCacheKey:
         return f"users:detail:{public_id}:self"
 
 
-class SessionCacheKey:
+class EmailCacheKey:
     @staticmethod
-    def access_token_version_key(session_id: int) -> str:
-        return f"session:token_version:{session_id}"
+    def email_detail_key(email_id: int) -> str:
+        return f"emails:detail:{email_id}:admin"

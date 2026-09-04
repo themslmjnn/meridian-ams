@@ -1,10 +1,10 @@
 class HTTP400:
-    INVITE_TOKEN_USED = "Account already activated or was never invited"
-    INVALID_INVITE_TOKEN = "Invalid invite token"
-    EXPIRED_INVITE_TOKEN = "Expired invite token"
-    NO_CHANGES_DETECTED = "No changes detected"
-    EXPIRED_RESET_PASSWORD_TOKEN = "Expired reset password token"
+    ACTIVATION_TOKEN_USED = "Account already activated or was never invited"
+    INVALID_ACTIVATION_TOKEN = "Invalid invite token"
+    EXPIRED_ACTIVATION_TOKEN = "Expired invite token"
     INVALID_RESET_PASSWORD_TOKEN = "Invalid reset password token"
+    EXPIRED_RESET_PASSWORD_TOKEN = "Expired reset password token"
+    NO_CHANGES_DETECTED = "No changes detected"
 
 
 class HTTP401:
@@ -15,7 +15,7 @@ class HTTP401:
     INVALID_ACCESS_TOKEN = "Invalid access token"
     EXPIRED_ACCESS_TOKEN = "Expired access token"
     INVALID_TOKEN_TYPE = "Invalid token type"
-    ACCOUNT_DELETION_EXPIRED = "Account deletion grace period has expired"
+    GRACE_PERIOD_EXPIRED = "Account deletion grace period has expired"
 
 
 class HTTP403:
