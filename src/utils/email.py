@@ -1004,3 +1004,139 @@ async def send_reset_password_token(
         to_email=email,
         html_body=html,
     )
+
+
+async def send_account_deletion_email(email: str) -> None:
+    login_link = f"{settings.APP_URL}/auth/login"
+
+    subject = "Your Meridian account is scheduled for deletion"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+
+    <body
+        style="
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f6f8;
+            color: #374151;
+        "
+    >
+        <div style="padding: 40px 20px;">
+            <div
+                style="
+                    max-width: 560px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    border-radius: 10px;
+                    padding: 40px;
+                    box-sizing: border-box;
+                "
+            >
+                <h1
+                    style="
+                        margin: 0 0 30px;
+                        font-size: 22px;
+                        color: #1f2937;
+                    "
+                >
+                    Meridian
+                </h1>
+
+                <h2
+                    style="
+                        margin: 0 0 20px;
+                        font-size: 20px;
+                        color: #1f2937;
+                    "
+                >
+                    Your account is scheduled for deletion
+                </h2>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    A school administrator has scheduled your account for
+                    deletion.
+                </p>
+
+                <div
+                    style="
+                        margin: 24px 0;
+                        padding: 16px;
+                        background-color: #f9fafb;
+                        border-radius: 6px;
+                    "
+                >
+                    <p
+                        style="
+                            margin: 0;
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                        "
+                    >
+                        Your account will be
+                        <strong>permanently deleted in 30 days</strong>.
+                    </p>
+                </div>
+
+                <p style="line-height: 1.6; margin: 0 0 16px;">
+                    You can still log in and use your account normally during
+                    this 30-day period.
+                </p>
+
+                <div style="text-align: center; margin: 32px 0;">
+                    <a
+                        href="{login_link}"
+                        style="
+                            display: inline-block;
+                            background-color: #2563eb;
+                            color: #ffffff;
+                            padding: 13px 26px;
+                            border-radius: 6px;
+                            text-decoration: none;
+                            font-weight: bold;
+                        "
+                    >
+                        Log In
+                    </a>
+                </div>
+
+                <p
+                    style="
+                        font-size: 14px;
+                        line-height: 1.6;
+                        color: #6b7280;
+                        margin: 24px 0 0;
+                    "
+                >
+                    If you believe this was done in error, please contact your
+                    school administrator before the deletion date.
+                </p>
+            </div>
+
+            <p
+                style="
+                    text-align: center;
+                    font-size: 12px;
+                    color: #9ca3af;
+                    margin-top: 20px;
+                "
+            >
+                © Meridian
+            </p>
+        </div>
+    </body>
+    </html>
+    """
+
+    await send_email(
+        subject=subject,
+        to_email=email,
+        html_body=html,
+    )
