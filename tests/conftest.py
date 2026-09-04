@@ -1,3 +1,5 @@
+from unittest.mock import AsyncMock
+
 import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
@@ -125,3 +127,21 @@ async def override_redis(redis_client):
     yield
 
     app.dependency_overrides.pop(get_redis, None)
+
+
+@pytest.fixture
+def database_health_mock(mocker):
+    return mocker.patch(
+        "src.api.health._check_database",
+        new_callable=AsyncMock,
+        return_value={"status": "ok", "duration_ms": 1.0},
+    )
+
+
+@pytest.fixture
+def redis_health_mock(mocker):
+    return mocker.patch(
+        "src.api.health._check_redis",
+        new_callable=AsyncMock,
+        return_value={"status": "ok", "duration_ms": 1.0},
+    )
