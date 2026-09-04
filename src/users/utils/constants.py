@@ -7,6 +7,7 @@ DELETION_GRACE_PERIOD_DAYS = 30
 STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT = 1
 STUDENT_MAX_SHARED_CONTACT = 3
 SYSTEM_ADMIN_INVISIBLE_ROLES = frozenset({UserRole.SYSTEM_ADMIN})
+STAFF_ROLES = frozenset({UserRole.DIRECTOR, UserRole.TEACHER})
 
 
 class HTTP400:
@@ -18,6 +19,7 @@ class HTTP400:
 class HTTP404:
     IDENTITY = "Identity not found"
     CREDENTIALS = "Credentials not found"
+    User = "User not found"
 
 
 class HTTP409:

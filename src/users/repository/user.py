@@ -299,27 +299,9 @@ class UserResponseRepository:
         session: AsyncSession,
         public_id: uuid.UUID,
     ) -> RowMapping | None:
-        result = await session.execute(
-            select(
-                UserCredentials.public_id,
-                UserCredentials.username,
-                UserCredentials.email,
-                UserCredentials.role,
-                UserCredentials.account_type,
-                UserCredentials.status,
-                UserCredentials.deletion_scheduled_for,
-                UserCredentials.created_at,
-                UserCredentials.updated_at,
-                UserIdentity.firstname,
-                UserIdentity.lastname,
-                UserIdentity.middlename,
-                UserIdentity.phone_number,
-                UserIdentity.date_of_birth,
-                UserIdentity.address,
-            )
-            .join(UserIdentity, UserCredentials.identity_id == UserIdentity.id)
-            .where(UserCredentials.public_id == public_id)
-        )
+        query = _BASE_JOIN.where(UserCredentials.public_id == public_id)
+
+        result = await session.execute(query)
 
         return result.mappings().one_or_none()
 
@@ -446,7 +428,7 @@ class UserRepositoryBase:
         )
 
     @staticmethod
-    async def get_staff(
+    async def get_users(
         session: AsyncSession,
         *,
         filters: SearchUserBase | None = None,
@@ -483,3 +465,19 @@ class UserRepositoryBase:
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
         )
+
+    @staticmethod
+    async def get_user_by_public_id(
+        session: AsyncSession,
+        public_id: uuid.UUID,
+        allowed_roles: frozenset[UserRole] | None = None,
+    ) -> RowMapping | None:
+        query = _BASE_JOIN.filter(
+            UserCredentials.role != UserRole.SYSTEM_ADMIN,
+            UserCredentials.role.in_(allowed_roles),
+            UserCredentials.public_id == public_id,
+        )
+
+        result = await session.execute(query)
+
+        return result.mappings().one_or_none()

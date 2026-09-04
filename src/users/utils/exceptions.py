@@ -52,6 +52,12 @@ class CredentialsNotFoundError(AppException):
     error_code = "CREDENTIALS_NOT_FOUND"
 
 
+class UserNotFoundError(AppException):
+    status_code = 404
+    detail = HTTP404.User
+    error_code = "USER_NOT_FOUND"
+
+
 class UserTypeMismatchError(AppException):
     status_code = 400
     detail = HTTP400.USER_TYPE_MISMATCH

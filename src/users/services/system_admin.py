@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache, get_redis
+from src.core.caching import delete_cache, get_cache, get_redis, set_cache
 from src.core.config import get_settings
 from src.core.pagination import CursorPage
 from src.core.security import generate_activation_token, generate_reset_password_token
@@ -38,6 +38,7 @@ from src.users.schemas.system_admin import (
 )
 from src.users.utils.constants import (
     DELETION_GRACE_PERIOD_DAYS,
+    STAFF_ROLES,
     SYSTEM_ADMIN_INVISIBLE_ROLES,
 )
 from src.users.utils.enums import AccountType, UserRole, UserStatus
@@ -48,6 +49,7 @@ from src.users.utils.exceptions import (
     IdentityNotFoundError,
     UserAlreadyActiveError,
     UserAlreadyInactiveError,
+    UserNotFoundError,
     UserNotPendingActivationError,
     UserTypeMismatchError,
     handle_non_student_unique_contact_error,
@@ -799,12 +801,13 @@ class UserServiceAdmin:
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
     ) -> CursorPage[UserResponseAdminDetailed]:
-        page = await UserRepositoryBase.get_staff(
+        page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
+            allowed_roles=STAFF_ROLES,
         )
 
         return CursorPage[UserResponseAdminDetailed](
@@ -813,3 +816,25 @@ class UserServiceAdmin:
             prev_cursor=page.prev_cursor,
             limit=page.limit,
         )
+
+    @staticmethod
+    async def get_staff_by_public_id(
+        session: AsyncSession, public_id: int
+    ) -> UserResponseAdminDetailed:
+        cache_key = UserCacheKey.user_detail_key_admin(public_id)
+
+        redis = get_redis()
+        cached = await get_cache(redis, cache_key)
+
+        if cached is not None:
+            return UserResponseAdminDetailed.model_validate(cached)
+
+        staff = await UserRepositoryBase.get_user_by_public_id(
+            session, public_id, allowed_roles=STAFF_ROLES
+        )
+        if staff is None:
+            raise UserNotFoundError()
+
+        await set_cache(redis, cache_key, staff.model_dump(mode="json"), 900)
+
+        return UserResponseAdminDetailed.model_validate(staff)
