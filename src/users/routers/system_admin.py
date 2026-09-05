@@ -78,7 +78,9 @@ async def deactivate_user(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.deactivate_user(request, session, current_user.id, public_id)
+    await UserServiceAdmin.deactivate_user(
+        request, session, current_user.credentials_id, public_id
+    )
 
 
 @router.patch("/{public_id}/activation", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,7 +91,9 @@ async def activate_user(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.activate_user(request, session, current_user.id, public_id)
+    await UserServiceAdmin.activate_user(
+        request, session, current_user.credentials_id, public_id
+    )
 
 
 @router.post("/{public_id}/password", status_code=status.HTTP_204_NO_CONTENT)

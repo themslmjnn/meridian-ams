@@ -88,6 +88,12 @@ class GuardianAlreadyPendingDeletionError(AppException):
     error_code = "PENDING_DELETION"
 
 
+class InvalidStatusTransitionError(AppException):
+    status_code = 403
+    detail = "Invalid status transition"
+    error_code = "INVALID_STATUS_TRANSITION"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

@@ -48,6 +48,7 @@ from src.users.utils.exceptions import (
     GuardianAccountAlreadyExistsError,
     GuardianAlreadyPendingDeletionError,
     IdentityNotFoundError,
+    InvalidStatusTransitionError,
     UserAlreadyActiveError,
     UserAlreadyInactiveError,
     UserNotFoundError,
@@ -495,6 +496,9 @@ class UserServiceAdmin:
 
             raise UserAlreadyInactiveError()
 
+        if user_credentials.status != UserStatus.ACTIVE:
+            raise InvalidStatusTransitionError()
+
         user_credentials.status = UserStatus.DEACTIVATED
 
         for session_row in user_credentials.sessions:
@@ -552,10 +556,14 @@ class UserServiceAdmin:
 
             raise UserAlreadyActiveError()
 
+        if user_credentials.status != UserStatus.DEACTIVATED:
+            raise InvalidStatusTransitionError()
+
         user_credentials.status = UserStatus.ACTIVE
 
-        user_credentials.login_lockout.failed_login_attempts = 0
-        user_credentials.login_lockout.locked_until = None
+        if user_credentials.login_lockout is not None:
+            user_credentials.login_lockout.failed_attempts = 0
+            user_credentials.login_lockout.locked_until = None
 
         await session.commit()
 
@@ -567,7 +575,10 @@ class UserServiceAdmin:
         )
 
         await delete_cache(
-            get_redis(request), UserCacheKey.user_detail_key_admin(public_id)
+            get_redis(request),
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_staff(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
         )
 
         logger.info(
