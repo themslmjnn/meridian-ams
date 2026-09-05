@@ -69,5 +69,17 @@ class NoChangesDetectedError(AppException):
     error_code = "NO_CHANGES_DETECTED"
 
 
+class InvalidActivationCodeError(AppException):
+    status_code = 400
+    detail = HTTP400.INVALID_ACTIVATION_TOKEN
+    error_code = "INVALID_ACTIVATION_TOKEN"
+
+
+class ExpiredActivationCodeError(AppException):
+    status_code = 400
+    detail = HTTP400.EXPIRED_ACTIVATION_TOKEN
+    error_code = "EXPIRED_ACTIVATION_TOKEN"
+
+
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
     raise error

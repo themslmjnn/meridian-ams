@@ -4,7 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 
-from src.auth.schemas import LoginResponse
+from src.auth.schemas import ActivateAccount, LoginResponse
 from src.auth.service import AuthService
 from src.core.caching import get_redis
 from src.core.dependencies import current_user_dependency, session_dependency
@@ -65,7 +65,9 @@ async def logout_all(
     )
 
 
-@router.post("/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+@router.post(
+    "/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK
+)
 async def refresh_token(
     request: Request,
     response: Response,
@@ -82,4 +84,22 @@ async def refresh_token(
         session=session,
         raw_refresh_token=refresh_token,
         raw_refresh_family=refresh_token_family,
+    )
+
+
+@router.post(
+    "/activation", response_model=LoginResponse, status_code=status.HTTP_200_OK
+)
+async def activate(
+    request: Request,
+    response: Response,
+    session: session_dependency,
+    paydload: ActivateAccount,
+):
+    return await AuthService.activate_account(
+        response=response,
+        session=session,
+        paydload=paydload,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
     )

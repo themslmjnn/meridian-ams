@@ -1,6 +1,9 @@
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
+from src.users.models.activation import UserActivation
+from src.users.models.credentials import UserCredentials
 from src.users.models.session import UserSession
 
 
@@ -120,3 +123,43 @@ class AuthRepository:
         result = await session.execute(query)
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_credentials_by_activation_token_hash(
+        session: AsyncSession,
+        activation_token_hash: str,
+    ) -> UserCredentials | None:
+        query = (
+            select(UserCredentials)
+            .join(
+                UserActivation,
+                UserActivation.credentials_id == UserCredentials.id,
+            )
+            .where(UserActivation.activation_token_hash == activation_token_hash)
+            .options(
+                joinedload(UserCredentials.activation),
+            )
+        )
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def claim_activation_token(
+        session: AsyncSession,
+        credentials_id: int,
+    ) -> bool:
+        """
+        Atomically delete the UserActivation row using DELETE ... RETURNING.
+        Returns True if the row was claimed, False if another request got there first.
+        """
+        query = (
+            delete(UserActivation)
+            .where(UserActivation.credentials_id == credentials_id)
+            .returning(UserActivation.id)
+        )
+        result = await session.execute(query)
+
+        await session.flush()
+
+        return result.scalar_one_or_none() is not None

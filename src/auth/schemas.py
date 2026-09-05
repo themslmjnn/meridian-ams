@@ -1,9 +1,9 @@
 import uuid
-from dataclasses import dataclass
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from src.users.utils.enums import AccountType, UserRole
+from src.users.utils.validators import validate_password
 
 
 class CreateAccessToken(BaseModel):
@@ -19,7 +19,17 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
 
 
-@dataclass
 class CreateRefreshToken:
     public_id: uuid.UUID
     session_id: int
+
+
+class ActivateAccount(BaseModel):
+    activation_token: str
+    password: str
+    confirm_password: str
+
+    @field_validator("password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        return validate_password(v)

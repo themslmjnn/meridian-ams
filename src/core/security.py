@@ -111,17 +111,17 @@ def decode_refresh_token(refresh_token: str) -> dict:
 
 
 def verify_token(raw_token: str, hashed_token: str) -> bool:
-    return hmac.compare_digest(_sha256(raw_token), hashed_token)
+    return hmac.compare_digest(sha256(raw_token), hashed_token)
 
 
 def generate_activation_token() -> tuple[str, str]:
     raw_token = secrets.token_urlsafe(32)
 
-    return raw_token, _sha256(raw_token)
+    return raw_token, sha256(raw_token)
 
 
 def verify_activation_token(raw_token: str, hashed_token: str) -> bool:
-    return hmac.compare_digest(_sha256(raw_token), hashed_token)
+    return hmac.compare_digest(sha256(raw_token), hashed_token)
 
 
 async def hash_password(password: str) -> str:
@@ -137,16 +137,16 @@ async def verify_password(plain_password: str, hashed_password: str) -> bool:
 def generate_reset_password_token() -> tuple[str, str]:
     raw_token = secrets.token_urlsafe(32)
 
-    return raw_token, _sha256(raw_token)
+    return raw_token, sha256(raw_token)
 
 
 def verify_reset_password_token(raw_token: str, hashed_token: str) -> bool:
     return hmac.compare_digest(
-        _sha256(raw_token),
+        sha256(raw_token),
         hashed_token,
     )
 
 
 # Internal helpers
-def _sha256(value: str) -> str:
+def sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
