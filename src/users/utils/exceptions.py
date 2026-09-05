@@ -1,49 +1,46 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.users.utils.constants import HTTP400, HTTP404, HTTP409
+from src.users.utils.constants import HTTP400, HTTP403, HTTP404, HTTP409
 
 
-class UsernameAlreadyTakenError(AppException):
-    status_code = 409
-    detail = HTTP409.DUPLICATE_USERNAME
-    error_code = "USERNAME_ALREADY_TAKEN"
+# HTTP400
+class UpdatePayloadMismatchError(AppException):
+    status_code = 400
+    detail = HTTP400.UPDATE_PAYLOAD_MISMATCH
+    error_code = "UPDATE_PAYLOAD_MISMATCH"
 
 
-class MaxStudentsPerPhoneNumberError(AppException):
-    status_code = 409
-    detail = HTTP409.MAX_STUDENTS_PER_PHONE_NUMBER
-    error_code = "MAX_STUDENTS_PER_PHONE_NUMBER"
+class InvalidEmailChangeCodeError(AppException):
+    status_code = 400
+    detail = HTTP400.INVALID_EMAIL_CHANGE_CODE
+    error_code = "INVALID_EMAIL_CHANGE_CODE"
 
 
-class MaxStudentsPerEmailError(AppException):
-    status_code = 409
-    detail = HTTP409.MAX_STUDENTS_PER_EMAIL
-    error_code = "MAX_STUDENTS_PER_EMAIL"
+class EmailChangeCodeExpiredError(AppException):
+    status_code = 400
+    detail = HTTP400.EXPIRED_EMAIL_CHANGE_CODE
+    error_code = "EXPIRED_EMAIL_CHANGE_CODE"
 
 
-class DuplicatePhoneNumberError(AppException):
-    status_code = 409
-    detail = HTTP409.DUPLICATE_PHONE_NUMBER
-    error_code = "DUPLICATE_PHONE_NUMBER"
+class IncorrectPasswordError(AppException):
+    status_code = 400
+    detail = HTTP400.INCORRECT_PASSWORD
+    error_code = "INCORRECT_PASSWORD"
 
 
-class DuplicateEmailError(AppException):
-    status_code = 409
-    detail = HTTP409.DUPLICATE_EMAIL
-    error_code = "DUPLICATE_EMAIL"
+# HTTP403
+class InvalidStatusTransitionError(AppException):
+    status_code = 403
+    detail = HTTP403.INVALID_STATUS_TRANSITION
+    error_code = "INVALID_STATUS_TRANSITION"
 
 
+# HTTP404
 class IdentityNotFoundError(AppException):
     status_code = 404
     detail = HTTP404.IDENTITY
     error_code = "IDENTITY_NOT_FOUND"
-
-
-class GuardianAccountAlreadyExistsError(AppException):
-    status_code = 409
-    detail = HTTP409.DUPLICATE_GUARDIAN_ACCOUNT
-    error_code = "GUARDIAN_ACCOUNT_ALREADY_EXISTS"
 
 
 class CredentialsNotFoundError(AppException):
@@ -58,70 +55,77 @@ class UserNotFoundError(AppException):
     error_code = "USER_NOT_FOUND"
 
 
-class UserTypeMismatchError(AppException):
-    status_code = 400
-    detail = HTTP400.USER_TYPE_MISMATCH
-    error_code = "USER_TYPE_MISMATCH"
+class NoPendingEmailChangeError(AppException):
+    status_code = 404
+    detail = HTTP404.NO_PENDING_EMAIL_CHANGE
+    error_code = "NO_PENDING_EMAIL_CHANGE"
+
+
+# HTTP409
+class UsernameAlreadyTakenError(AppException):
+    status_code = 409
+    detail = HTTP409.DUPLICATE_USERNAME
+    error_code = "USERNAME_ALREADY_TAKEN"
+
+
+class DuplicatePhoneNumberError(AppException):
+    status_code = 409
+    detail = HTTP409.DUPLICATE_PHONE_NUMBER
+    error_code = "DUPLICATE_PHONE_NUMBER"
+
+
+class DuplicateEmailError(AppException):
+    status_code = 409
+    detail = HTTP409.DUPLICATE_EMAIL
+    error_code = "DUPLICATE_EMAIL"
+
+
+class MaxStudentsPerPhoneNumberError(AppException):
+    status_code = 409
+    detail = HTTP409.MAX_STUDENTS_PER_PHONE_NUMBER
+    error_code = "MAX_STUDENTS_PER_PHONE_NUMBER"
+
+
+class MaxStudentsPerEmailError(AppException):
+    status_code = 409
+    detail = HTTP409.MAX_STUDENTS_PER_EMAIL
+    error_code = "MAX_STUDENTS_PER_EMAIL"
+
+
+class GuardianAccountAlreadyExistsError(AppException):
+    status_code = 409
+    detail = HTTP409.DUPLICATE_GUARDIAN_ACCOUNT
+    error_code = "DUPLICATE_GUARDIAN_ACCOUNT"
 
 
 class UserAlreadyInactiveError(AppException):
     status_code = 409
-    detail = HTTP409.USER_INACTIVE
+    detail = HTTP409.USER_ALREADY_INACTIVE
     error_code = "USER_ALREADY_INACTIVE"
 
 
 class UserAlreadyActiveError(AppException):
     status_code = 409
-    detail = HTTP409.USER_ACTIVE
+    detail = HTTP409.USER_ALREADY_ACTIVE
     error_code = "USER_ALREADY_ACTIVE"
 
 
 class UserNotPendingActivationError(AppException):
     status_code = 409
-    detail = HTTP409.USER_ACTIVE
-    error_code = "USER_ALREADY_ACTIVE"
+    detail = HTTP409.USER_NOT_PENDING_ACTIVATION
+    error_code = "USER_NOT_PENDING_ACTIVATION"
 
 
 class GuardianAlreadyPendingDeletionError(AppException):
     status_code = 409
-    detail = HTTP409.PENDING_DELETION
-    error_code = "PENDING_DELETION"
-
-
-class InvalidStatusTransitionError(AppException):
-    status_code = 403
-    detail = "Invalid status transition"
-    error_code = "INVALID_STATUS_TRANSITION"
+    detail = HTTP409.GUARDIAN_PENDING_DELETION
+    error_code = "GUARDIAN_PENDING_DELETION"
 
 
 class DuplicateEmailChangeRequestError(AppException):
     status_code = 409
-    detail = "An identical email change request is already pending"
-    error_code = "DUPLICATE_EMAIL_CHANGE"
-
-
-class NoPendingEmailChangeError(AppException):
-    status_code = 404
-    detail = "No email change is currently pending"
-    error_code = "NO_PENDING_EMAIL_CHANGE"
-
-
-class EmailChangeCodeExpiredError(AppException):
-    status_code = 400
-    detail = "Email change code has expired"
-    error_code = "EMAIL_CHANGE_CODE_EXPIRED"
-
-
-class InvalidEmailChangeCodeError(AppException):
-    status_code = 400
-    detail = "Invalid email change code"
-    error_code = "INVALID_EMAIL_CHANGE_CODE"
-
-
-class IncorrectPasswordError(AppException):
-    status_code = 400
-    detail = "Current password is incorrect"
-    error_code = "INCORRECT_PASSWORD"
+    detail = HTTP409.DUPLICATE_EMAIL_CHANGE_REQUEST
+    error_code = "DUPLICATE_EMAIL_CHANGE_REQUEST"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:
