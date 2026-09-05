@@ -51,8 +51,8 @@ class Settings(BaseSettings):
 
     JWT_SECRET_KEY: str
     JWT_SECRET_KEY_PREVIOUS: str | None = None
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRES_DAYS: int = 30
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = 30
@@ -126,26 +126,26 @@ class Settings(BaseSettings):
             )
         return v
 
-    @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
+    @field_validator("ACCESS_TOKEN_EXPIRES_MINUTES")
     @classmethod
     def validate_access_token_expiry(cls, v: int) -> int:
         if v < 1:
-            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be at least 1")
+            raise ValueError("ACCESS_TOKEN_EXPIRES_MINUTES must be at least 1")
         if v > 60:
             raise ValueError(
-                "ACCESS_TOKEN_EXPIRE_MINUTES should not exceed 60 — "
+                "ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 60 — "
                 "use refresh tokens for long-lived sessions"
             )
 
         return v
 
-    @field_validator("REFRESH_TOKEN_EXPIRE_DAYS")
+    @field_validator("REFRESH_TOKEN_EXPIRES_DAYS")
     @classmethod
     def validate_refresh_token_expiry(cls, v: int) -> int:
         if v < 1:
-            raise ValueError("REFRESH_TOKEN_EXPIRE_DAYS must be at least 1")
+            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS must be at least 1")
         if v > 90:
-            raise ValueError("REFRESH_TOKEN_EXPIRE_DAYS should not exceed 90")
+            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS should not exceed 90")
 
         return v
 

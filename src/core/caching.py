@@ -9,6 +9,7 @@ from redis.exceptions import RedisError
 from src.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
+
 settings = get_settings()
 
 
@@ -19,6 +20,7 @@ async def init_redis(app: "FastAPI") -> None:
     Called during lifespan startup. Raises if Redis is unreachable — we want
     to fail fast on startup rather than discover it on the first request.
     """
+
     client: Redis = aioredis.from_url(
         app.state.settings.REDIS_URL,
         encoding="utf-8",
@@ -38,6 +40,7 @@ async def close_redis(app: "FastAPI") -> None:
 
     Must be called explicitly to avoid ResourceWarning in tests.
     """
+
     if hasattr(app.state, "redis"):
         await app.state.redis.aclose()
 
@@ -46,6 +49,7 @@ async def close_redis(app: "FastAPI") -> None:
 
 def get_redis(request: Request) -> Redis:
     """FastAPI dependency returning the shared Redis client."""
+
     return request.app.state.redis  # type: ignore[no-any-return]
 
 
@@ -62,13 +66,12 @@ async def get_cache(redis: Redis, key: str) -> str | None:
 
     Safe to use for non-critical cached data. Never raises.
     """
+
     try:
         return await redis.get(key)  # type: ignore[no-any-return]
 
     except RedisError as exc:
         logger.warning("redis_cache_get_failed", key=key, error=str(exc))
-
-        return None
 
 
 async def set_cache(
@@ -82,6 +85,7 @@ async def set_cache(
 
     Swallows RedisError — cache write failure is non-fatal.
     """
+
     try:
         await redis.set(key, value, ex=ex)
 
@@ -95,6 +99,7 @@ async def delete_cache(redis: Redis, *keys: str) -> None:
 
     Swallows RedisError — cache eviction failure is non-fatal.
     """
+
     try:
         await redis.delete(*keys)
 
@@ -116,6 +121,7 @@ async def get_cache_critical(redis: Redis, key: str) -> Any:
     Use for rate limiting, token version checks, idempotency keys —
     any operation where a silent failure would be a security or correctness issue.
     """
+
     return await redis.get(key)
 
 
@@ -130,4 +136,5 @@ async def set_cache_critical(
 
     Use for the same operations as critical_get.
     """
+
     await redis.set(key, value, ex=ex)

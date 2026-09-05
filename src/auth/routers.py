@@ -16,7 +16,7 @@ from src.core.dependencies import current_user_dependency, session_dependency
 from src.utils.exceptions import InvalidRefreshTokenError
 
 router = APIRouter(
-    prefix="/auth",
+    prefix="/api/v1/auth",
     tags=["Auth"],
 )
 

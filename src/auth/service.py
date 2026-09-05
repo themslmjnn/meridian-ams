@@ -322,6 +322,9 @@ class AuthService:
                 device_id=device_id,
             )
 
+            session.add(user_session)
+            await session.flush()
+
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 CreateRefreshToken(
                     public_id=credentials.public_id,
@@ -679,7 +682,7 @@ class AuthService:
             refresh_token_hash="",
             refresh_token_family=refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
-            + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),
+            + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
             user_agent=user_agent,
             ip_address=ip_address,
             device_id=device_id,
