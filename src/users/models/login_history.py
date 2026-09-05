@@ -20,7 +20,7 @@ class LoginHistory(ImmutableBase):
     failure_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        nullable=False,
+        nullable=True,
     )
 
     credentials: Mapped["UserCredentials"] = relationship(  # noqa: F821
