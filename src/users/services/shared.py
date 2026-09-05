@@ -2,12 +2,12 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import Request
+from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache, get_cache, get_redis, set_cache
+from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
 from src.core.security import (
@@ -49,10 +49,10 @@ logger = structlog.get_logger(__name__)
 class UserServiceSelf:
     @staticmethod
     async def get_my_profile(
-        request: Request, session: AsyncSession, current_user: CurrentUser
+        session: AsyncSession, redis: Redis, current_user: CurrentUser
     ) -> UserResponseSelf:
         cache_key = UserCacheKey.user_detail_key_self(current_user.id)
-        cached = await get_cache(get_redis(request), cache_key)
+        cached = await get_cache(redis, cache_key)
 
         if cached is not None:
             return UserResponseSelf.model_validate(cached)
@@ -67,16 +67,14 @@ class UserServiceSelf:
 
         response = UserResponseSelf.model_validate(user)
 
-        await set_cache(
-            get_redis(request), cache_key, response.model_dump(mode="json"), 900
-        )
+        await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
         return response
 
     @staticmethod
     async def update_me_credentials(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user: CurrentUser,
         update_request: UpdateUserCredentials,
     ) -> None:
@@ -152,7 +150,7 @@ class UserServiceSelf:
                 )
 
             await delete_cache(
-                get_redis(request),
+                redis,
                 UserCacheKey.user_detail_key_admin(target_user.id),
                 UserCacheKey.user_detail_key_staff(target_user.id),
                 UserCacheKey.user_detail_key_self(target_user.id),
@@ -160,7 +158,7 @@ class UserServiceSelf:
 
             if username_changing:
                 await delete_cache(
-                    get_redis(request),
+                    redis,
                     SessionCacheKey.access_token_version_key(target_user.id),
                 )
 
@@ -194,8 +192,8 @@ class UserServiceSelf:
 
     @staticmethod
     async def confirm_email_change(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user: CurrentUser,
         confirm_request: ConfirmEmailChange,
     ) -> None:
@@ -275,7 +273,7 @@ class UserServiceSelf:
             )
 
             await delete_cache(
-                get_redis(request),
+                redis,
                 SessionCacheKey.access_token_version_key(current_user.public_id),
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
                 UserCacheKey.user_detail_key_staff(current_user.public_id),
@@ -304,8 +302,8 @@ class UserServiceSelf:
 
     @staticmethod
     async def update_me_password(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user: CurrentUser,
         update_request: UpdateMePassword,
     ) -> None:
@@ -351,7 +349,7 @@ class UserServiceSelf:
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             SessionCacheKey.access_token_version_key(current_user.public_id),
         )
 
