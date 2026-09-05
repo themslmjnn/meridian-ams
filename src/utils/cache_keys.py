@@ -3,6 +3,27 @@ class SessionCacheKey:
     def access_token_version_key(session_id: int) -> str:
         return f"session:token_version:{session_id}"
 
+    @staticmethod
+    def pack_atv_cache(atv: int, credentials_id: int) -> str:
+        return f"{atv}:{credentials_id}"
+
+    @staticmethod
+    def _unpack_atv_cache(cached: str) -> tuple[int, int]:
+        """
+        Unpack the cached ATV string back into (atv, credentials_id).
+
+        Raises ValueError if the cache value is malformed — treated as a cache
+        miss by the caller, which will fall through to the DB path.
+        """
+
+        try:
+            atv_str, credentials_id_str = cached.split(":", 1)
+
+            return int(atv_str), int(credentials_id_str)
+
+        except (ValueError, AttributeError) as exc:
+            raise ValueError(f"Malformed ATV cache value: {cached!r}") from exc
+
 
 class UserCacheKey:
     @staticmethod

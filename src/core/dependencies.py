@@ -76,7 +76,7 @@ async def get_current_user(
 
     if cached is not None:
         try:
-            cached_atv, cached_credentials_id = _unpack_atv_cache(cached)
+            cached_atv, cached_credentials_id = SessionCacheKey.unpack_atv_cache(cached)
 
         except ValueError:
             logger.warning("atv_cache_malformed", session_id=session_id, cached=cached)
@@ -124,7 +124,9 @@ async def get_current_user(
     await set_cache_critical(
         redis,
         atv_key,
-        _pack_atv_cache(user_session.access_token_version, credentials.id),
+        SessionCacheKey.pack_atv_cache(
+            user_session.access_token_version, credentials.id
+        ),
         ex=settings.ACCESS_TOKEN_EXPIRES_MINUTES * 60,
     )
 
@@ -204,23 +206,3 @@ def _verify_status(credentials: UserCredentials) -> None:
     )
 
     raise AppException(status_code=401, detail=detail, error_code=error_code)
-
-
-def _pack_atv_cache(atv: int, credentials_id: int) -> str:
-    return f"{atv}:{credentials_id}"
-
-
-def _unpack_atv_cache(cached: str) -> tuple[int, int]:
-    """
-    Unpack the cached ATV string back into (atv, credentials_id).
-
-    Raises ValueError if the cache value is malformed — treated as a cache
-    miss by the caller, which will fall through to the DB path.
-    """
-    try:
-        atv_str, credentials_id_str = cached.split(":", 1)
-
-        return int(atv_str), int(credentials_id_str)
-
-    except (ValueError, AttributeError) as exc:
-        raise ValueError(f"Malformed ATV cache value: {cached!r}") from exc
