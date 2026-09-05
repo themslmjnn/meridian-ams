@@ -1,6 +1,5 @@
 import secrets
 from datetime import UTC, datetime, timedelta
-from hashlib import sha256
 
 import structlog
 from fastapi import Request, Response
@@ -27,6 +26,7 @@ from src.core.security import (
     decode_refresh_token,
     generate_token,
     hash_password,
+    sha256,
     verify_password,
     verify_token,
 )
@@ -626,7 +626,7 @@ class AuthService:
         ip_address: str | None,
         user_agent: str | None,
     ) -> LoginResponse:
-        token_hash = sha256(payload.token)
+        token_hash = sha256(payload.activation_token)
 
         credentials = await AuthRepository.get_credentials_by_activation_token_hash(
             session, token_hash
@@ -674,16 +674,19 @@ class AuthService:
         refresh_token_family = secrets.token_urlsafe(32)
         device_id = secrets.token_urlsafe(32)
 
-        user_session = await UserSession(
+        user_session = UserSession(
             credentials_id=credentials.id,
             refresh_token_hash="",
             refresh_token_family=refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
-            + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
+            + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),
             user_agent=user_agent,
             ip_address=ip_address,
             device_id=device_id,
         )
+
+        session.add(user_session)
+        await session.flush()
 
         raw_refresh_token, hashed_refresh_token = create_refresh_token(
             CreateRefreshToken(

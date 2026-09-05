@@ -99,12 +99,12 @@ async def activate(
     request: Request,
     response: Response,
     session: session_dependency,
-    paydload: ActivateAccount,
+    payload: ActivateAccount,
 ):
     return await AuthService.activate_account(
         response=response,
         session=session,
-        paydload=paydload,
+        payload=payload,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )

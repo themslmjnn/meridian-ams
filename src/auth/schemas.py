@@ -19,7 +19,7 @@ class LoginResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class CreateRefreshToken:
+class CreateRefreshToken(BaseModel):
     public_id: uuid.UUID
     session_id: int
 

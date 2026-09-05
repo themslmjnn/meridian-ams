@@ -27,7 +27,7 @@ def create_access_token(payload: CreateAccessToken) -> str:
         "atv": payload.access_token_version,
         "type": "access",
         "exp": datetime.now(UTC)
-        + timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES),
+        + timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRE_MINUTES),
         "iat": datetime.now(UTC),
     }
 
@@ -69,7 +69,7 @@ def create_refresh_token(payload: CreateRefreshToken) -> tuple[str, str]:
         "type": "refresh",
         "jti": secrets.token_urlsafe(16),
         "exp": datetime.now(UTC)
-        + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
+        + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRE_DAYS),
     }
 
     raw_token = jwt.encode(

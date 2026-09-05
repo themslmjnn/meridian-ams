@@ -5,9 +5,6 @@ from typing import Literal
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ALGORITHM = "HS256"
-
-
 _ENV = os.getenv("ENVIRONMENT", "development")
 _ENV_FILE_MAP = {
     "test": ".env.test",
@@ -22,6 +19,8 @@ class Settings(BaseSettings):
         case_sensitive=True,
         extra="ignore",
     )
+
+    ALGORITHM: str = "HS256"
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
     APP_NAME: str = "Meridian AMS"
