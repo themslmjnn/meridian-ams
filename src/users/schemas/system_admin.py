@@ -19,13 +19,15 @@ class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
     date_of_birth: date | None
     address: str | None
 
+    phone_number: str
+
+    role: UserRole
+
     public_id: uuid.UUID
 
     username: str
-    phone_number: str
     email: str
 
-    role: UserRole
     account_type: AccountType
     status: UserStatus
 
@@ -39,8 +41,9 @@ class CreateUserBase(BaseModel):
     lastname: str = Field(min_length=3, max_length=50)
     middlename: str | None = Field(min_length=3, max_length=50, default=None)
 
-    username: str = Field(min_length=6, max_length=20)
     phone_number: str
+
+    username: str = Field(min_length=6, max_length=20)
     email: str
 
     @field_validator("firstname")
@@ -61,15 +64,15 @@ class CreateUserBase(BaseModel):
 
         return validators.validate_middlename(v)
 
-    @field_validator("username")
-    @classmethod
-    def _validate_username(cls, v: str) -> str:
-        return validators.validate_username(v)
-
     @field_validator("phone_number")
     @classmethod
     def _validate_phone(cls, v: str) -> str:
         return validators.validate_phone_number(v)
+
+    @field_validator("username")
+    @classmethod
+    def _validate_username(cls, v: str) -> str:
+        return validators.validate_username(v)
 
     @field_validator("email", mode="after")
     @classmethod
@@ -101,14 +104,34 @@ class CreateStaffAdmin(CreateUserBase):
         return self
 
 
-class CreateGuardianAdmin(CreateUserBase):
-    type: Literal["guardian"] = "guardian"
+class CreateGuardianAdminWithNewIdentity(CreateUserBase):
+    type: Literal["new_guardian"] = "new_guardian"
 
-    existing_identity_id: int | None = None
+
+class CreateGuardianAdminWithExistingIdentity(BaseModel):
+    type: Literal["existing_guardian"] = "existing_guardian"
+
+    existing_identity_id: int
+
+    username: str = Field(min_length=6, max_length=20)
+    email: str
+
+    @field_validator("username")
+    @classmethod
+    def _validate_username(cls, v: str) -> str:
+        return validators.validate_username(v)
+
+    @field_validator("email", mode="after")
+    @classmethod
+    def _validate_email(cls, v: str) -> str:
+        return validators.validate_email(v)
 
 
 CreateUserRequest = Annotated[
-    CreateStudentAdmin | CreateStaffAdmin | CreateGuardianAdmin,
+    CreateStudentAdmin
+    | CreateStaffAdmin
+    | CreateGuardianAdminWithNewIdentity
+    | CreateGuardianAdminWithExistingIdentity,
     Field(discriminator="type"),
 ]
 

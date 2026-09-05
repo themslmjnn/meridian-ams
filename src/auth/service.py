@@ -120,7 +120,7 @@ class AuthService:
         credentials = await UserCredentialsRepository.get_by_username(
             session,
             form_data.username,
-            load_options=LoadOptionsSchema(load_login_lockout=True),
+            load_options=LoadOptionsSchema(load_identity=True, load_login_lockout=True),
         )
 
         if credentials is None:
@@ -337,7 +337,7 @@ class AuthService:
         access_token = create_access_token(
             CreateAccessToken(
                 public_id=credentials.public_id,
-                role=credentials.role,
+                role=credentials.identity.role,
                 account_type=credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
@@ -357,7 +357,7 @@ class AuthService:
         logger.info(
             "login_success",
             credentials_id=credentials.id,
-            role=credentials.role,
+            role=credentials.identity.role,
             session_id=user_session.id,
             device="existing" if existing_session else "new",
         )

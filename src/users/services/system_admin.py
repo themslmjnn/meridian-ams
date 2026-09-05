@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.users.schemas.system_admin as schemas
 import src.users.utils.constants as constants
 import src.users.utils.exceptions as exceptions
-from src.core.advisory_locks import acquire_contact_locks
+from src.core.advisory_locks import acquire_student_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.pagination import CursorPage
@@ -47,6 +47,8 @@ class UserServiceAdmin:
         current_user_id: int,
         payload: schemas.CreateUserRequest,
     ) -> schemas.UserResponseAdminDetailed:
+        guardian_existing_identity = False
+
         match payload:
             case schemas.CreateStudentAdmin():
                 resolved_role = UserRole.STUDENT
@@ -56,31 +58,38 @@ class UserServiceAdmin:
                 resolved_role = payload.role
                 account_type = AccountType.WORK
 
-            case schemas.CreateGuardianAdmin():
+            case schemas.CreateGuardianAdminWithNewIdentity():
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
+
+            case schemas.CreateGuardianAdminWithExistingIdentity():
+                resolved_role = UserRole.GUARDIAN
+                account_type = AccountType.PERSONAL
+                guardian_existing_identity = True
 
             case _:
                 assert_never(payload)
 
         is_student = resolved_role == UserRole.STUDENT
 
-        await acquire_contact_locks(
-            session,
-            phone_number=payload.phone_number,
-            email=payload.email,
-            is_student=is_student,
-        )
+        if not guardian_existing_identity:
+            if is_student:
+                await acquire_student_contact_locks(
+                    session,
+                    phone_number=payload.phone_number,
+                    email=payload.email,
+                    is_student=is_student,
+                )
 
-        await check_contact_limit(
-            session,
-            current_user_id,
-            username=payload.username,
-            phone_number=payload.phone_number,
-            email=payload.email,
-            account_type=account_type,
-            resolved_role=resolved_role,
-        )
+            await check_contact_limit(
+                session,
+                current_user_id,
+                username=payload.username,
+                phone_number=payload.phone_number,
+                email=payload.email,
+                account_type=account_type,
+                resolved_role=resolved_role,
+            )
 
         raw_activation_token, hashed_activation_token = generate_token()
 
@@ -89,10 +98,7 @@ class UserServiceAdmin:
         )
 
         try:
-            if (
-                isinstance(payload, schemas.CreateGuardianAdmin)
-                and payload.existing_identity_id
-            ):
+            if guardian_existing_identity:
                 existing_identity = await UserIdentityRepository.get_by_id(
                     session, payload.existing_identity_id
                 )
@@ -112,6 +118,7 @@ class UserServiceAdmin:
                     lastname=payload.lastname,
                     middlename=payload.middlename,
                     phone_number=payload.phone_number,
+                    role=resolved_role,
                     date_of_birth=payload.date_of_birth if is_student else None,
                     address=payload.address if is_student else None,
                 )
@@ -125,7 +132,6 @@ class UserServiceAdmin:
                 identity_id=identity_id,
                 username=payload.username,
                 email=payload.email,
-                role=resolved_role,
                 account_type=account_type,
                 status=UserStatus.PENDING_ACTIVATION,
             )
@@ -199,7 +205,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
@@ -208,16 +214,28 @@ class UserServiceAdmin:
             session, user_credentials.identity_id
         )
 
-        is_student = user_credentials.role == UserRole.STUDENT
+        match payload:
+            case schemas.UpdateStudentAdmin():
+                resolved_role = UserRole.STUDENT
+                account_type = AccountType.STUDENT
+
+            case schemas.UpdateStaffOrGuardianAdmin():
+                resolved_role = user_identity.role
+                account_type = user_credentials.account_type
+
+            case _:
+                assert_never(payload)
+
+        is_student = user_identity.role == UserRole.STUDENT
         is_request_student_shaped = isinstance(payload, schemas.UpdateStudentAdmin)
 
         if is_student != is_request_student_shaped:
             logger.warning(
                 "update_payload_mismatch",
-                actor_user_id=current_user_id,
                 public_id=public_id,
-                user_role=user_credentials.role.value,
+                user_role=user_identity.role.value,
                 submitted_type=payload.type,
+                actor_user_id=current_user_id,
             )
 
             raise exceptions.UpdatePayloadMismatchError()
@@ -228,12 +246,13 @@ class UserServiceAdmin:
         )
 
         if is_phone_number_changing:
-            await acquire_contact_locks(
-                session,
-                phone_number=payload.phone_number,
-                email=None,
-                is_student=True,
-            )
+            if is_student:
+                await acquire_student_contact_locks(
+                    session,
+                    phone_number=payload.phone_number,
+                    email=None,
+                    is_student=True,
+                )
 
             await check_contact_limit(
                 session,
@@ -241,8 +260,8 @@ class UserServiceAdmin:
                 username=user_credentials.username,
                 phone_number=payload.phone_number,
                 email=None,
-                resolved_role=UserRole.STUDENT,
-                account_type=AccountType.STUDENT,
+                resolved_role=resolved_role,
+                account_type=account_type,
                 exclude_credentials_id=user_credentials.id,
             )
 
@@ -298,17 +317,31 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
                 load_activation=True,
                 load_email_change=True,
+                load_identity=True,
             ),
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        is_student = user_credentials.role == UserRole.STUDENT
+        match user_credentials.identity.role:
+            case UserRole.STUDENT:
+                account_type = AccountType.STUDENT
+
+            case UserRole.GUARDIAN:
+                account_type = AccountType.PERSONAL
+
+            case UserRole.TEACHER | UserRole.DIRECTOR:
+                account_type = AccountType.WORK
+
+            case _:
+                assert_never(user_credentials.identity.role)
+
+        is_student = user_credentials.identity.role == UserRole.STUDENT
         is_email_changing = (
             payload.email is not None and payload.email != user_credentials.email
         )
@@ -317,10 +350,11 @@ class UserServiceAdmin:
             and user_credentials.status == UserStatus.PENDING_ACTIVATION
         )
 
-        if is_student and is_email_changing:
-            await acquire_contact_locks(
-                session, phone_number=None, email=payload.email, is_student=True
-            )
+        if is_email_changing:
+            if is_student:
+                await acquire_student_contact_locks(
+                    session, phone_number=None, email=payload.email, is_student=True
+                )
 
             await check_contact_limit(
                 session,
@@ -328,8 +362,8 @@ class UserServiceAdmin:
                 username=user_credentials.username,
                 phone_number=None,
                 email=payload.email,
-                resolved_role=UserRole.STUDENT,
-                account_type=AccountType.STUDENT,
+                resolved_role=user_credentials.identity.role,
+                account_type=account_type,
                 exclude_credentials_id=user_credentials.id,
             )
 
@@ -381,7 +415,7 @@ class UserServiceAdmin:
             username_changed = old_username != user_credentials.username
             email_changed = old_email != user_credentials.email
 
-            if not should_reissue_activation_token:
+            if username_changed or email_changed:
                 notify_old_username = old_username if username_changed else None
                 notify_new_username = (
                     user_credentials.username if username_changed else None

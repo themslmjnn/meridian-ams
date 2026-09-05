@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import RowMapping, Select, asc, desc, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from src.core.pagination import CursorPage, decode_cursor, encode_cursor
 from src.users.models.credentials import UserCredentials
@@ -54,7 +54,7 @@ class UserCredentialsRepository:
             if load_options.load_identity:
                 query = query.options(joinedload(UserCredentials.identity))
             if load_options.load_sessions:
-                query = query.options(joinedload(UserCredentials.sessions))
+                query = query.options(selectinload(UserCredentials.sessions))
             if load_options.load_activation:
                 query = query.options(joinedload(UserCredentials.activation))
             if load_options.load_login_lockout:
@@ -95,15 +95,23 @@ class UserCredentialsRepository:
         excluded_roles: frozenset[UserRole] | None = None,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
-        query = select(UserCredentials).where(UserCredentials.public_id == public_id)
+        query = (
+            select(UserCredentials)
+            .join(
+                UserIdentity,
+                UserCredentials.identity_id == UserIdentity.id,
+            )
+            .where(UserCredentials.public_id == public_id)
+        )
 
         if account_type:
             query = query.where(UserCredentials.account_type == account_type)
 
         if allowed_roles:
-            query = query.filter(UserCredentials.role.in_(allowed_roles))
+            query = query.where(UserIdentity.role.in_(allowed_roles))
+
         if excluded_roles:
-            query = query.where(UserCredentials.role.not_in(excluded_roles))
+            query = query.where(UserIdentity.role.not_in(excluded_roles))
 
         query = UserCredentialsRepository._build_load_options(query, load_options)
 

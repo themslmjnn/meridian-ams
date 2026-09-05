@@ -19,7 +19,7 @@ def _compute_lock_key(value: str) -> int:
     return unsigned - 2**32 if unsigned >= 2**31 else unsigned
 
 
-async def acquire_contact_locks(
+async def acquire_student_contact_locks(
     session: AsyncSession,
     *,
     phone_number: str | None,
