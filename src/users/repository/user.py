@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import uuid
 
 from sqlalchemy import RowMapping, Select, asc, desc, func, select, text, update
@@ -242,6 +243,52 @@ class UserCredentialsRepository:
         result = await session.execute(query)
 
         return result.rowcount > 0
+
+    @staticmethod
+    async def get_due_for_deletion(
+        session: AsyncSession,
+        limit: int = 50,
+    ) -> list[int]:
+        """
+        Returns a batch of credentials IDs due for hard deletion.
+        Returns IDs only — the worker re-verifies each row individually
+        via get_credentials_if_due before acting on it.
+        """
+        query = (
+            select(UserCredentials.id)
+            .where(
+                UserCredentials.account_type == AccountType.PERSONAL,
+                UserCredentials.status == UserStatus.PENDING_DELETION,
+                UserCredentials.deletion_scheduled_for <= datetime.now(UTC),
+            )
+            .limit(limit)
+        )
+
+        result = await session.execute(query)
+
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def get_credentials_if_due(
+        session: AsyncSession,
+        credentials_id: int,
+    ) -> UserCredentials | None:
+        """
+        Re-verify a single row is still due for deletion before acting on it.
+        Guards against the window between batch fetch and individual processing
+        where an admin may have cancelled the deletion.
+        Returns UserCredentials | None — never bool (SMS Lite bug fixed by design).
+        """
+        query = select(UserCredentials).where(
+            UserCredentials.id == credentials_id,
+            UserCredentials.account_type == AccountType.PERSONAL,
+            UserCredentials.status == UserStatus.PENDING_DELETION,
+            UserCredentials.deletion_scheduled_for <= datetime.now(UTC),
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
 
 
 class UserIdentityRepository:
