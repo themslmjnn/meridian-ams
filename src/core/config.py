@@ -113,15 +113,17 @@ class Settings(BaseSettings):
         "JWT_SECRET_KEY",
         "JWT_SECRET_KEY_PREVIOUS",
         "CURSOR_SECRET_KEY",
+        mode="before",
     )
     @classmethod
     def validate_secrets_length(cls, v: str | None) -> str | None:
-        if v is not None and len(v) < 32:
+        if not v:  # catches both None and ""
+            return None
+        if len(v) < 32:
             raise ValueError(
                 "Secret must be at least 32 characters. "
                 "Generate with: openssl rand -hex 32"
             )
-
         return v
 
     @field_validator("ACCESS_TOKEN_EXPIRE_MINUTES")
@@ -183,7 +185,7 @@ class Settings(BaseSettings):
         """
 
         self.DATABASE_URL = (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PSSW}"
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 

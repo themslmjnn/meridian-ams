@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.utils.exceptions as exceptions
 from src.auth.repository import AuthRepository
 from src.auth.schemas import (
     ActivateAccount,
@@ -17,14 +18,14 @@ from src.auth.schemas import (
     LoginResponse,
     ResetPasswordRequest,
 )
-from src.core.caching import delete_cache, get_redis, set_cache_critical
+from src.core.caching import delete_cache, set_cache_critical
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
 from src.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
-    generate_reset_password_token,
+    generate_token,
     hash_password,
     verify_password,
     verify_token,
@@ -36,23 +37,9 @@ from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.utils.enums import UserStatus
-from src.users.utils.exceptions import UserNotPendingActivationError
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils.cache_keys import SessionCacheKey
 from src.utils.email import build_reset_password_email
-from src.utils.exceptions import (
-    AccessDeniedError,
-    AccountInactiveError,
-    AccountLockedError,
-    ExpiredActivationCodeError,
-    ExpiredRefreshTokenError,
-    ExpiredResetPasswordTokenError,
-    GracePeriodExpiredError,
-    InvalidActivationCodeError,
-    InvalidCredentialsError,
-    InvalidRefreshTokenError,
-    InvalidResetPasswordTokenError,
-)
 
 logger = structlog.get_logger(__name__)
 
@@ -146,7 +133,7 @@ class AuthService:
                 "login_failed", reason="user_not_found", username=form_data.username
             )
 
-            raise InvalidCredentialsError()
+            raise exceptions.InvalidCredentialsError()
 
         lockout = credentials.login_lockout
 
@@ -169,7 +156,7 @@ class AuthService:
                 locked_until=lockout.locked_until.isoformat(),
             )
 
-            raise AccountLockedError(
+            raise exceptions.AccountLockedError(
                 detail=f"Account locked until {lockout.locked_until.strftime('%H:%M UTC')}"
             )
 
@@ -185,7 +172,7 @@ class AuthService:
             session.add(new_login_history)
             await session.commit()
 
-            raise AccountInactiveError()
+            raise exceptions.AccountInactiveError()
 
         if credentials.status not in (
             UserStatus.ACTIVE,
@@ -202,7 +189,7 @@ class AuthService:
             session.add(new_login_history)
             await session.commit()
 
-            raise AccessDeniedError()
+            raise exceptions.AccessDeniedError()
 
         if not await verify_password(
             form_data.password, credentials.password_hash or ""
@@ -240,7 +227,7 @@ class AuthService:
                 failed_attempts=lockout.failed_attempts,
             )
 
-            raise InvalidCredentialsError()
+            raise exceptions.InvalidCredentialsError()
 
         if credentials.status == UserStatus.PENDING_DELETION:
             if (
@@ -258,7 +245,7 @@ class AuthService:
                 session.add(new_login_history)
                 await session.commit()
 
-                raise GracePeriodExpiredError()
+                raise exceptions.InvalidCredentialsError()
 
             credentials.status = credentials.pre_deletion_status
             credentials.deletion_scheduled_for = None
@@ -436,9 +423,9 @@ class AuthService:
 
     @staticmethod
     async def refresh_token(
-        request: Request,
         response: Response,
         session: AsyncSession,
+        redis: Redis,
         raw_refresh_token: str,
         raw_refresh_family: str,
     ) -> LoginResponse:
@@ -452,7 +439,7 @@ class AuthService:
                 reason="invalid_jwt",
             )
 
-            raise InvalidRefreshTokenError() from exc
+            raise exceptions.InvalidRefreshTokenError() from exc
 
         user_session = await AuthRepository.get_session_by_id(session, session_id)
 
@@ -468,9 +455,8 @@ class AuthService:
                 session_id=session_id,
             )
 
-            raise InvalidRefreshTokenError()
+            raise exceptions.InvalidRefreshTokenError()
 
-        # --- 3. Check refresh token expiry ---
         if datetime.now(UTC) > user_session.refresh_token_expires_at:
             logger.warning(
                 "refresh_failed",
@@ -478,7 +464,7 @@ class AuthService:
                 session_id=session_id,
             )
 
-            raise ExpiredRefreshTokenError()
+            raise exceptions.ExpiredRefreshTokenError()
 
         family_valid = verify_token(
             raw_refresh_family,
@@ -505,7 +491,7 @@ class AuthService:
             await session.commit()
 
             await delete_cache(
-                get_redis(request), SessionCacheKey.access_token_version_key(session_id)
+                redis, SessionCacheKey.access_token_version_key(session_id)
             )
 
             logger.warning(
@@ -517,7 +503,7 @@ class AuthService:
                 action="session_invalidated",
             )
 
-            raise InvalidRefreshTokenError()
+            raise exceptions.InvalidRefreshTokenError()
 
         if token_matches_previous and not token_matches_current:
             grace_window = timedelta(
@@ -560,7 +546,7 @@ class AuthService:
                 await session.commit()
 
                 await delete_cache(
-                    get_redis(request),
+                    redis,
                     SessionCacheKey.access_token_version_key(session_id),
                 )
 
@@ -573,14 +559,14 @@ class AuthService:
                     action="session_invalidated",
                 )
 
-                raise InvalidRefreshTokenError()
+                raise exceptions.InvalidRefreshTokenError()
 
         credentials = await UserCredentialsRepository.get_by_id(
             session, user_session.credentials_id
         )
 
         if credentials is None:
-            raise InvalidRefreshTokenError()
+            raise exceptions.InvalidRefreshTokenError()
 
         new_family = secrets.token_urlsafe(32)
         raw_new_refresh_token, hashed_new_refresh_token = create_refresh_token(
@@ -613,7 +599,7 @@ class AuthService:
 
         # Refresh ATV cache with current version + TTL reset
         await set_cache_critical(
-            get_redis(request),
+            redis,
             SessionCacheKey.access_token_version_key(session_id),
             SessionCacheKey.pack_atv_cache(
                 user_session.access_token_version, credentials.id
@@ -649,7 +635,7 @@ class AuthService:
         if credentials is None or credentials.activation is None:
             logger.warning("activation_failed", reason="token_not_found")
 
-            raise InvalidActivationCodeError()
+            raise exceptions.InvalidActivationCodeError()
 
         if datetime.now(UTC) > credentials.activation.activation_token_expires_at:
             logger.warning(
@@ -658,7 +644,7 @@ class AuthService:
                 credentials_id=credentials.id,
             )
 
-            raise ExpiredActivationCodeError()
+            raise exceptions.ExpiredActivationCodeError()
 
         if credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
@@ -668,7 +654,7 @@ class AuthService:
                 status=credentials.status,
             )
 
-            raise UserNotPendingActivationError()
+            raise exceptions.UserNotPendingActivationError()
 
         claimed = await AuthRepository.claim_activation_token(session, credentials.id)
 
@@ -680,7 +666,7 @@ class AuthService:
                 credentials_id=credentials.id,
             )
 
-            raise InvalidActivationCodeError()
+            raise exceptions.InvalidActivationCodeError()
 
         credentials.password_hash = await hash_password(payload.password)
         credentials.status = UserStatus.ACTIVE
@@ -739,7 +725,7 @@ class AuthService:
     ) -> None:
         # Always hash regardless of whether email exists —
         # keeps response time consistent, prevents email enumeration
-        raw_token, token_hash = generate_reset_password_token()
+        raw_token, token_hash = generate_token()
 
         credentials = await UserCredentialsRepository.get_by_email(
             session,
@@ -769,10 +755,6 @@ class AuthService:
             )
 
             return
-
-        expires_at = datetime.now(UTC) + timedelta(
-            minutes=get_settings().RESET_PASSWORD_TOKEN_EXPIRES_MINUTES
-        )
 
         if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
@@ -808,8 +790,8 @@ class AuthService:
 
     @staticmethod
     async def reset_password(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         payload: ResetPasswordRequest,
     ) -> None:
         token_hash = sha256(payload.token)
@@ -821,7 +803,7 @@ class AuthService:
         if credentials is None or credentials.password_reset is None:
             logger.warning("reset_password_failed", reason="token_not_found")
 
-            raise InvalidResetPasswordTokenError()
+            raise exceptions.InvalidResetPasswordTokenError()
 
         if (
             datetime.now(UTC)
@@ -833,7 +815,7 @@ class AuthService:
                 credentials_id=credentials.id,
             )
 
-            raise ExpiredResetPasswordTokenError()
+            raise exceptions.ExpiredResetPasswordTokenError()
 
         if credentials.status not in (
             UserStatus.ACTIVE,
@@ -845,7 +827,7 @@ class AuthService:
                 credentials_id=credentials.id,
             )
 
-            raise InvalidResetPasswordTokenError()
+            raise exceptions.InvalidResetPasswordTokenError()
 
         session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
 
@@ -873,7 +855,7 @@ class AuthService:
 
         for session_id in session_ids:
             await delete_cache(
-                get_redis(request), SessionCacheKey.access_token_version_key(session_id)
+                redis, SessionCacheKey.access_token_version_key(session_id)
             )
 
         logger.info(

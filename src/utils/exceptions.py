@@ -25,14 +25,14 @@ class ExpiredActivationCodeError(AppException):
 
 class InvalidResetPasswordTokenError(AppException):
     status_code = 400
-    detail = HTTP400.INVALID_RESET_TOKEN
-    error_code = "INVALID_RESET_TOKEN"
+    detail = HTTP400.INVALID_RESET_PASSWORD_TOKEN
+    error_code = "INVALID_RESET_PASSWORD_TOKEN"
 
 
 class ExpiredResetPasswordTokenError(AppException):
     status_code = 400
-    detail = HTTP400.EXPIRED_RESET_TOKEN
-    error_code = "EXPIRED_RESET_TOKEN"
+    detail = HTTP400.EXPIRED_RESET_PASSWORD_TOKEN
+    error_code = "EXPIRED_RESET_PASSWORD_TOKEN"
 
 
 # HTTP401

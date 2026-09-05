@@ -163,7 +163,7 @@ require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIA
 
 STATUS_EXCEPTION_MAP: dict[UserStatus, type[AppException]] = {
     UserStatus.PENDING_ACTIVATION: exceptions.AccountNotActivatedError,
-    UserStatus.INACTIVE: exceptions.AccountInactiveError,
+    UserStatus.DEACTIVATED: exceptions.AccountInactiveError,
     UserStatus.PENDING_DELETION: exceptions.ExpiredDeletionGracePeriodError,
     UserStatus.GRADUATED: exceptions.AccountGraduatedError,
     UserStatus.EXPELLED: exceptions.AccountExpelledError,
