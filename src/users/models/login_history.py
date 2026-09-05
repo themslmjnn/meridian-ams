@@ -1,6 +1,6 @@
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.connection import ImmutableBase
@@ -18,10 +18,6 @@ class LoginHistory(ImmutableBase):
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     success: Mapped[bool] = mapped_column(nullable=False)
     failure_reason: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
-    )
 
     credentials: Mapped["UserCredentials"] = relationship(  # noqa: F821
         back_populates="login_history"

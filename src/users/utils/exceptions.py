@@ -136,6 +136,9 @@ def handle_username_integrity_error(error: IntegrityError) -> None:
 def handle_non_student_unique_contact_error(error: IntegrityError) -> None:
     error_detail = str(error.orig)
 
+    if "uix_non_student_unique_phone" in error_detail:
+        raise DuplicatePhoneNumberError()
+
     if "uix_non_student_unique_email" in error_detail:
         raise DuplicateEmailError()
 

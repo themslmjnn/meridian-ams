@@ -27,7 +27,7 @@ def create_access_token(payload: CreateAccessToken) -> str:
         "atv": payload.access_token_version,
         "type": "access",
         "exp": datetime.now(UTC)
-        + timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRE_MINUTES),
+        + timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES),
         "iat": datetime.now(UTC),
     }
 

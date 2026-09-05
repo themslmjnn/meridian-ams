@@ -19,7 +19,6 @@ _CREDENTIALS_IDENTITY_COLUMNS = [
     UserCredentials.public_id,
     UserCredentials.username,
     UserCredentials.email,
-    UserCredentials.role,
     UserCredentials.account_type,
     UserCredentials.status,
     UserCredentials.deletion_scheduled_for,
@@ -29,6 +28,7 @@ _CREDENTIALS_IDENTITY_COLUMNS = [
     UserIdentity.lastname,
     UserIdentity.middlename,
     UserIdentity.phone_number,
+    UserIdentity.role,
     UserIdentity.date_of_birth,
     UserIdentity.address,
 ]
@@ -41,8 +41,7 @@ _BASE_JOIN = select(*_CREDENTIALS_IDENTITY_COLUMNS).join(
 class UserCredentialsRepository:
     @staticmethod
     def _build_load_options(
-        query: Select,
-        load_options: LoadOptionsSchema | None = None,
+        query: Select, load_options: LoadOptionsSchema | None = None
     ) -> Select:
         """
         Apply joinedload options to a credentials query.
@@ -50,18 +49,20 @@ class UserCredentialsRepository:
         Centralised here so every lookup method uses the same flag set
         consistently — no method has a different subset of flags.
         """
-        if load_options.load_identity:
-            query = query.options(joinedload(UserCredentials.identity))
-        if load_options.load_sessions:
-            query = query.options(joinedload(UserCredentials.sessions))
-        if load_options.load_activation:
-            query = query.options(joinedload(UserCredentials.activation))
-        if load_options.load_login_lockout:
-            query = query.options(joinedload(UserCredentials.login_lockout))
-        if load_options.load_email_change:
-            query = query.options(joinedload(UserCredentials.email_change))
-        if load_options.load_password_reset:
-            query = query.options(joinedload(UserCredentials.password_reset))
+
+        if load_options is not None:
+            if load_options.load_identity:
+                query = query.options(joinedload(UserCredentials.identity))
+            if load_options.load_sessions:
+                query = query.options(joinedload(UserCredentials.sessions))
+            if load_options.load_activation:
+                query = query.options(joinedload(UserCredentials.activation))
+            if load_options.load_login_lockout:
+                query = query.options(joinedload(UserCredentials.login_lockout))
+            if load_options.load_email_change:
+                query = query.options(joinedload(UserCredentials.email_change))
+            if load_options.load_password_reset:
+                query = query.options(joinedload(UserCredentials.password_reset))
 
         return query
 
@@ -131,13 +132,6 @@ class UserCredentialsRepository:
         account_type: AccountType | None = None,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
-        """
-        Look up credentials by email address.
-
-        account_type should always be supplied when the caller knows it —
-        student email is non-unique so omitting account_type on a student
-        lookup may return an unexpected row.
-        """
         query = select(UserCredentials).where(UserCredentials.email == email)
 
         if account_type is not None:
@@ -151,14 +145,8 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_personal_accounts_by_identity_id(
-        session: AsyncSession,
-        identity_id: int,
+        session: AsyncSession, identity_id: int
     ) -> UserCredentials | None:
-        """
-        Check whether a PERSONAL credentials row already exists for this identity.
-        Used during guardian registration with existing_identity_id to prevent
-        duplicate personal accounts for the same physical person.
-        """
         query = select(UserCredentials).where(
             UserCredentials.identity_id == identity_id,
             UserCredentials.account_type == AccountType.PERSONAL,
@@ -176,12 +164,6 @@ class UserCredentialsRepository:
         *,
         exclude_credentials_id: int | None = None,
     ) -> int:
-        """
-        Count credentials rows whose linked identity has this phone number,
-        filtered by account type.
-
-        Phone lives on UserIdentity so a join is required.
-        """
         query = (
             select(func.count())
             .select_from(UserCredentials)
@@ -207,11 +189,6 @@ class UserCredentialsRepository:
         *,
         exclude_credentials_id: int | None = None,
     ) -> int:
-        """
-        Count credentials rows with this email and account type.
-        Only meaningful for students — staff/guardian uniqueness is enforced
-        by the DB partial unique index.
-        """
         query = (
             select(func.count())
             .select_from(UserCredentials)
@@ -250,15 +227,13 @@ class UserCredentialsRepository:
         return result.rowcount > 0
 
     @staticmethod
-    async def get_due_for_deletion(
-        session: AsyncSession,
-        limit: int = 50,
-    ) -> list[int]:
+    async def get_due_for_deletion(session: AsyncSession, limit: int = 50) -> list[int]:
         """
         Returns a batch of credentials IDs due for hard deletion.
         Returns IDs only — the worker re-verifies each row individually
         via get_credentials_if_due before acting on it.
         """
+
         query = (
             select(UserCredentials.id)
             .where(
@@ -275,8 +250,7 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_credentials_if_due(
-        session: AsyncSession,
-        credentials_id: int,
+        session: AsyncSession, credentials_id: int
     ) -> UserCredentials | None:
         """
         Re-verify a single row is still due for deletion before acting on it.
@@ -284,6 +258,7 @@ class UserCredentialsRepository:
         where an admin may have cancelled the deletion.
         Returns UserCredentials | None — never bool (SMS Lite bug fixed by design).
         """
+
         query = select(UserCredentials).where(
             UserCredentials.id == credentials_id,
             UserCredentials.account_type == AccountType.PERSONAL,
@@ -298,10 +273,7 @@ class UserCredentialsRepository:
 
 class UserIdentityRepository:
     @staticmethod
-    async def get_by_id(
-        session: AsyncSession,
-        identity_id: int,
-    ) -> UserIdentity | None:
+    async def get_by_id(session: AsyncSession, identity_id: int) -> UserIdentity | None:
         query = select(UserIdentity).where(UserIdentity.id == identity_id)
 
         result = await session.execute(query)
@@ -309,15 +281,13 @@ class UserIdentityRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def count_credentials(
-        session: AsyncSession,
-        identity_id: int,
-    ) -> int:
+    async def count_credentials(session: AsyncSession, identity_id: int) -> int:
         """
         Count how many credentials rows reference this identity.
         Used by the deletion worker to decide whether to also delete
         the identity after deleting the guardian's credentials.
         """
+
         query = (
             select(func.count())
             .select_from(UserCredentials)
@@ -331,10 +301,7 @@ class UserIdentityRepository:
 
 class UserSessionRepository:
     @staticmethod
-    async def get_by_id(
-        session: AsyncSession,
-        session_id: int,
-    ) -> UserSession | None:
+    async def get_by_id(session: AsyncSession, session_id: int) -> UserSession | None:
         query = select(UserSession).where(UserSession.id == session_id)
 
         result = await session.execute(query)
@@ -352,8 +319,7 @@ class UserResponseRepository:
 
     @staticmethod
     async def get_registered_user_response(
-        session: AsyncSession,
-        public_id: uuid.UUID,
+        session: AsyncSession, public_id: uuid.UUID
     ) -> RowMapping | None:
         query = _BASE_JOIN.where(UserCredentials.public_id == public_id)
 
