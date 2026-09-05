@@ -219,7 +219,7 @@ class UserServiceAdmin:
         request: Request,
         session: AsyncSession,
         current_user_id: int,
-        public_id: int,
+        public_id: uuid.UUID,
         payload: UpdateUserRequest,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
@@ -253,7 +253,7 @@ class UserServiceAdmin:
             and payload.phone_number != user_identity.phone_number
         )
 
-        if is_student and is_phone_number_changing:
+        if is_phone_number_changing:
             await acquire_contact_locks(
                 session,
                 phone_number=payload.phone_number,
@@ -276,11 +276,10 @@ class UserServiceAdmin:
             update_object(user_identity, payload)
 
             await session.commit()
-            await session.refresh(user_identity)
 
             asyncio.create_task(
                 emails.send_email_safe(
-                    emails.send_account_info_updated_email(user_identity.email),
+                    emails.send_account_info_updated_email(user_credentials.email),
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
