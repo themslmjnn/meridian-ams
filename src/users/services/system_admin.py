@@ -861,11 +861,11 @@ class UserServiceAdmin:
 
     @staticmethod
     async def get_staff_by_public_id(
-        session: AsyncSession, public_id: int
+        request: Request, session: AsyncSession, public_id: uuid.UUID
     ) -> UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        redis = get_redis()
+        redis = get_redis(request)
         cached = await get_cache(redis, cache_key)
 
         if cached is not None:
@@ -877,9 +877,11 @@ class UserServiceAdmin:
         if staff is None:
             raise UserNotFoundError()
 
-        await set_cache(redis, cache_key, staff.model_dump(mode="json"), 900)
+        response = UserResponseAdminDetailed.model_validate(staff)
 
-        return UserResponseAdminDetailed.model_validate(staff)
+        await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
+
+        return response
 
     @staticmethod
     async def get_guardians(
@@ -908,11 +910,11 @@ class UserServiceAdmin:
 
     @staticmethod
     async def get_guardian_by_public_id(
-        session: AsyncSession, public_id: int
+        request: Request, session: AsyncSession, public_id: uuid.UUID
     ) -> UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        redis = get_redis()
+        redis = get_redis(request)
         cached = await get_cache(redis, cache_key)
 
         if cached is not None:
@@ -924,6 +926,8 @@ class UserServiceAdmin:
         if guardian is None:
             raise UserNotFoundError()
 
-        await set_cache(redis, cache_key, guardian.model_dump(mode="json"), 900)
+        response = UserResponseAdminDetailed.model_validate(guardian)
 
-        return UserResponseAdminDetailed.model_validate(guardian)
+        await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
+
+        return response

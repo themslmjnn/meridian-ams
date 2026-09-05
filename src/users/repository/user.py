@@ -372,11 +372,11 @@ class UserRepositoryBase:
         if filters is not None:
             if filters.firstname:
                 base_query = base_query.filter(
-                    UserCredentials.firstname.ilike(f"%{filters.firstname}%")
+                    UserIdentity.firstname.ilike(f"%{filters.firstname}%")
                 )
             if filters.lastname:
                 base_query = base_query.filter(
-                    UserCredentials.lastname.ilike(f"%{filters.lastname}%")
+                    UserIdentity.lastname.ilike(f"%{filters.lastname}%")
                 )
             if filters.phone_number:
                 base_query = base_query.filter(
@@ -501,12 +501,7 @@ class UserRepositoryBase:
         system admins are not visible to other admins in list views).
         """
 
-        query = (
-            _BASE_JOIN.where(
-                UserCredentials.account_type == AccountType.WORK,
-                UserCredentials.role != UserRole.SYSTEM_ADMIN,
-            ),
-        )
+        query = _BASE_JOIN.where(UserCredentials.role != UserRole.SYSTEM_ADMIN)
 
         query = UserRepositoryBase._apply_filters(
             query,

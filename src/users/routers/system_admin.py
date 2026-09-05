@@ -163,7 +163,7 @@ async def cancel_guardian_deletion_request(
 )
 async def get_staff(
     session: session_dependency,
-    _: require_system_admin,
+    _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: int = Query(default=20, ge=1, le=100),
     next_cursor: str | None = Query(default=None),
@@ -171,7 +171,7 @@ async def get_staff(
 ):
     return await UserServiceAdmin.get_staff(
         session,
-        filters,
+        filters=filters,
         limit=limit,
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
@@ -183,20 +183,21 @@ async def get_staff(
     response_model=UserResponseAdminDetailed,
 )
 async def get_staff_by_public_id(
+    request: Request,
     session: session_dependency,
-    _: require_system_admin,
+    _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_staff_by_public_id(session, public_id)
+    return await UserServiceAdmin.get_staff_by_public_id(request, session, public_id)
 
 
 @router.get(
-    "/staff",
+    "/guardians",
     response_model=CursorPage[UserResponseAdminDetailed],
 )
 async def get_guardians(
     session: session_dependency,
-    _: require_system_admin,
+    _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: int = Query(default=20, ge=1, le=100),
     next_cursor: str | None = Query(default=None),
@@ -204,7 +205,7 @@ async def get_guardians(
 ):
     return await UserServiceAdmin.get_guardians(
         session,
-        filters,
+        filters=filters,
         limit=limit,
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
@@ -212,12 +213,13 @@ async def get_guardians(
 
 
 @router.get(
-    "/staff/{public_id}",
+    "/guardians/{public_id}",
     response_model=UserResponseAdminDetailed,
 )
 async def get_guardian_by_public_id(
+    request: Request,
     session: session_dependency,
-    _: require_system_admin,
+    _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_guardian_by_public_id(session, public_id)
+    return await UserServiceAdmin.get_guardian_by_public_id(request, session, public_id)
