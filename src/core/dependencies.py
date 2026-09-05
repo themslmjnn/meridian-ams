@@ -19,11 +19,10 @@ from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.cache_keys import SessionCacheKey
+from src.utils.constants import HTTP403
 from src.utils.exceptions import AccessDeniedError, InvalidAccessTokenError
 
 logger = structlog.get_logger(__name__)
-
-settings = get_settings()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
@@ -55,12 +54,12 @@ class CurrentUser:
 async def get_current_user(
     request: Request,
     session: session_dependency,
-    token: Annotated[str, Depends(oauth2_scheme)],
+    access_token: Annotated[str, Depends(oauth2_scheme)],
 ) -> CurrentUser:
     redis = get_redis(request)
 
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(access_token)
 
         public_id = uuid.UUID(payload["sub"])
         session_id = int(payload["session_id"])
@@ -72,17 +71,21 @@ async def get_current_user(
         raise InvalidAccessTokenError() from exc
 
     atv_key = SessionCacheKey.access_token_version_key(session_id)
-    cached = await get_cache_critical(redis, atv_key)
+    unpacked_cached_atv = await get_cache_critical(redis, atv_key)
 
-    if cached is not None:
+    if unpacked_cached_atv is not None:
         try:
-            cached_atv, cached_credentials_id = SessionCacheKey.unpack_atv_cache(cached)
+            cached_atv, cached_credentials_id = SessionCacheKey.unpack_atv_cache(
+                unpacked_cached_atv
+            )
 
         except ValueError:
-            logger.warning("atv_cache_malformed", session_id=session_id, cached=cached)
-            cached = None
+            logger.warning(
+                "atv_cache_malformed", session_id=session_id, cached=unpacked_cached_atv
+            )
+            unpacked_cached_atv = None
 
-    if cached is not None:
+    if unpacked_cached_atv is not None:
         if cached_atv != atv:
             raise InvalidAccessTokenError()
 
@@ -98,18 +101,12 @@ async def get_current_user(
 
         return current_user
 
-    user_session = await UserSessionRepository.get_user_session_by_id(
-        session, session_id
-    )
+    user_session = await UserSessionRepository.get_by_id(session, session_id)
 
     if user_session is None:
-        raise AppException(
-            status_code=401,
-            detail="Session not found or has been revoked.",
-            error_code="INVALID_ACCESS_TOKEN",
-        )
+        raise InvalidAccessTokenError(detail="Session not found or has been revoked")
 
-    credentials = await UserCredentialsRepository.get_user_credentials_by_id(
+    credentials = await UserCredentialsRepository.get_by_id(
         session, user_session.credentials_id
     )
 
@@ -127,7 +124,7 @@ async def get_current_user(
         SessionCacheKey.pack_atv_cache(
             user_session.access_token_version, credentials.id
         ),
-        ex=settings.ACCESS_TOKEN_EXPIRES_MINUTES * 60,
+        ex=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES * 60,
     )
 
     current_user = CurrentUser(
@@ -176,34 +173,34 @@ def _verify_status(credentials: UserCredentials) -> None:
 
     status_errors: dict[UserStatus, tuple[str, str]] = {
         UserStatus.PENDING_ACTIVATION: (
-            "Account has not been activated yet.",
-            "ACCOUNT_PENDING_ACTIVATION",
+            HTTP403.ACCOUNT_NOT_ACTIVATED,
+            "ACCOUNT_NOT_ACTIVATED",
         ),
         UserStatus.INACTIVE: (
-            "Account is inactive.",
+            HTTP403.ACCOUNT_INACTIVE,
             "ACCOUNT_INACTIVE",
         ),
         UserStatus.PENDING_DELETION: (
-            "Account deletion grace period has expired.",
-            "ACCOUNT_PENDING_DELETION",
+            HTTP403.EXPIRED_DELETION_GRACE_PERIOD,
+            "EXPIRED_DELETION_GRACE_PERIOD",
         ),
         UserStatus.GRADUATED: (
-            "This account belongs to a graduated student.",
+            HTTP403.ACCOUNT_GRADUATED,
             "ACCOUNT_GRADUATED",
         ),
         UserStatus.EXPELLED: (
-            "This account has been expelled.",
+            HTTP403.ACCOUNT_EXPELLED,
             "ACCOUNT_EXPELLED",
         ),
         UserStatus.WITHDRAWN: (
-            "This account has been withdrawn.",
+            HTTP403.ACCOUNT_WITHDRAWN,
             "ACCOUNT_WITHDRAWN",
         ),
     }
 
     detail, error_code = status_errors.get(
         credentials.status,
-        ("Account access denied.", "ACCOUNT_ACCESS_DENIED"),
+        (HTTP403.ACCESS_DENIED, "ACCOUNT_ACCESS_DENIED"),
     )
 
-    raise AppException(status_code=401, detail=detail, error_code=error_code)
+    raise AppException(status_code=403, detail=detail, error_code=error_code)
