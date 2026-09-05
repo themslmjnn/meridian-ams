@@ -29,6 +29,7 @@ from src.core.middleware import (
 from src.database.connection import dispose_engine
 from src.users.routers.system_admin import router as users_system_admin_router
 from src.utils.email import close_email_client
+from src.workers.deletion_worker import run_deletion_worker
 from src.workers.email_worker import run_email_worker
 
 logger = structlog.get_logger(__name__)
@@ -67,8 +68,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("application_ready")
 
     email_task = asyncio.create_task(run_email_worker())
+    deletion_task = asyncio.create_task(run_deletion_worker())
 
     logger.info("email_task_started")
+    logger.info("deletion_task_started")
 
     yield
 
@@ -76,8 +79,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("application_shutting_down")
 
     email_task.cancel()
+    deletion_task.cancel()
 
-    results = await asyncio.gather(email_task, return_exceptions=True)
+    results = await asyncio.gather(email_task, deletion_task, return_exceptions=True)
 
     for result in results:
         if isinstance(result, BaseException) and not isinstance(
@@ -88,6 +92,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 error=str(result),
                 error_type=type(result).__name__,
             )
+
     await close_email_client()
     await close_redis(app)
     await dispose_engine()
