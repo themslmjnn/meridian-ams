@@ -375,11 +375,14 @@ class UserServiceAdmin:
                 await session.delete(user_credentials.email_change)
 
             if should_reissue_activation_token:
+                if should_reissue_activation_token is None:
+                    raise UserAlreadyActiveError()
+
                 raw_activation_token, hashed_activation_token = (
                     generate_activation_token()
                 )
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
-                    hours=get_settings().activation_TOKEN_EXPIRES_HOURS
+                    hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
                 )
 
                 user_credentials.activation.activation_token_hash = (
@@ -394,9 +397,9 @@ class UserServiceAdmin:
                 )
 
                 new_pending_email = Email(
-                    recipient=user_credentials.email,
+                    recipient_email=user_credentials.email,
                     subject=subject,
-                    html_body=html_body,
+                    body_html=html_body,
                     email_type=EmailType.ACTIVATION,
                     triggered_by=current_user_id,
                 )
@@ -424,9 +427,9 @@ class UserServiceAdmin:
                 )
 
                 new_email = Email(
-                    recipient=old_email,
+                    recipient_email=old_email,
                     subject=subject,
-                    html_body=html_body,
+                    body_html=html_body,
                     email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
                     triggered_by=current_user_id,
                 )

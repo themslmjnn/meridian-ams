@@ -198,10 +198,19 @@ class UpdateUserCredentials(BaseModel):
 
         return validators.validate_email(v)
 
+    @model_validator(mode="after")
+    def _validate_at_least_one_field(self) -> "UpdateUserCredentials":
+        if self.username is None and self.email is None:
+            raise ValueError("At least one of username or email must be provided.")
+
+        return self
+
 
 class SearchUserBase(BaseModel):
     firstname: str | None = Field(min_length=2, max_length=50, default=None)
     lastname: str | None = Field(min_length=2, max_length=50, default=None)
+
     phone_number: str | None = Field(min_length=6, max_length=20, default=None)
     email: str | None = Field(min_length=3, max_length=100, default=None)
+
     status: UserStatus | None = None
