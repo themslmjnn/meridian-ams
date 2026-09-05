@@ -120,7 +120,9 @@ async def resend_activation_invite(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.resend_activation_invite(session, current_user.id, public_id)
+    await UserServiceAdmin.resend_activation_invite(
+        session, current_user.credentials_id, public_id
+    )
 
 
 @router.post(

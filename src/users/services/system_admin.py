@@ -672,10 +672,19 @@ class UserServiceAdmin:
 
             raise UserNotPendingActivationError()
 
+        if user_credentials.activation is None:
+            logger.error(
+                "user_is_already_active",
+                public_id=public_id,
+                status=user_credentials.status,
+            )
+
+            raise UserAlreadyActiveError()
+
         raw_activation_token, hashed_activation_token = generate_activation_token()
 
         activation_token_expires_at = datetime.now(UTC) + timedelta(
-            hours=get_settings().activation_TOKEN_EXPIRES_HOURS
+            hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
         )
 
         user_credentials.activation.activation_token_hash = hashed_activation_token
@@ -688,10 +697,10 @@ class UserServiceAdmin:
         )
 
         new_email = Email(
-            recipient=user_credentials.email,
+            recipient_email=user_credentials.email,
             subject=subject,
-            html_body=html_body,
-            email_type=EmailType.INVITE,
+            body_html=html_body,
+            email_type=EmailType.ACTIVATION,
             triggered_by=current_user_id,
         )
 
