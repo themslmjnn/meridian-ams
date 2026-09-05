@@ -4,7 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 
-from src.auth.schemas import ActivateAccount, LoginResponse
+from src.auth.schemas import ActivateAccount, LoginResponse, ResetPasswordRequest
 from src.auth.service import AuthService
 from src.core.caching import get_redis
 from src.core.dependencies import current_user_dependency, session_dependency
@@ -103,3 +103,12 @@ async def activate(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
     )
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(
+    request: Request,
+    session: session_dependency,
+    payload: ResetPasswordRequest,
+):
+    await AuthService.reset_password(request, session=session, payload=payload)
