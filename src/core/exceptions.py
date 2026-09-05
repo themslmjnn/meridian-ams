@@ -32,6 +32,7 @@ async def app_exception_handler(
     exc: AppException,
 ) -> JSONResponse:
     """Handle expected application errors with a consistent JSON shape."""
+
     return JSONResponse(
         status_code=exc.status_code,
         content={"error_code": exc.error_code, "detail": exc.detail},
@@ -48,6 +49,7 @@ async def validation_exception_handler(
     The raw Pydantic error list is preserved under 'errors' so the client
     can map field-level failures without parsing the detail string.
     """
+
     errors = [
         {
             "field": " -> ".join(str(loc) for loc in err["loc"]),
@@ -61,7 +63,7 @@ async def validation_exception_handler(
         status_code=422,
         content={
             "error_code": "VALIDATION_ERROR",
-            "detail": "Request validation failed.",
+            "detail": "Request validation failed",
             "errors": errors,
         },
     )
@@ -79,6 +81,7 @@ async def redis_error_handler(
     as routine infrastructure blips; persistent failures will alert via
     uptime monitoring.
     """
+
     logger.error(
         "redis_critical_failure",
         error=str(exc),
@@ -89,7 +92,7 @@ async def redis_error_handler(
         status_code=503,
         content={
             "error_code": "SERVICE_UNAVAILABLE",
-            "detail": "A required service is temporarily unavailable. Please try again.",
+            "detail": "Required service is temporarily unavailable",
         },
     )
 

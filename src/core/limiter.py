@@ -1,3 +1,5 @@
+import logging
+
 import structlog
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -23,6 +25,7 @@ def get_user_identifier(request: Request) -> str:
     For unauthenticated requests (no token or invalid token): falls back to
     the client IP address so the limiter never crashes on missing auth.
     """
+
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[len("Bearer ") :]
@@ -57,6 +60,7 @@ user_limiter = Limiter(
 )
 
 limiter = ip_limiter
+limiter.logger = logging.getLogger("slowapi")
 
 
 async def rate_limit_exceeded_handler(
@@ -85,7 +89,7 @@ async def rate_limit_exceeded_handler(
         status_code=429,
         content={
             "error_code": "RATE_LIMIT_EXCEEDED",
-            "detail": "Too many requests. Please slow down.",
+            "detail": "Too many requests",
         },
         headers=headers,
     )

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
     APP_NAME: str = "Meridian AMS"
+    APP_URL: str = "http://localhost:8000"
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

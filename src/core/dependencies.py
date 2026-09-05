@@ -125,7 +125,7 @@ async def get_current_user(
         SessionCacheKey.pack_atv_cache(
             user_session.access_token_version, credentials.id
         ),
-        ex=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES * 60,
+        ex=get_settings().ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
 
     current_user = CurrentUser(

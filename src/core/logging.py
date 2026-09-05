@@ -5,16 +5,6 @@ import structlog
 
 
 def configure_logging(environment: str) -> None:
-    """
-    Configure structlog and stdlib logging.
-
-    - staging/production: JSON output (machine-readable)
-    - development/test: human-readable console output
-
-    The contextvars processor merges request-scoped context (request_id,
-    environment) bound in middleware into every log event automatically.
-    No manual passing of context through layers is needed.
-    """
     is_production_like = environment in ("staging", "production")
 
     shared_processors: list[structlog.types.Processor] = [
@@ -43,9 +33,15 @@ def configure_logging(environment: str) -> None:
     )
 
     formatter = structlog.stdlib.ProcessorFormatter(
+        foreign_pre_chain=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+        ],
         processors=[
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-            *shared_processors,
             renderer,
         ],
     )
