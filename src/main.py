@@ -15,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src.api.health import router as health_router
+from src.auth.routers import router as auth_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
 from src.core.exceptions import AppException, register_exception_handlers
@@ -189,6 +190,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(users_system_admin_router)
     app.include_router(users_guardian_router)
 

@@ -91,3 +91,32 @@ class AuthRepository:
         result = await session.execute(query)
 
         return result.scalars().all()
+
+    @staticmethod
+    async def invalidate_session_family(
+        session: AsyncSession,
+        user_session: UserSession,
+    ) -> None:
+        """
+        Security violation — wipe all token state on this session.
+        Bumps ATV so any in-flight access tokens are immediately rejected.
+        """
+
+        user_session.access_token_version += 1
+        user_session.refresh_token_hash = None
+        user_session.previous_refresh_token_hash = None
+        user_session.refresh_token_family = None
+        user_session.refresh_token_expires_at = None
+        user_session.rotated_at = None
+
+        await session.flush()
+
+    @staticmethod
+    async def get_session_by_id(
+        session: AsyncSession, session_id: int
+    ) -> UserSession | None:
+        query = select(UserSession).where(UserSession.id == session_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()

@@ -110,6 +110,10 @@ def decode_refresh_token(refresh_token: str) -> dict:
         raise InvalidRefreshTokenError() from exc
 
 
+def verify_token(raw_token: str, hashed_token: str) -> bool:
+    return hmac.compare_digest(_sha256(raw_token), hashed_token)
+
+
 def generate_activation_token() -> tuple[str, str]:
     raw_token = secrets.token_urlsafe(32)
 
