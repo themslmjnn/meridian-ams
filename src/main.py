@@ -36,8 +36,6 @@ from src.workers.email_worker import run_email_worker
 
 logger = structlog.get_logger(__name__)
 
-settings = get_settings()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -57,11 +55,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     2. Close Redis connection
     3. Dispose SQLAlchemy engine connection pool
     """
-    # --- Startup ---
-    configure_logging(settings.ENVIRONMENT)
-    app.state.settings = settings
 
-    logger.info("application_starting", environment=settings.ENVIRONMENT)
+    # --- Startup ---
+    configure_logging(get_settings().ENVIRONMENT)
+    app.state.settings = get_settings()
+
+    logger.info("application_starting", environment=get_settings().ENVIRONMENT)
 
     await init_redis(app)
     _init_sentry()
@@ -103,11 +102,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 def _init_sentry() -> None:
-    if not settings.SENTRY_DSN:
+    if not get_settings().SENTRY_DSN:
         return
 
     sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
+        dsn=get_settings().SENTRY_DSN,
         integrations=[
             StarletteIntegration(),
             FastApiIntegration(),
@@ -130,18 +129,19 @@ def _sentry_before_send(
 
 
 def _init_prometheus(app: FastAPI) -> None:
-    if not settings.METRICS_ENABLED:
+    if not get_settings().METRICS_ENABLED:
         return
 
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
     logger.info("prometheus_initialised")
 
 
 def create_app() -> FastAPI:
-    is_production_like = settings.ENVIRONMENT in ("staging", "production")
+    is_production_like = get_settings().ENVIRONMENT in ("staging", "production")
 
     app = FastAPI(
-        title=settings.APP_NAME,
+        title=get_settings().APP_NAME,
         version="0.1.0",
         docs_url=None if is_production_like else "/docs",
         redoc_url=None if is_production_like else "/redoc",
@@ -150,6 +150,7 @@ def create_app() -> FastAPI:
     )
 
     app.state.limiter = limiter
+
     # -------------------------------------------------------------------------
     # Middleware — registration order is REVERSE of execution order.
     # Starlette applies middleware bottom-up (last added = outermost wrapper).
@@ -162,11 +163,11 @@ def create_app() -> FastAPI:
     #   5. CORSMiddleware            — handles preflight and CORS headers
     #   6. SlowAPIMiddleware         — rate limiting
     # -------------------------------------------------------------------------
-    app.add_middleware(SlowAPIMiddleware)
 
+    app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=get_settings().CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -175,7 +176,7 @@ def create_app() -> FastAPI:
     if is_production_like:
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=settings.ALLOWED_HOSTS,
+            allowed_hosts=get_settings().ALLOWED_HOSTS,
         )
 
     app.add_middleware(SecurityHeadersMiddleware)

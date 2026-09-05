@@ -67,7 +67,7 @@ class Settings(BaseSettings):
     GRADING_PERIOD_TYPE: Literal["semester", "quarter", "trimester"] = "semester"
 
     EMAIL_WORKER_INTERVAL: int = 60
-    EMAIL_WORKER_BATCH_SIZE = 10
+    EMAIL_WORKER_BATCH_SIZE: int = 10
     DELETION_WORKER_INTERVAL: int = 3600
 
     EMAIL_API_KEY: str | None = None
@@ -109,10 +109,14 @@ class Settings(BaseSettings):
 
         return v.strip()
 
-    @field_validator("JWT_SECRET_KEY", "JWT_SECRET_KEY_PREVIOUS", "CURSOR_SECRET_KEY")
+    @field_validator(
+        "JWT_SECRET_KEY",
+        "JWT_SECRET_KEY_PREVIOUS",
+        "CURSOR_SECRET_KEY",
+    )
     @classmethod
-    def validate_secrets_length(cls, v: str) -> str:
-        if len(v) < 32:
+    def validate_secrets_length(cls, v: str | None) -> str | None:
+        if v is not None and len(v) < 32:
             raise ValueError(
                 "Secret must be at least 32 characters. "
                 "Generate with: openssl rand -hex 32"
