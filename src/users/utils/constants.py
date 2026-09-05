@@ -10,6 +10,7 @@ SYSTEM_ADMIN_INVISIBLE_ROLES = frozenset({UserRole.SYSTEM_ADMIN})
 STAFF_ROLES = frozenset({UserRole.DIRECTOR, UserRole.TEACHER})
 GUARDIAN_ROLE = frozenset({UserRole.GUARDIAN})
 STUDENT_ROLE = frozenset({UserRole.STUDENT})
+TEACHER_ROLE = frozenset({UserRole.TEACHER})
 
 
 class HTTP400:
