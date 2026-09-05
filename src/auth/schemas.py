@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, EmailStr, field_validator
 
 from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.validators import validate_password
@@ -33,6 +33,10 @@ class ActivateAccount(BaseModel):
     @classmethod
     def _validate_password_strength(cls, v: str) -> str:
         return validate_password(v)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):

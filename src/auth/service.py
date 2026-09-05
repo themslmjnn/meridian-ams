@@ -13,6 +13,7 @@ from src.auth.schemas import (
     ActivateAccount,
     CreateAccessToken,
     CreateRefreshToken,
+    ForgotPasswordRequest,
     LoginResponse,
     ResetPasswordRequest,
 )
@@ -23,17 +24,22 @@ from src.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    generate_reset_password_token,
     hash_password,
     verify_password,
     verify_token,
 )
+from src.emails.models import Email
+from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
+from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import UserNotPendingActivationError
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils.cache_keys import SessionCacheKey
+from src.utils.email import build_reset_password_email
 from src.utils.exceptions import (
     AccessDeniedError,
     AccountInactiveError,
@@ -725,6 +731,80 @@ class AuthService:
         AuthService._set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
+
+    @staticmethod
+    async def forgot_password(
+        session: AsyncSession,
+        payload: ForgotPasswordRequest,
+    ) -> None:
+        # Always hash regardless of whether email exists —
+        # keeps response time consistent, prevents email enumeration
+        raw_token, token_hash = generate_reset_password_token()
+
+        credentials = await UserCredentialsRepository.get_by_email(
+            session,
+            payload.email,
+            load_options=LoadOptionsSchema(
+                load_login_lockout=True,
+                load_password_reset=True,
+            ),
+        )
+
+        if credentials is None:
+            logger.info(
+                "forgot_password_email_not_found",
+                reason="no_account_for_email",
+            )
+            # Return silently — never reveal whether email exists
+            return
+
+        if credentials.status not in (
+            UserStatus.ACTIVE,
+            UserStatus.PENDING_ACTIVATION,
+        ):
+            logger.info(
+                "forgot_password_skipped",
+                credentials_id=credentials.id,
+                reason=f"status_{credentials.status.value}",
+            )
+
+            return
+
+        expires_at = datetime.now(UTC) + timedelta(
+            minutes=get_settings().RESET_PASSWORD_TOKEN_EXPIRES_MINUTES
+        )
+
+        if credentials.password_reset is None:
+            new_password_reset = UserPasswordReset(
+                credentials_id=credentials.id,
+                reset_password_token_hash=token_hash,
+                reset_password_token_expires_at=datetime.now(UTC)
+                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
+            )
+
+            session.add(new_password_reset)
+        else:
+            credentials.password_reset.reset_password_token_hash = token_hash
+            credentials.password_reset.reset_password_token_expires_at = datetime.now(
+                UTC
+            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+
+        subject, html_body = build_reset_password_email(raw_token)
+
+        new_email = Email(
+            recipient_email=credentials.email,
+            subject=subject,
+            body_html=html_body,
+            email_type=EmailType.PASSWORD_RESET_ADMIN,
+        )
+
+        session.add(new_email)
+        await session.commit()
+
+        logger.info(
+            "forgot_password_token_issued",
+            credentials_id=credentials.id,
+        )
 
     @staticmethod
     async def reset_password(
