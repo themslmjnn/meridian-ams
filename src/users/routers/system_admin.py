@@ -137,7 +137,7 @@ async def create_guardian_deletion_request(
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.create_guardian_deletion_request(
-        request, session, current_user.id, public_id
+        request, session, current_user.credentials_id, public_id
     )
 
 
@@ -153,7 +153,7 @@ async def cancel_guardian_deletion_request(
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.cancel_guardian_deletion_request(
-        request, session, current_user.id, public_id
+        request, session, current_user.credentials_id, public_id
     )
 
 

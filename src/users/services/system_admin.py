@@ -723,13 +723,14 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            allowed_roles=frozenset({UserRole.GUARDIAN}),
-            load_options=LoadOptionsSchema(
-                load_sessions=True,
-            ),
+            account_type=AccountType.PERSONAL,
+            load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
             raise CredentialsNotFoundError()
+
+        if user_credentials.status not in (UserStatus.ACTIVE, UserStatus.INACTIVE):
+            raise InvalidStatusTransitionError()
 
         if user_credentials.status == UserStatus.PENDING_DELETION:
             logger.warning(
@@ -745,6 +746,7 @@ class UserServiceAdmin:
             days=DELETION_GRACE_PERIOD_DAYS
         )
 
+        user_credentials.pre_deletion_status = user_credentials.status
         user_credentials.status = UserStatus.PENDING_DELETION
         user_credentials.deletion_scheduled_for = deletion_scheduled_for
 
@@ -821,7 +823,9 @@ class UserServiceAdmin:
         )
 
         await delete_cache(
-            get_redis(request), UserCacheKey.user_detail_key_admin(public_id)
+            get_redis(request),
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
         )
 
         logger.info(
