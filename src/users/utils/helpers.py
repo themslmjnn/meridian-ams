@@ -8,6 +8,7 @@ from src.users.utils.constants import (
 )
 from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.exceptions import (
+    DuplicateEmailError,
     DuplicatePhoneNumberError,
     MaxStudentsPerEmailError,
     MaxStudentsPerPhoneNumberError,
@@ -29,18 +30,18 @@ async def check_contact_limit(
 ) -> None:
     is_student = account_type == AccountType.STUDENT
 
+    limit = (
+        STUDENT_MAX_SHARED_CONTACT
+        if is_student
+        else STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT
+    )
+
     if phone_number is not None:
         phone_count = await UserCredentialsRepository.count_by_phone_and_account_type(
             session,
             phone_number,
             account_type,
             exclude_credentials_id=exclude_credentials_id,
-        )
-
-        limit = (
-            STUDENT_MAX_SHARED_CONTACT
-            if is_student
-            else STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT
         )
 
         if phone_count >= limit:
@@ -57,7 +58,7 @@ async def check_contact_limit(
 
             raise DuplicatePhoneNumberError()
 
-    if email is not None and is_student:
+    if email is not None:
         email_count = await UserCredentialsRepository.count_by_email_and_account_type(
             session,
             email,
@@ -65,7 +66,7 @@ async def check_contact_limit(
             exclude_credentials_id=exclude_credentials_id,
         )
 
-        if email_count >= STUDENT_MAX_SHARED_CONTACT:
+        if email_count >= limit:
             logger.warning(
                 "user_registration_denied",
                 actor_user_id=current_user_id,
@@ -76,3 +77,5 @@ async def check_contact_limit(
 
             if is_student:
                 raise MaxStudentsPerEmailError()
+
+            raise DuplicateEmailError()
