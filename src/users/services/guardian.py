@@ -2,11 +2,11 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import Request
+from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.caching import delete_cache, get_redis
+from src.core.caching import delete_cache
 from src.core.dependencies import CurrentUser
 from src.emails.utils.enums import EmailType
 from src.users.repository.user import (
@@ -34,8 +34,8 @@ logger = structlog.get_logger(__name__)
 class UserServiceGuardian:
     @staticmethod
     async def create_guardian_self_deletion_request(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_id(
@@ -82,7 +82,7 @@ class UserServiceGuardian:
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             SessionCacheKey.access_token_version_key(current_user_id),
             UserCacheKey.user_detail_key_admin(current_user_id),
             UserCacheKey.user_detail_key_self(current_user_id),
@@ -96,8 +96,8 @@ class UserServiceGuardian:
 
     @staticmethod
     async def update_profile(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user: CurrentUser,
         update_request: UpdateProfileGuardian,
     ) -> None:
@@ -126,7 +126,7 @@ class UserServiceGuardian:
             )
 
             await delete_cache(
-                get_redis(request),
+                redis,
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
                 UserCacheKey.user_detail_key_staff(current_user.public_id),
                 UserCacheKey.user_detail_key_self(current_user.public_id),

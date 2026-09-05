@@ -1,10 +1,10 @@
 import uuid
 
 import structlog
-from fastapi import Request
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.caching import get_cache, get_redis, set_cache
+from src.core.caching import get_cache, set_cache
 from src.core.pagination import CursorPage
 from src.users.repository.user import (
     UserRepositoryBase,
@@ -48,11 +48,10 @@ class UserServiceDirector:
 
     @staticmethod
     async def get_staff_by_public_id(
-        request: Request, session: AsyncSession, public_id: uuid.UUID
+        session: AsyncSession, redis: Redis, public_id: uuid.UUID
     ) -> UserResponseDirectorDetailed:
         cache_key = UserCacheKey.user_detail_key_staff(public_id)
 
-        redis = get_redis(request)
         cached = await get_cache(redis, cache_key)
 
         if cached is not None:

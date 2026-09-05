@@ -1,14 +1,12 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 
-from src.core.dependencies import require_director, session_dependency
+from src.core.dependencies import redis_dependency, require_director, session_dependency
 from src.core.pagination import CursorPage
 from src.users.schemas.director import UserResponseDirectorDetailed
-from src.users.schemas.system_admin import (
-    SearchUserBase,
-)
+from src.users.schemas.system_admin import SearchUserBase
 from src.users.services.director import UserServiceDirector
 
 router = APIRouter(
@@ -43,9 +41,9 @@ async def get_staff(
     response_model=UserResponseDirectorDetailed,
 )
 async def get_staff_by_public_id(
-    request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     _current_user: require_director,
     public_id: uuid.UUID,
 ):
-    return await UserServiceDirector.get_staff_by_public_id(request, session, public_id)
+    return await UserServiceDirector.get_staff_by_public_id(session, redis, public_id)
