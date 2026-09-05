@@ -150,3 +150,17 @@ def verify_reset_password_token(raw_token: str, hashed_token: str) -> bool:
 # Internal helpers
 def sha256(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def generate_email_change_code() -> tuple[str, str]:
+    raw_code = str(secrets.randbelow(900_000) + 100_000)
+    hashed_code = hashlib.sha256(raw_code.encode()).hexdigest()
+
+    return raw_code, hashed_code
+
+
+def verify_email_change_code(raw_code: str, hashed_code: str) -> bool:
+    return hmac.compare_digest(
+        hashlib.sha256(raw_code.encode()).hexdigest(),
+        hashed_code,
+    )

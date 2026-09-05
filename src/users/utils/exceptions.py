@@ -94,6 +94,12 @@ class InvalidStatusTransitionError(AppException):
     error_code = "INVALID_STATUS_TRANSITION"
 
 
+class DuplicateEmailChangeRequestError(AppException):
+    status_code = 409
+    detail = "An identical email change request is already pending"
+    error_code = "DUPLICATE_EMAIL_CHANGE"
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

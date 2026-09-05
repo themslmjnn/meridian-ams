@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     CURSOR_SECRET_KEY: str
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
+    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = 15
 
     WORK_EMAIL_DOMAIN: str
     MAX_LOGIN_ATTEMPTS: int = 5

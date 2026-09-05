@@ -96,6 +96,7 @@ class UserServiceGuardian:
 
     @staticmethod
     async def update_profile(
+        request: Request,
         session: AsyncSession,
         current_user: CurrentUser,
         update_request: UpdateProfileGuardian,
@@ -125,6 +126,7 @@ class UserServiceGuardian:
             )
 
             await delete_cache(
+                get_redis(request),
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
                 UserCacheKey.user_detail_key_staff(current_user.public_id),
                 UserCacheKey.user_detail_key_self(current_user.public_id),

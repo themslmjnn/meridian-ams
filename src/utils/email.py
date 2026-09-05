@@ -24,13 +24,13 @@ async def _send_via_resend(
     response = await _resend_client.post(
         "/emails",
         json={
-            "from": f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>",
+            "from": f"{get_settings().MAIL_FROM_NAME} <{get_settings().MAIL_FROM}>",
             "to": [to_email],
             "subject": subject,
             "html": html_body,
         },
         headers={
-            "Authorization": f"Bearer {settings.EMAIL_API_KEY}",
+            "Authorization": f"Bearer {get_settings().EMAIL_API_KEY}",
             "Content-Type": "application/json",
         },
     )
@@ -50,7 +50,7 @@ async def _send_via_mailtrap(
 ) -> None:
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"{settings.MAIL_FROM_NAME} <{settings.MAIL_FROM}>"
+    message["From"] = f"{get_settings().MAIL_FROM_NAME} <{get_settings().MAIL_FROM}>"
     message["To"] = to_email
     message.attach(MIMEText(html_body, "html"))
 
@@ -112,7 +112,9 @@ def build_activation_email(
     activation_token: str,
     username: str,
 ) -> tuple[str, str]:
-    activation_link = f"{settings.APP_URL}/auth/activation?token={activation_token}"
+    activation_link = (
+        f"{get_settings().APP_URL}/auth/activation?token={activation_token}"
+    )
 
     subject = "Activate your Meridian account"
 
@@ -223,7 +225,7 @@ def build_activation_email(
                     >
                         This activation link will expire in
                         <strong>
-                            {settings.ACTIVATION_TOKEN_EXPIRES_HOURS} hours
+                            {get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS} hours
                         </strong>.
                     </p>
 
@@ -399,7 +401,7 @@ def build_admin_credentials_override_notification_email(
     changes_html = ""
 
     subject = "Your Meridian account credentials were changed"
-    login_link = f"{settings.APP_URL}/auth/login"
+    login_link = f"{get_settings().APP_URL}/auth/login"
 
     if old_username is not None and new_username is not None:
         changes_html += f"""
@@ -749,7 +751,7 @@ async def send_account_deactivation_email(email: str) -> None:
 
 
 async def send_account_activation_email(email: str) -> None:
-    login_link = f"{settings.APP_URL}/auth/login"
+    login_link = f"{get_settings().APP_URL}/auth/login"
 
     subject = "Your Meridian account has been activated"
 
@@ -861,7 +863,9 @@ async def send_account_activation_email(email: str) -> None:
 def build_reset_password_email(
     reset_password_token: str,
 ) -> tuple[str, str]:
-    reset_link = f"{settings.APP_URL}/auth/reset-password?token={reset_password_token}"
+    reset_link = (
+        f"{get_settings().APP_URL}/auth/reset-password?token={reset_password_token}"
+    )
 
     subject = "Your Meridian password reset link"
 
@@ -957,7 +961,7 @@ def build_reset_password_email(
                         >
                             This password reset link will expire in
                             <strong>
-                                {settings.RESET_PASSWORD_EXPIRES_MINUTES} minutes
+                                {get_settings().RESET_PASSWORD_EXPIRES_MINUTES} minutes
                             </strong>.
                         </p>
                     </div>
@@ -1007,7 +1011,7 @@ async def send_reset_password_token(
 
 
 async def send_account_deletion_email(email: str) -> None:
-    login_link = f"{settings.APP_URL}/auth/login"
+    login_link = f"{get_settings().APP_URL}/auth/login"
 
     subject = "Your Meridian account is scheduled for deletion"
 
@@ -1143,7 +1147,7 @@ async def send_account_deletion_email(email: str) -> None:
 
 
 async def send_account_deletion_canceled_email(email: str) -> None:
-    login_link = f"{settings.APP_URL}/auth/login"
+    login_link = f"{get_settings().APP_URL}/auth/login"
 
     subject = "Your Meridian account deletion has been canceled"
 
@@ -1269,5 +1273,155 @@ async def send_account_deletion_canceled_email(email: str) -> None:
     await send_email(
         subject=subject,
         to_email=email,
+        html_body=html,
+    )
+
+
+async def send_email_change_verification(
+    new_email: str,
+    code: str,
+) -> None:
+    subject = "Confirm your new Meridian email address"
+
+    html = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        </head>
+
+        <body
+            style="
+                margin: 0;
+                padding: 0;
+                font-family: Arial, sans-serif;
+                background-color: #f5f6f8;
+                color: #374151;
+            "
+        >
+            <div style="padding: 40px 20px;">
+                <div
+                    style="
+                        max-width: 560px;
+                        margin: 0 auto;
+                        background-color: #ffffff;
+                        border-radius: 10px;
+                        padding: 40px;
+                        box-sizing: border-box;
+                    "
+                >
+                    <h1
+                        style="
+                            margin: 0 0 30px;
+                            font-size: 22px;
+                            color: #1f2937;
+                        "
+                    >
+                        Meridian
+                    </h1>
+
+                    <h2
+                        style="
+                            margin: 0 0 20px;
+                            font-size: 20px;
+                            color: #1f2937;
+                        "
+                    >
+                        Confirm your new email address
+                    </h2>
+
+                    <p style="line-height: 1.6; margin: 0 0 16px;">
+                        You requested to change your email address.
+                        Enter the verification code below to confirm
+                        your new address.
+                    </p>
+
+                    <div
+                        style="
+                            margin: 28px 0;
+                            padding: 24px;
+                            background-color: #f9fafb;
+                            border-radius: 8px;
+                            text-align: center;
+                        "
+                    >
+                        <div
+                            style="
+                                display: inline-block;
+                                padding: 16px 32px;
+                                background-color: #f0f4ff;
+                                border: 2px solid #2563eb;
+                                border-radius: 8px;
+                            "
+                        >
+                            <span
+                                style="
+                                    font-size: 32px;
+                                    font-weight: 700;
+                                    letter-spacing: 8px;
+                                    color: #2563eb;
+                                "
+                            >
+                                {code}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div
+                        style="
+                            margin: 24px 0;
+                            padding: 16px;
+                            background-color: #f9fafb;
+                            border-radius: 6px;
+                        "
+                    >
+                        <p
+                            style="
+                                margin: 0;
+                                font-size: 14px;
+                                line-height: 1.6;
+                                color: #6b7280;
+                            "
+                        >
+                            This verification code will expire in
+                            <strong>
+                                {get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES}
+                                minutes
+                            </strong>.
+                        </p>
+                    </div>
+
+                    <p
+                        style="
+                            font-size: 14px;
+                            line-height: 1.6;
+                            color: #6b7280;
+                            margin: 24px 0 0;
+                        "
+                    >
+                        If you did not request this change, you can safely ignore
+                        this email. Your current email address has not been changed.
+                    </p>
+                </div>
+
+                <p
+                    style="
+                        text-align: center;
+                        font-size: 12px;
+                        color: #9ca3af;
+                        margin-top: 20px;
+                    "
+                >
+                    © Meridian
+                </p>
+            </div>
+        </body>
+        </html>
+    """
+
+    await send_email(
+        subject=subject,
+        to_email=new_email,
         html_body=html,
     )
