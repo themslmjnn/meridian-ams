@@ -3,7 +3,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from src.core.dependencies import require_system_admin, session_dependency
+from src.core.dependencies import (
+    redis_dependency,
+    require_system_admin,
+    session_dependency,
+)
 from src.core.limiter import user_limiter
 from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
@@ -44,12 +48,13 @@ async def register_user(
 async def update_user(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateUserRequest,
 ):
     await UserServiceAdmin.update_user(
-        request, session, current_user.credentials_id, public_id, payload
+        session, redis, current_user.credentials_id, public_id, payload
     )
 
 
@@ -61,12 +66,13 @@ async def update_user(
 async def update_user_credentials(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateUserCredentials,
 ):
     await UserServiceAdmin.update_user_credentials(
-        request, session, current_user.credentials_id, public_id, payload
+        session, redis, current_user.credentials_id, public_id, payload
     )
 
 
@@ -75,11 +81,12 @@ async def update_user_credentials(
 async def deactivate_user(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.deactivate_user(
-        request, session, current_user.credentials_id, public_id
+        session, redis, current_user.credentials_id, public_id
     )
 
 
@@ -88,11 +95,12 @@ async def deactivate_user(
 async def activate_user(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.activate_user(
-        request, session, current_user.credentials_id, public_id
+        session, redis, current_user.credentials_id, public_id
     )
 
 
@@ -133,11 +141,12 @@ async def resend_activation_invite(
 async def create_guardian_deletion_request(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.create_guardian_deletion_request(
-        request, session, current_user.credentials_id, public_id
+        session, redis, current_user.credentials_id, public_id
     )
 
 
@@ -149,11 +158,12 @@ async def create_guardian_deletion_request(
 async def cancel_guardian_deletion_request(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.cancel_guardian_deletion_request(
-        request, session, current_user.credentials_id, public_id
+        session, redis, current_user.credentials_id, public_id
     )
 
 
@@ -183,12 +193,12 @@ async def get_staff(
     response_model=UserResponseAdminDetailed,
 )
 async def get_staff_by_public_id(
-    request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_staff_by_public_id(request, session, public_id)
+    return await UserServiceAdmin.get_staff_by_public_id(session, redis, public_id)
 
 
 @router.get(
@@ -217,9 +227,9 @@ async def get_guardians(
     response_model=UserResponseAdminDetailed,
 )
 async def get_guardian_by_public_id(
-    request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_guardian_by_public_id(request, session, public_id)
+    return await UserServiceAdmin.get_guardian_by_public_id(session, redis, public_id)

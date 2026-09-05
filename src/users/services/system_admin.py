@@ -4,15 +4,18 @@ from datetime import UTC, datetime, timedelta
 from typing import assert_never
 
 import structlog
-from fastapi import Request
+from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.users.schemas.system_admin as schemas
+import src.users.utils.constants as constants
+import src.users.utils.exceptions as exceptions
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache, get_cache, get_redis, set_cache
+from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.pagination import CursorPage
-from src.core.security import generate_activation_token, generate_reset_password_token
+from src.core.security import generate_token
 from src.emails.models import Email
 from src.emails.utils.enums import EmailType
 from src.users.models.activation import UserActivation
@@ -26,38 +29,7 @@ from src.users.repository.user import (
     UserRepositoryBase,
     UserResponseRepository,
 )
-from src.users.schemas.system_admin import (
-    CreateGuardianAdmin,
-    CreateStaffAdmin,
-    CreateStudentAdmin,
-    CreateUserRequest,
-    SearchUserBase,
-    UpdateStudentAdmin,
-    UpdateUserCredentials,
-    UpdateUserRequest,
-    UserResponseAdminDetailed,
-)
-from src.users.utils.constants import (
-    DELETION_GRACE_PERIOD_DAYS,
-    GUARDIAN_ROLE,
-    STAFF_ROLES,
-    SYSTEM_ADMIN_INVISIBLE_ROLES,
-)
 from src.users.utils.enums import AccountType, UserRole, UserStatus
-from src.users.utils.exceptions import (
-    CredentialsNotFoundError,
-    GuardianAccountAlreadyExistsError,
-    GuardianAlreadyPendingDeletionError,
-    IdentityNotFoundError,
-    InvalidStatusTransitionError,
-    UserAlreadyActiveError,
-    UserAlreadyInactiveError,
-    UserNotFoundError,
-    UserNotPendingActivationError,
-    UserTypeMismatchError,
-    handle_non_student_unique_contact_error,
-    handle_username_integrity_error,
-)
 from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils import email as emails
@@ -73,18 +45,18 @@ class UserServiceAdmin:
     async def register_user(
         session: AsyncSession,
         current_user_id: int,
-        payload: CreateUserRequest,
-    ) -> UserResponseAdminDetailed:
+        payload: schemas.CreateUserRequest,
+    ) -> schemas.UserResponseAdminDetailed:
         match payload:
-            case CreateStudentAdmin():
+            case schemas.CreateStudentAdmin():
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
-            case CreateStaffAdmin():
+            case schemas.CreateStaffAdmin():
                 resolved_role = payload.role
                 account_type = AccountType.WORK
 
-            case CreateGuardianAdmin():
+            case schemas.CreateGuardianAdmin():
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
 
@@ -110,7 +82,7 @@ class UserServiceAdmin:
             resolved_role=resolved_role,
         )
 
-        raw_activation_token, hashed_activation_token = generate_activation_token()
+        raw_activation_token, hashed_activation_token = generate_token()
 
         activation_token_expires_at = datetime.now(UTC) + timedelta(
             hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
@@ -118,20 +90,20 @@ class UserServiceAdmin:
 
         try:
             if (
-                isinstance(payload, CreateGuardianAdmin)
+                isinstance(payload, schemas.CreateGuardianAdmin)
                 and payload.existing_identity_id
             ):
                 existing_identity = await UserIdentityRepository.get_by_id(
                     session, payload.existing_identity_id
                 )
                 if existing_identity is None:
-                    raise IdentityNotFoundError()
+                    raise exceptions.IdentityNotFoundError()
 
                 existing_personal = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
                     session, existing_identity.id
                 )
                 if existing_personal is not None:
-                    raise GuardianAccountAlreadyExistsError()
+                    raise exceptions.GuardianAccountAlreadyExistsError()
 
                 identity_id = payload.existing_identity_id
             else:
@@ -211,44 +183,44 @@ class UserServiceAdmin:
                 requested_by=current_user_id,
             )
 
-            handle_username_integrity_error(exc)
+            exceptions.handle_username_integrity_error(exc)
             if not is_student:
-                handle_non_student_unique_contact_error(exc)
+                exceptions.handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
     async def update_user(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
-        payload: UpdateUserRequest,
+        payload: schemas.UpdateUserRequest,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         user_identity = await UserIdentityRepository.get_by_id(
             session, user_credentials.identity_id
         )
 
         is_student = user_credentials.role == UserRole.STUDENT
-        is_request_student_shaped = isinstance(payload, UpdateStudentAdmin)
+        is_request_student_shaped = isinstance(payload, schemas.UpdateStudentAdmin)
 
         if is_student != is_request_student_shaped:
             logger.warning(
-                "update_user_type_mismatch",
+                "update_payload_mismatch",
                 actor_user_id=current_user_id,
                 public_id=public_id,
                 user_role=user_credentials.role.value,
                 submitted_type=payload.type,
             )
 
-            raise UserTypeMismatchError()
+            raise exceptions.UpdatePayloadMismatchError()
 
         is_phone_number_changing = (
             payload.phone_number is not None
@@ -287,7 +259,7 @@ class UserServiceAdmin:
             )
 
             await delete_cache(
-                get_redis(request),
+                redis,
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
@@ -312,21 +284,21 @@ class UserServiceAdmin:
             )
 
             if not is_student:
-                handle_non_student_unique_contact_error(exc)
+                exceptions.handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
     async def update_user_credentials(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
-        payload: UpdateUserCredentials,
+        payload: schemas.UpdateUserCredentials,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
                 load_activation=True,
@@ -334,7 +306,7 @@ class UserServiceAdmin:
             ),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         is_student = user_credentials.role == UserRole.STUDENT
         is_email_changing = (
@@ -378,11 +350,9 @@ class UserServiceAdmin:
 
             if should_reissue_activation_token:
                 if should_reissue_activation_token is None:
-                    raise UserAlreadyActiveError()
+                    raise exceptions.UserAlreadyActiveError()
 
-                raw_activation_token, hashed_activation_token = (
-                    generate_activation_token()
-                )
+                raw_activation_token, hashed_activation_token = generate_token()
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
                     hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
                 )
@@ -441,7 +411,7 @@ class UserServiceAdmin:
             await session.commit()
 
             await delete_cache(
-                get_redis(request),
+                redis,
                 SessionCacheKey.access_token_version_key(public_id),
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
@@ -466,26 +436,26 @@ class UserServiceAdmin:
                 method="admin_credentials_override",
             )
 
-            handle_username_integrity_error(exc)
+            exceptions.handle_username_integrity_error(exc)
             if not is_student:
-                handle_non_student_unique_contact_error(exc)
+                exceptions.handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
     async def deactivate_user(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         if user_credentials.status == UserStatus.DEACTIVATED:
             logger.warning(
@@ -495,10 +465,10 @@ class UserServiceAdmin:
                 reason="user_is_already_deactivated",
             )
 
-            raise UserAlreadyInactiveError()
+            raise exceptions.UserAlreadyInactiveError()
 
         if user_credentials.status != UserStatus.ACTIVE:
-            raise InvalidStatusTransitionError()
+            raise exceptions.InvalidStatusTransitionError()
 
         user_credentials.status = UserStatus.DEACTIVATED
 
@@ -510,7 +480,7 @@ class UserServiceAdmin:
 
         await session.commit()
 
-        asyncio.create_task(
+        asyncio.schemas.create_task(
             emails.send_email_safe(
                 emails.send_account_deactivation_email(user_credentials.email),
                 email_type=EmailType.ACCOUNT_DEACTIVATION,
@@ -518,7 +488,7 @@ class UserServiceAdmin:
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             SessionCacheKey.access_token_version_key(public_id),
             UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
@@ -533,19 +503,19 @@ class UserServiceAdmin:
 
     @staticmethod
     async def activate_user(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(load_login_lockout=True),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         if user_credentials.status == UserStatus.ACTIVE:
             logger.warning(
@@ -555,10 +525,10 @@ class UserServiceAdmin:
                 reason="user_is_already_activated",
             )
 
-            raise UserAlreadyActiveError()
+            raise exceptions.UserAlreadyActiveError()
 
         if user_credentials.status != UserStatus.DEACTIVATED:
-            raise InvalidStatusTransitionError()
+            raise exceptions.InvalidStatusTransitionError()
 
         user_credentials.status = UserStatus.ACTIVE
 
@@ -576,7 +546,7 @@ class UserServiceAdmin:
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
@@ -597,16 +567,16 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         if user_credentials.status != UserStatus.ACTIVE:
-            raise InvalidStatusTransitionError()
+            raise exceptions.InvalidStatusTransitionError()
 
-        raw_reset_token, hashed_reset_token = generate_reset_password_token()
+        raw_reset_token, hashed_reset_token = generate_token()
 
         if user_credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
@@ -640,7 +610,7 @@ class UserServiceAdmin:
         await session.commit()
 
         logger.info(
-            "reset_password_request_created",
+            "reset_password_request_schemas.created",
             public_id=public_id,
             created_by=current_user_id,
         )
@@ -654,13 +624,13 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
             load_options=LoadOptionsSchema(
                 load_activation=True,
             ),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         if user_credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
@@ -670,7 +640,7 @@ class UserServiceAdmin:
                 denial_reason="user_not_pending_activation",
             )
 
-            raise UserNotPendingActivationError()
+            raise exceptions.UserNotPendingActivationError()
 
         if user_credentials.activation is None:
             logger.error(
@@ -679,9 +649,9 @@ class UserServiceAdmin:
                 status=user_credentials.status,
             )
 
-            raise UserAlreadyActiveError()
+            raise exceptions.UserAlreadyActiveError()
 
-        raw_activation_token, hashed_activation_token = generate_activation_token()
+        raw_activation_token, hashed_activation_token = generate_token()
 
         activation_token_expires_at = datetime.now(UTC) + timedelta(
             hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
@@ -715,8 +685,8 @@ class UserServiceAdmin:
 
     @staticmethod
     async def create_guardian_deletion_request(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
@@ -727,10 +697,10 @@ class UserServiceAdmin:
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         if user_credentials.status not in (UserStatus.ACTIVE, UserStatus.INACTIVE):
-            raise InvalidStatusTransitionError()
+            raise exceptions.InvalidStatusTransitionError()
 
         if user_credentials.status == UserStatus.PENDING_DELETION:
             logger.warning(
@@ -740,10 +710,10 @@ class UserServiceAdmin:
                 denial_reason="guardian_already_pending_deletion",
             )
 
-            raise GuardianAlreadyPendingDeletionError()
+            raise exceptions.GuardianAlreadyPendingDeletionError()
 
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
-            days=DELETION_GRACE_PERIOD_DAYS
+            days=constants.DELETION_GRACE_PERIOD_DAYS
         )
 
         user_credentials.pre_deletion_status = user_credentials.status
@@ -768,7 +738,7 @@ class UserServiceAdmin:
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             SessionCacheKey.access_token_version_key(public_id),
             UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_self(public_id),
@@ -783,8 +753,8 @@ class UserServiceAdmin:
 
     @staticmethod
     async def cancel_guardian_deletion_request(
-        request: Request,
         session: AsyncSession,
+        redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
@@ -793,9 +763,9 @@ class UserServiceAdmin:
             public_id,
         )
         if user_credentials is None:
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
-        user_credentials_email = user_credentials.email
+        user_email = user_credentials.email
 
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
             session, public_id
@@ -811,19 +781,19 @@ class UserServiceAdmin:
                 denial_reason="user_hard_deleted_before_cancel_committed",
             )
 
-            raise CredentialsNotFoundError()
+            raise exceptions.CredentialsNotFoundError()
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_deletion_canceled_email(user_credentials_email),
+                emails.send_account_deletion_canceled_email(user_email),
                 email_type=EmailType.CANCEL_ACCOUNT_DELETION,
             )
         )
 
         await delete_cache(
-            get_redis(request),
+            redis,
             UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
@@ -838,22 +808,25 @@ class UserServiceAdmin:
     async def get_staff(
         session: AsyncSession,
         *,
-        filters: SearchUserBase | None = None,
+        filters: schemas.SearchUserBase | None = None,
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-    ) -> CursorPage[UserResponseAdminDetailed]:
+    ) -> CursorPage[schemas.UserResponseAdminDetailed]:
         page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            allowed_roles=STAFF_ROLES,
+            allowed_roles=constants.STAFF_ROLES,
         )
 
-        return CursorPage[UserResponseAdminDetailed](
-            items=[UserResponseAdminDetailed.model_validate(row) for row in page.items],
+        return CursorPage[schemas.UserResponseAdminDetailed](
+            items=[
+                schemas.UserResponseAdminDetailed.model_validate(row)
+                for row in page.items
+            ],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
@@ -861,23 +834,22 @@ class UserServiceAdmin:
 
     @staticmethod
     async def get_staff_by_public_id(
-        request: Request, session: AsyncSession, public_id: uuid.UUID
-    ) -> UserResponseAdminDetailed:
+        session: AsyncSession, redis: Redis, public_id: uuid.UUID
+    ) -> schemas.UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        redis = get_redis(request)
         cached = await get_cache(redis, cache_key)
 
         if cached is not None:
-            return UserResponseAdminDetailed.model_validate(cached)
+            return schemas.UserResponseAdminDetailed.model_validate(cached)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
-            session, public_id, allowed_roles=STAFF_ROLES
+            session, public_id, allowed_roles=constants.STAFF_ROLES
         )
         if staff is None:
-            raise UserNotFoundError()
+            raise exceptions.UserNotFoundError()
 
-        response = UserResponseAdminDetailed.model_validate(staff)
+        response = schemas.UserResponseAdminDetailed.model_validate(staff)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
@@ -887,22 +859,25 @@ class UserServiceAdmin:
     async def get_guardians(
         session: AsyncSession,
         *,
-        filters: SearchUserBase | None = None,
+        filters: schemas.SearchUserBase | None = None,
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-    ) -> CursorPage[UserResponseAdminDetailed]:
+    ) -> CursorPage[schemas.UserResponseAdminDetailed]:
         page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            allowed_roles=GUARDIAN_ROLE,
+            allowed_roles=constants.GUARDIAN_ROLE,
         )
 
-        return CursorPage[UserResponseAdminDetailed](
-            items=[UserResponseAdminDetailed.model_validate(row) for row in page.items],
+        return CursorPage[schemas.UserResponseAdminDetailed](
+            items=[
+                schemas.UserResponseAdminDetailed.model_validate(row)
+                for row in page.items
+            ],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
@@ -910,23 +885,22 @@ class UserServiceAdmin:
 
     @staticmethod
     async def get_guardian_by_public_id(
-        request: Request, session: AsyncSession, public_id: uuid.UUID
-    ) -> UserResponseAdminDetailed:
+        session: AsyncSession, redis: Redis, public_id: uuid.UUID
+    ) -> schemas.UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        redis = get_redis(request)
         cached = await get_cache(redis, cache_key)
 
         if cached is not None:
-            return UserResponseAdminDetailed.model_validate(cached)
+            return schemas.UserResponseAdminDetailed.model_validate(cached)
 
         guardian = await UserRepositoryBase.get_user_by_public_id(
-            session, public_id, allowed_roles=GUARDIAN_ROLE
+            session, public_id, allowed_roles=constants.GUARDIAN_ROLE
         )
         if guardian is None:
-            raise UserNotFoundError()
+            raise exceptions.UserNotFoundError()
 
-        response = UserResponseAdminDetailed.model_validate(guardian)
+        response = schemas.UserResponseAdminDetailed.model_validate(guardian)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 

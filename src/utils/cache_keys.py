@@ -8,7 +8,7 @@ class SessionCacheKey:
         return f"{atv}:{credentials_id}"
 
     @staticmethod
-    def _unpack_atv_cache(cached: str) -> tuple[int, int]:
+    def unpack_atv_cache(cached: str) -> tuple[int, int]:
         """
         Unpack the cached ATV string back into (atv, credentials_id).
 

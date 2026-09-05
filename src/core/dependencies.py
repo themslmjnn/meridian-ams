@@ -20,7 +20,6 @@ from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.cache_keys import SessionCacheKey
-from src.utils.constants import HTTP403
 
 logger = structlog.get_logger(__name__)
 
@@ -54,10 +53,9 @@ class CurrentUser:
 async def get_current_user(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     access_token: Annotated[str, Depends(oauth2_scheme)],
 ) -> CurrentUser:
-    redis = get_redis(request)
-
     try:
         payload = decode_access_token(access_token)
 
@@ -83,6 +81,7 @@ async def get_current_user(
             logger.warning(
                 "atv_cache_malformed", session_id=session_id, cached=unpacked_cached_atv
             )
+
             unpacked_cached_atv = None
 
     if unpacked_cached_atv is not None:
