@@ -12,8 +12,6 @@ from src.utils.email import send_email
 
 logger = structlog.get_logger(__name__)
 
-settings = get_settings()
-
 
 async def _process_email(session: AsyncSession, record: Email) -> None:
     """
@@ -21,6 +19,7 @@ async def _process_email(session: AsyncSession, record: Email) -> None:
     Updates the record's status and commits in both success and failure paths.
     Never raises — errors are recorded on the row and logged.
     """
+
     structlog.contextvars.bind_contextvars(
         email_id=record.id,
         email_type=record.email_type,
@@ -74,7 +73,8 @@ async def _run_sweep() -> None:
     One full sweep of the pending queue.
     Opens a fresh session per batch and continues until the queue is drained.
     """
-    batch_size = settings.EMAIL_WORKER_BATCH_SIZE
+
+    batch_size = get_settings().EMAIL_WORKER_BATCH_SIZE
 
     while True:
         async with session_factory() as session:
@@ -95,8 +95,8 @@ async def _run_sweep() -> None:
 async def run_email_worker() -> None:
     logger.info(
         "email_worker_started",
-        poll_interval=settings.EMAIL_WORKER_INTERVAL,
-        batch_size=settings.EMAIL_WORKER_BATCH_SIZE,
+        poll_interval=get_settings().EMAIL_WORKER_INTERVAL,
+        batch_size=get_settings().EMAIL_WORKER_BATCH_SIZE,
     )
 
     while True:
@@ -115,4 +115,4 @@ async def run_email_worker() -> None:
                 error=str(exc),
             )
 
-        await asyncio.sleep(settings.EMAIL_WORKER_INTERVAL)
+        await asyncio.sleep(get_settings().EMAIL_WORKER_INTERVAL)

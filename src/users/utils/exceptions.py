@@ -51,7 +51,7 @@ class CredentialsNotFoundError(AppException):
 
 class UserNotFoundError(AppException):
     status_code = 404
-    detail = HTTP404.User
+    detail = HTTP404.USER
     error_code = "USER_NOT_FOUND"
 
 

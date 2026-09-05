@@ -77,8 +77,8 @@ async def refresh_token(
     request: Request,
     response: Response,
     session: session_dependency,
-    refresh_token: Annotated[str | None, Cookie(default=None)],
-    refresh_token_family: Annotated[str | None, Cookie(default=None)],
+    refresh_token: str | None = Cookie(default=None),
+    refresh_token_family: str | None = Cookie(default=None),
 ):
     if refresh_token is None or refresh_token_family is None:
         raise InvalidRefreshTokenError()

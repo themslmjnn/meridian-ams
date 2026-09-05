@@ -23,16 +23,14 @@ class EmailRepository:
           - retry_count < max_retries (skip permanently exhausted rows)
         Ordered oldest-first so earlier queued emails go out first.
         """
-        now = datetime.now(UTC)
 
         result = await session.execute(
             select(Email)
             .where(
                 Email.status == EmailStatus.PENDING,
-                Email.scheduled_for <= now,
                 Email.retry_count < Email.max_retries,
             )
-            .order_by(Email.scheduled_for.asc(), Email.id.asc())
+            .order_by(Email.id.asc())
             .limit(limit)
         )
 
