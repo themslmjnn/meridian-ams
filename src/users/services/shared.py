@@ -10,11 +10,17 @@ from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, get_redis, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
-from src.core.security import generate_email_change_code, verify_email_change_code
+from src.core.security import (
+    generate_email_change_code,
+    hash_password,
+    verify_email_change_code,
+    verify_password,
+)
 from src.emails.utils.enums import EmailType
 from src.users.repository.user import UserCredentialsRepository, UserRepositoryBase
 from src.users.schemas.shared import (
     ConfirmEmailChange,
+    UpdateMePassword,
     UpdateUserCredentials,
     UserResponseSelf,
 )
@@ -24,6 +30,7 @@ from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     DuplicateEmailChangeRequestError,
     EmailChangeCodeExpiredError,
+    IncorrectPasswordError,
     InvalidEmailChangeCodeError,
     NoPendingEmailChangeError,
     UserNotFoundError,
@@ -294,3 +301,62 @@ class UserServiceSelf:
             if not is_student:
                 handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def update_me_password(
+        request: Request,
+        session: AsyncSession,
+        current_user: CurrentUser,
+        update_request: UpdateMePassword,
+    ) -> None:
+        target_user = await UserCredentialsRepository.get_by_public_id(
+            session,
+            current_user.public_id,
+            load_options=LoadOptionsSchema(load_sessions=True),
+        )
+        if target_user is None:
+            CredentialsNotFoundError()
+
+        is_current_password_valid = await verify_password(
+            update_request.current_password, target_user.password_hash
+        )
+
+        if not is_current_password_valid:
+            logger.warning(
+                "password_change_denied",
+                target_user_id=current_user.public_id,
+                denial_reason="incorrect_current_password",
+                method="self_service",
+            )
+
+            raise IncorrectPasswordError()
+
+        new_password_hash = await hash_password(update_request.new_password)
+
+        target_user.password_hash = new_password_hash
+
+        for session_row in target_user.sessions:
+            session_row.access_token_version += 1
+            session_row.refresh_token_hash = None
+            session_row.refresh_token_family = None
+            session_row.refresh_token_expires_at = None
+
+        await session.commit()
+
+        asyncio.create_task(
+            emails.send_email_safe(
+                emails.send_password_changed_notification(target_user.email),
+                email_type=EmailType.PASSWORD_CHANGED,
+            )
+        )
+
+        await delete_cache(
+            get_redis(request),
+            SessionCacheKey.access_token_version_key(current_user.public_id),
+        )
+
+        logger.info(
+            "password_changed",
+            target_user_id=current_user.public_id,
+            method="self_service",
+        )

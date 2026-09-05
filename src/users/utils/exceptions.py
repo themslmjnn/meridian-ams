@@ -120,6 +120,8 @@ class InvalidEmailChangeCodeError(AppException):
 
 class IncorrectPasswordError(AppException):
     status_code = 400
+    detail = "Current password is incorrect"
+    error_code = "INCORRECT_PASSWORD"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:
