@@ -38,7 +38,7 @@ from src.utils.exceptions import (
 
 logger = structlog.get_logger(__name__)
 
-_COOKIE_PATH_REFRESH = "/api/v1/auth/refresh"
+_COOKIE_PATH_REFRESH = "/api/v1/auth/refresh-token"
 _COOKIE_PATH_LOGIN = "/api/v1/auth/login"
 _COOKIE_MAX_AGE = 60 * 60 * 24 * 30  # 30 days
 _SESSION_CAP = 10
@@ -417,7 +417,7 @@ class AuthService:
         )
 
     @staticmethod
-    async def refresh(
+    async def refresh_token(
         request: Request,
         response: Response,
         session: AsyncSession,

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 
@@ -8,6 +8,7 @@ from src.auth.schemas import LoginResponse
 from src.auth.service import AuthService
 from src.core.caching import get_redis
 from src.core.dependencies import current_user_dependency, session_dependency
+from src.utils.exceptions import InvalidRefreshTokenError
 
 router = APIRouter(
     prefix="/auth",
@@ -61,4 +62,24 @@ async def logout_all(
         redis=redis,
         response=response,
         current_user=current_user,
+    )
+
+
+@router.post("/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+async def refresh_token(
+    request: Request,
+    response: Response,
+    session: session_dependency,
+    refresh_token: Annotated[str | None, Cookie(default=None)],
+    refresh_token_family: Annotated[str | None, Cookie(default=None)],
+):
+    if refresh_token is None or refresh_token_family is None:
+        raise InvalidRefreshTokenError()
+
+    return await AuthService.refresh_token(
+        request=request,
+        response=response,
+        session=session,
+        raw_refresh_token=refresh_token,
+        raw_refresh_family=refresh_token_family,
     )
