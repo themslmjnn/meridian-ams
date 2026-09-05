@@ -4,6 +4,38 @@ from src.core.exceptions import AppException
 from src.utils.constants import HTTP400, HTTP401, HTTP403
 
 
+# HTTP400
+class NoChangesDetectedError(AppException):
+    status_code = 400
+    detail = HTTP400.NO_CHANGES_DETECTED
+    error_code = "NO_CHANGES_DETECTED"
+
+
+class InvalidActivationCodeError(AppException):
+    status_code = 400
+    detail = HTTP400.INVALID_ACTIVATION_TOKEN
+    error_code = "INVALID_ACTIVATION_TOKEN"
+
+
+class ExpiredActivationCodeError(AppException):
+    status_code = 400
+    detail = HTTP400.EXPIRED_ACTIVATION_TOKEN
+    error_code = "EXPIRED_ACTIVATION_TOKEN"
+
+
+class InvalidResetPasswordTokenError(AppException):
+    status_code = 400
+    detail = HTTP400.INVALID_RESET_TOKEN
+    error_code = "INVALID_RESET_TOKEN"
+
+
+class ExpiredResetPasswordTokenError(AppException):
+    status_code = 400
+    detail = HTTP400.EXPIRED_RESET_TOKEN
+    error_code = "EXPIRED_RESET_TOKEN"
+
+
+# HTTP401
 class InvalidAccessTokenError(AppException):
     status_code = 401
     detail = HTTP401.INVALID_ACCESS_TOKEN
@@ -34,16 +66,17 @@ class InvalidTokenTypeError(AppException):
     error_code = "INVALID_TOKEN_TYPE"
 
 
-class AccessDeniedError(AppException):
-    status_code = 403
-    detail = HTTP403.ACCESS_DENIED
-    error_code = "ACCESS_DENIED"
-
-
 class InvalidCredentialsError(AppException):
     status_code = 401
     detail = HTTP401.INVALID_CREDENTIALS
     error_code = "INVALID_CREDENTIALS"
+
+
+# HTTP403
+class AccessDeniedError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCESS_DENIED
+    error_code = "ACCESS_DENIED"
 
 
 class AccountLockedError(AppException):
@@ -51,46 +84,40 @@ class AccountLockedError(AppException):
     error_code = "ACCOUNT_LOCKED"
 
 
-class AccountInactiveError(AppException):
-    status_code = 401
-    detail = HTTP401.ACCOUNT_NOT_ACTIVATED
+class AccountNotActivatedError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCOUNT_NOT_ACTIVATED
     error_code = "ACCOUNT_NOT_ACTIVATED"
 
 
-class GracePeriodExpiredError(AppException):
-    status_code = 401
-    detail = HTTP401.GRACE_PERIOD_EXPIRED
-    error_code = "ACCOUNT_DELETION_EXPIRED"
+class AccountInactiveError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCOUNT_INACTIVE
+    error_code = "ACCOUNT_INACTIVE"
 
 
-class NoChangesDetectedError(AppException):
-    status_code = 400
-    detail = HTTP400.NO_CHANGES_DETECTED
-    error_code = "NO_CHANGES_DETECTED"
+class ExpiredDeletionGracePeriodError(AppException):
+    status_code = 403
+    detail = HTTP403.EXPIRED_DELETION_GRACE_PERIOD
+    error_code = "EXPIRED_DELETION_GRACE_PERIOD"
 
 
-class InvalidActivationCodeError(AppException):
-    status_code = 400
-    detail = HTTP400.INVALID_ACTIVATION_TOKEN
-    error_code = "INVALID_ACTIVATION_TOKEN"
+class AccountGraduatedError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCOUNT_GRADUATED
+    error_code = "ACCOUNT_GRADUATED"
 
 
-class ExpiredActivationCodeError(AppException):
-    status_code = 400
-    detail = HTTP400.EXPIRED_ACTIVATION_TOKEN
-    error_code = "EXPIRED_ACTIVATION_TOKEN"
+class AccountExpelledError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCOUNT_EXPELLED
+    error_code = "ACCOUNT_EXPELLED"
 
 
-class InvalidResetPasswordTokenError(AppException):
-    status_code = 400
-    detail = HTTP400.INVALID_RESET_TOKEN
-    error_code = "INVALID_RESET_TOKEN"
-
-
-class ExpiredResetPasswordTokenError(AppException):
-    status_code = 400
-    detail = HTTP400.EXPIRED_RESET_TOKEN
-    error_code = "EXPIRED_RESET_TOKEN"
+class AccountWithdrawnError(AppException):
+    status_code = 403
+    detail = HTTP403.ACCOUNT_WITHDRAWN
+    error_code = "ACCOUNT_WITHDRAWN"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:

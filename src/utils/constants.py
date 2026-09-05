@@ -8,16 +8,20 @@ class HTTP400:
 
 
 class HTTP401:
-    INVALID_CREDENTIALS = "Invalid credentials"
-    ACCOUNT_NOT_ACTIVATED = "Account has not been activated yet"
-    INVALID_REFRESH_TOKEN = "Invalid refresh token"
-    EXPIRED_REFRESH_TOKEN = "Expired refresh token"
     INVALID_ACCESS_TOKEN = "Invalid access token"
     EXPIRED_ACCESS_TOKEN = "Expired access token"
+    INVALID_REFRESH_TOKEN = "Invalid refresh token"
+    EXPIRED_REFRESH_TOKEN = "Expired refresh token"
     INVALID_TOKEN_TYPE = "Invalid token type"
-    GRACE_PERIOD_EXPIRED = "Account deletion grace period has expired"
+    INVALID_CREDENTIALS = "Invalid credentials"
 
 
 class HTTP403:
     ACCESS_DENIED = "Access denied"
     ACCOUNT_DEACTIVATED = "Your account has been deactivated"
+    ACCOUNT_NOT_ACTIVATED = "Account has not been activated yet"
+    ACCOUNT_INACTIVE = "Account is inactive"
+    EXPIRED_DELETION_GRACE_PERIOD = "Account deletion grace period has expired"
+    ACCOUNT_GRADUATED = "This account belongs to a graduated student"
+    ACCOUNT_EXPELLED = "This account has been expelled"
+    ACCOUNT_WITHDRAWN = "This account has been withdrawn"

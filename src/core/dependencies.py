@@ -10,6 +10,7 @@ from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import src.utils.exceptions as exceptions
 from src.core.caching import get_cache_critical, get_redis, set_cache_critical
 from src.core.config import get_settings
 from src.core.exceptions import AppException
@@ -20,7 +21,6 @@ from src.users.repository.user import UserCredentialsRepository, UserSessionRepo
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.cache_keys import SessionCacheKey
 from src.utils.constants import HTTP403
-from src.utils.exceptions import AccessDeniedError, InvalidAccessTokenError
 
 logger = structlog.get_logger(__name__)
 
@@ -68,7 +68,7 @@ async def get_current_user(
         account_type = AccountType(payload["account_type"])
 
     except (ValueError, KeyError, TypeError) as exc:
-        raise InvalidAccessTokenError() from exc
+        raise exceptions.InvalidAccessTokenError() from exc
 
     atv_key = SessionCacheKey.access_token_version_key(session_id)
     unpacked_cached_atv = await get_cache_critical(redis, atv_key)
@@ -87,7 +87,7 @@ async def get_current_user(
 
     if unpacked_cached_atv is not None:
         if cached_atv != atv:
-            raise InvalidAccessTokenError()
+            raise exceptions.InvalidAccessTokenError()
 
         current_user = CurrentUser(
             credentials_id=cached_credentials_id,
@@ -104,17 +104,19 @@ async def get_current_user(
     user_session = await UserSessionRepository.get_by_id(session, session_id)
 
     if user_session is None:
-        raise InvalidAccessTokenError(detail="Session not found or has been revoked")
+        raise exceptions.InvalidAccessTokenError(
+            detail="Session not found or has been revoked"
+        )
 
     credentials = await UserCredentialsRepository.get_by_id(
         session, user_session.credentials_id
     )
 
     if credentials is None or credentials.public_id != public_id:
-        raise InvalidAccessTokenError()
+        raise exceptions.InvalidAccessTokenError()
 
     if user_session.access_token_version != atv:
-        raise InvalidAccessTokenError()
+        raise exceptions.InvalidAccessTokenError()
 
     _verify_status(credentials)
 
@@ -146,7 +148,7 @@ current_user_dependency = Annotated[CurrentUser, Depends(get_current_user)]
 def require_roles(*roles: UserRole):
     def guard(current_user: current_user_dependency) -> CurrentUser:
         if current_user.role not in roles:
-            raise AccessDeniedError()
+            raise exceptions.AccessDeniedError()
 
         return current_user
 
@@ -160,6 +162,16 @@ require_director = Annotated[CurrentUser, Depends(require_roles(UserRole.DIRECTO
 require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIAN))]
 
 
+STATUS_EXCEPTION_MAP: dict[UserStatus, type[AppException]] = {
+    UserStatus.PENDING_ACTIVATION: exceptions.AccountNotActivatedError,
+    UserStatus.INACTIVE: exceptions.AccountInactiveError,
+    UserStatus.PENDING_DELETION: exceptions.ExpiredDeletionGracePeriodError,
+    UserStatus.GRADUATED: exceptions.AccountGraduatedError,
+    UserStatus.EXPELLED: exceptions.AccountExpelledError,
+    UserStatus.WITHDRAWN: exceptions.AccountWithdrawnError,
+}
+
+
 def _verify_status(credentials: UserCredentials) -> None:
     if credentials.status == UserStatus.ACTIVE:
         return
@@ -171,36 +183,7 @@ def _verify_status(credentials: UserCredentials) -> None:
     ):
         return
 
-    status_errors: dict[UserStatus, tuple[str, str]] = {
-        UserStatus.PENDING_ACTIVATION: (
-            HTTP403.ACCOUNT_NOT_ACTIVATED,
-            "ACCOUNT_NOT_ACTIVATED",
-        ),
-        UserStatus.INACTIVE: (
-            HTTP403.ACCOUNT_INACTIVE,
-            "ACCOUNT_INACTIVE",
-        ),
-        UserStatus.PENDING_DELETION: (
-            HTTP403.EXPIRED_DELETION_GRACE_PERIOD,
-            "EXPIRED_DELETION_GRACE_PERIOD",
-        ),
-        UserStatus.GRADUATED: (
-            HTTP403.ACCOUNT_GRADUATED,
-            "ACCOUNT_GRADUATED",
-        ),
-        UserStatus.EXPELLED: (
-            HTTP403.ACCOUNT_EXPELLED,
-            "ACCOUNT_EXPELLED",
-        ),
-        UserStatus.WITHDRAWN: (
-            HTTP403.ACCOUNT_WITHDRAWN,
-            "ACCOUNT_WITHDRAWN",
-        ),
-    }
-
-    detail, error_code = status_errors.get(
+    raise STATUS_EXCEPTION_MAP.get(
         credentials.status,
-        (HTTP403.ACCESS_DENIED, "ACCOUNT_ACCESS_DENIED"),
-    )
-
-    raise AppException(status_code=403, detail=detail, error_code=error_code)
+        exceptions.AccessDeniedError,
+    )()
