@@ -105,7 +105,7 @@ async def create_reset_password_request(
     public_id: uuid.UUID,
 ):
     await UserServiceAdmin.create_reset_password_request(
-        session, current_user.id, public_id
+        session, current_user.credentials_id, public_id
     )
 
 

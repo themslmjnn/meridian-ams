@@ -19,6 +19,7 @@ from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
+from src.users.models.password_reset import UserPasswordReset
 from src.users.repository.user import (
     UserCredentialsRepository,
     UserIdentityRepository,
@@ -602,27 +603,41 @@ class UserServiceAdmin:
         if user_credentials is None:
             raise CredentialsNotFoundError()
 
+        if user_credentials.status != UserStatus.ACTIVE:
+            raise InvalidStatusTransitionError()
+
         raw_reset_token, hashed_reset_token = generate_reset_password_token()
 
-        user_credentials.password_reset.reset_password_token_hash = hashed_reset_token
-        user_credentials.password_reset.reset_password_token_expires_at = datetime.now(
-            UTC
-        ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+        if user_credentials.password_reset is None:
+            new_password_reset = UserPasswordReset(
+                credentials_id=user_credentials.id,
+                reset_password_token_hash=hashed_reset_token,
+                reset_password_token_expires_at=datetime.now(UTC)
+                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
+            )
+
+            session.add(new_password_reset)
+        else:
+            user_credentials.password_reset.reset_password_token_hash = (
+                hashed_reset_token
+            )
+            user_credentials.password_reset.reset_password_token_expires_at = (
+                datetime.now(UTC)
+                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+            )
 
         subject, html_body = emails.build_reset_password_email(raw_reset_token)
 
         new_email = Email(
-            recipient=user_credentials.email,
+            recipient_email=user_credentials.email,
             subject=subject,
-            html_body=html_body,
+            body_html=html_body,
             email_type=EmailType.PASSWORD_RESET_ADMIN,
             triggered_by=current_user_id,
         )
 
         session.add(new_email)
         await session.commit()
-
-        print(raw_reset_token)
 
         logger.info(
             "reset_password_request_created",
