@@ -5,7 +5,11 @@ from src.core.dependencies import (
     session_dependency,
 )
 from src.core.limiter import user_limiter
-from src.users.schemas.shared import UpdateUserCredentials, UserResponseSelf
+from src.users.schemas.shared import (
+    ConfirmEmailChange,
+    UpdateUserCredentials,
+    UserResponseSelf,
+)
 from src.users.services.shared import UserServiceSelf
 
 router = APIRouter(
@@ -37,3 +41,17 @@ async def update_me_credentials(
     await UserServiceSelf.update_me_credentials(
         request, session, current_user, update_request
     )
+
+
+@router.post(
+    "/me/credentials/confirm-email",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@user_limiter.limit("5/minute")
+async def confirm_email_change(
+    request: Request,
+    session: session_dependency,
+    current_user: current_user_dependency,
+    confirm_request: ConfirmEmailChange,
+):
+    await UserServiceSelf.confirm_email_change(session, current_user, confirm_request)

@@ -6,20 +6,31 @@ from fastapi import Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, get_redis, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
-from src.core.security import generate_email_change_code
+from src.core.security import generate_email_change_code, verify_email_change_code
 from src.emails.utils.enums import EmailType
 from src.users.repository.user import UserCredentialsRepository, UserRepositoryBase
-from src.users.schemas.shared import UpdateUserCredentials, UserResponseSelf
+from src.users.schemas.shared import (
+    ConfirmEmailChange,
+    UpdateUserCredentials,
+    UserResponseSelf,
+)
 from src.users.utils.constants import STUDENT_ROLE
+from src.users.utils.enums import UserRole
 from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     DuplicateEmailChangeRequestError,
+    EmailChangeCodeExpiredError,
+    InvalidEmailChangeCodeError,
+    NoPendingEmailChangeError,
     UserNotFoundError,
+    handle_non_student_unique_contact_error,
     handle_username_integrity_error,
 )
+from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
@@ -172,4 +183,114 @@ class UserServiceSelf:
             )
 
             handle_username_integrity_error(exc)
+            raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def confirm_email_change(
+        request: Request,
+        session: AsyncSession,
+        current_user: CurrentUser,
+        confirm_request: ConfirmEmailChange,
+    ) -> None:
+        target_user = await UserCredentialsRepository.get_by_public_id(
+            session,
+            current_user.public_id,
+            load_options=LoadOptionsSchema(
+                load_sessions=True,
+                load_login_lockout=True,
+            ),
+        )
+        if target_user is None:
+            CredentialsNotFoundError()
+
+        user_with_session = target_user.sessions
+        if (
+            user_with_session.pending_new_email is None
+            or user_with_session.email_change_code_hash is None
+        ):
+            raise NoPendingEmailChangeError()
+
+        if user_with_session.email_change_code_expires_at < datetime.now(UTC):
+            raise EmailChangeCodeExpiredError()
+
+        if not verify_email_change_code(
+            confirm_request.code, user_with_session.email_change_code_hash
+        ):
+            logger.warning(
+                "email_change_confirmation_denied",
+                target_user_id=current_user.public_id,
+                denial_reason="invalid_code",
+            )
+
+            raise InvalidEmailChangeCodeError("Invalid email change code")
+
+        new_email = target_user.email_change.new_email
+        is_student = target_user.role == UserRole.STUDENT
+
+        if is_student:
+            await acquire_contact_locks(session, phone_number=None, email=new_email)
+
+            await check_contact_limit(
+                session,
+                current_user.credentials_id,
+                username=target_user.username,
+                phone_number=None,
+                email=new_email,
+                role=UserRole.STUDENT,
+                resolved_role=UserRole.STUDENT,
+                exclude_user_id=current_user.credentials_id,
+            )
+
+        try:
+            old_email = target_user.email
+            target_user.email = new_email
+
+            target_user.email_change.new_email = None
+            target_user.email_change.email_change_code_hash = None
+            target_user.email_change.email_change_code_expires_at = None
+
+            for session_row in target_user.sessions:
+                session_row.access_token_version += 1
+                session_row.refresh_token_hash = None
+                session_row.refresh_token_family = None
+                session_row.refresh_token_expires_at = None
+
+            await session.commit()
+            await session.refresh(target_user)
+
+            asyncio.create_task(
+                emails.send_email_safe(
+                    emails.send_email_changed_notification(
+                        target_user.email, old_email, target_user.email
+                    ),
+                    email_type=EmailType.EMAIL_CHANGED,
+                )
+            )
+
+            await delete_cache(
+                get_redis(request),
+                SessionCacheKey.access_token_version_key(current_user.public_id),
+                UserCacheKey.user_detail_key_admin(current_user.public_id),
+                UserCacheKey.user_detail_key_staff(current_user.public_id),
+                UserCacheKey.user_detail_key_self(current_user.public_id),
+            )
+
+            logger.info(
+                "email_changed",
+                target_user_id=current_user.public_id,
+                method="self_service",
+            )
+
+        except IntegrityError as exc:
+            await session.rollback()
+
+            logger.error(
+                "email_change_confirmation_failed",
+                target_user_id=current_user.public_id,
+                reason=str(exc.orig),
+                method="self_service",
+            )
+
+            if not is_student:
+                handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)

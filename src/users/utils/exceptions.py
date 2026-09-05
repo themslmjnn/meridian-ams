@@ -100,6 +100,28 @@ class DuplicateEmailChangeRequestError(AppException):
     error_code = "DUPLICATE_EMAIL_CHANGE"
 
 
+class NoPendingEmailChangeError(AppException):
+    status_code = 404
+    detail = "No email change is currently pending"
+    error_code = "NO_PENDING_EMAIL_CHANGE"
+
+
+class EmailChangeCodeExpiredError(AppException):
+    status_code = 400
+    detail = "Email change code has expired"
+    error_code = "EMAIL_CHANGE_CODE_EXPIRED"
+
+
+class InvalidEmailChangeCodeError(AppException):
+    status_code = 400
+    detail = "Invalid email change code"
+    error_code = "INVALID_EMAIL_CHANGE_CODE"
+
+
+class IncorrectPasswordError(AppException):
+    status_code = 400
+
+
 def handle_username_integrity_error(error: IntegrityError) -> None:
     if "user_credentials_username_key" in str(error.orig):
         raise UsernameAlreadyTakenError()

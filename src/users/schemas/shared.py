@@ -44,3 +44,7 @@ class UpdateUserCredentials(BaseModel):
             return None
 
         return validators.validate_email(v)
+
+
+class ConfirmEmailChange(BaseModel):
+    code: str
