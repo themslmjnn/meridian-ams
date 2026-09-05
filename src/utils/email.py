@@ -56,10 +56,10 @@ async def _send_via_mailtrap(
 
     await aiosmtplib.send(
         message,
-        hostname=settings.MAILTRAP_HOST,
-        port=settings.MAILTRAP_PORT,
-        username=settings.MAILTRAP_USERNAME,
-        password=settings.MAILTRAP_PASSWORD,
+        hostname=get_settings().MAILTRAP_HOST,
+        port=get_settings().MAILTRAP_PORT,
+        username=get_settings().MAILTRAP_USERNAME,
+        password=get_settings().MAILTRAP_PASSWORD,
         start_tls=True,
     )
 
@@ -87,6 +87,7 @@ async def send_email_safe(coro, **log_context) -> None:
     Never use this inside the worker — the worker needs exceptions to surface
     so it can record failures and drive retry logic.
     """
+
     try:
         await coro
 

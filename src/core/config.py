@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int = 5432
     DB_USER: str
-    DB_PSSW: str
+    DB_PASSWORD: str
     DB_NAME: str
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str | None = None
-    REDIS_DB: int = 0
+    REDIS_DB: int
 
     # Computed in derive_computed_fields — do not set in .env
     REDIS_URL: str = ""
@@ -54,23 +54,29 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
+    MAX_LOGIN_ATTEMPTS: int = 5
+    LOCKOUT_DURATION_MINUTES: int = 30
     CURSOR_SECRET_KEY: str
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
     EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = 15
 
     WORK_EMAIL_DOMAIN: str
-    MAX_LOGIN_ATTEMPTS: int = 5
-    LOCKOUT_DURATION_MINUTES: int = 30
 
     GRADING_PERIOD_TYPE: Literal["semester", "quarter", "trimester"] = "semester"
 
     EMAIL_WORKER_INTERVAL: int = 60
+    EMAIL_WORKER_BATCH_SIZE = 10
     DELETION_WORKER_INTERVAL: int = 3600
 
     EMAIL_API_KEY: str | None = None
     MAIL_FROM: str | None = None
     MAIL_FROM_NAME: str = "Meridian AMS"
+
+    MAILTRAP_HOST: str = "sandbox.smtp.mailtrap.io"
+    MAILTRAP_PORT: int = 587
+    MAILTRAP_USERNAME: str
+    MAILTRAP_PASSWORD: str
 
     SENTRY_DSN: str | None = None
 
@@ -170,6 +176,7 @@ class Settings(BaseSettings):
         they cannot be accidentally misconfigured — staging always behaves
         like production for all security concerns.
         """
+
         self.DATABASE_URL = (
             f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PSSW}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
@@ -201,4 +208,5 @@ def get_settings() -> Settings:
     Tests can bypass the cache by calling Settings() directly with overrides,
     or by clearing the cache with get_settings.cache_clear().
     """
+
     return Settings()
