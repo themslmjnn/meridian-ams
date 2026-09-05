@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import RowMapping, Select, asc, desc, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -70,9 +70,14 @@ class UserCredentialsRepository:
         session: AsyncSession,
         credentials_id: int,
         *,
+        account_type: AccountType | None = None,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.id == credentials_id)
+
+        if account_type:
+            query = query.where(UserCredentials.account_type == account_type)
+
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
         result = await session.execute(query)

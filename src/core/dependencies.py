@@ -157,6 +157,7 @@ def require_roles(*roles: UserRole):
 require_system_admin = Annotated[
     CurrentUser, Depends(require_roles(UserRole.SYSTEM_ADMIN))
 ]
+require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIAN))]
 
 
 def _verify_status(credentials: UserCredentials) -> None:
