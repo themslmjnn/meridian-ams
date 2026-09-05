@@ -33,3 +33,14 @@ class ActivateAccount(BaseModel):
     @classmethod
     def _validate_password_strength(cls, v: str) -> str:
         return validate_password(v)
+
+
+class ResetPasswordRequest(BaseModel):
+    reset_password_token: str
+    new_password: str
+    confirm_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def _validate_password_strength(cls, v: str) -> str:
+        return validate_password(v)

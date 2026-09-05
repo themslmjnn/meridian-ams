@@ -1,6 +1,6 @@
-from hashlib import sha256
 import secrets
 from datetime import UTC, datetime, timedelta
+from hashlib import sha256
 
 import structlog
 from fastapi import Request, Response
@@ -14,6 +14,7 @@ from src.auth.schemas import (
     CreateAccessToken,
     CreateRefreshToken,
     LoginResponse,
+    ResetPasswordRequest,
 )
 from src.core.caching import delete_cache, get_redis, set_cache_critical
 from src.core.config import get_settings
@@ -39,10 +40,12 @@ from src.utils.exceptions import (
     AccountLockedError,
     ExpiredActivationCodeError,
     ExpiredRefreshTokenError,
+    ExpiredResetPasswordTokenError,
     GracePeriodExpiredError,
     InvalidActivationCodeError,
     InvalidCredentialsError,
     InvalidRefreshTokenError,
+    InvalidResetPasswordTokenError,
 )
 
 logger = structlog.get_logger(__name__)
@@ -722,3 +725,79 @@ class AuthService:
         AuthService._set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
+
+    @staticmethod
+    async def reset_password(
+        request: Request,
+        session: AsyncSession,
+        payload: ResetPasswordRequest,
+    ) -> None:
+        token_hash = sha256(payload.token)
+
+        credentials = await AuthRepository.get_credentials_by_reset_token_hash(
+            session, token_hash
+        )
+
+        if credentials is None or credentials.password_reset is None:
+            logger.warning("reset_password_failed", reason="token_not_found")
+
+            raise InvalidResetPasswordTokenError()
+
+        if (
+            datetime.now(UTC)
+            > credentials.password_reset.reset_password_token_expires_at
+        ):
+            logger.warning(
+                "reset_password_failed",
+                reason="token_expired",
+                credentials_id=credentials.id,
+            )
+
+            raise ExpiredResetPasswordTokenError()
+
+        if credentials.status not in (
+            UserStatus.ACTIVE,
+            UserStatus.PENDING_ACTIVATION,
+        ):
+            logger.warning(
+                "reset_password_failed",
+                reason=f"status_{credentials.status.value}",
+                credentials_id=credentials.id,
+            )
+
+            raise InvalidResetPasswordTokenError()
+
+        session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
+
+        await AuthRepository.delete_all_sessions(session, credentials.id)
+
+        await AuthRepository.delete_password_reset_token(session, credentials.id)
+
+        credentials.password_hash = await hash_password(payload.new_password)
+
+        if credentials.login_lockout is not None:
+            credentials.login_lockout.failed_attempts = 0
+            credentials.login_lockout.locked_until = None
+            credentials.login_lockout.last_failed_at = None
+
+        new_login_history = LoginHistory(
+            credentials_id=credentials.id,
+            success=True,
+            ip_address=None,
+            user_agent=None,
+            failure_reason="password_reset",
+        )
+
+        session.add(new_login_history)
+        await session.commit()
+
+        for session_id in session_ids:
+            await delete_cache(
+                get_redis(request), SessionCacheKey.access_token_version_key(session_id)
+            )
+
+        logger.info(
+            "password_reset_complete",
+            credentials_id=credentials.id,
+            sessions_revoked=len(session_ids),
+        )

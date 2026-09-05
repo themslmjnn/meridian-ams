@@ -1,9 +1,10 @@
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload, joinedload
 
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
+from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 
 
@@ -163,3 +164,49 @@ class AuthRepository:
         await session.flush()
 
         return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def get_credentials_by_reset_token_hash(
+        session: AsyncSession,
+        token_hash: str,
+    ) -> UserCredentials | None:
+        query = (
+            select(UserCredentials)
+            .join(
+                UserPasswordReset,
+                UserPasswordReset.credentials_id == UserCredentials.id,
+            )
+            .where(UserPasswordReset.reset_password_token_hash == token_hash)
+            .options(
+                joinedload(UserCredentials.password_reset),
+                joinedload(UserCredentials.login_lockout),
+            )
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_all_session_ids(
+        session: AsyncSession,
+        credentials_id: int,
+    ) -> list[int]:
+        query = select(UserSession.id).where(
+            UserSession.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return list(result.scalars().all())
+
+    @staticmethod
+    async def delete_password_reset_token(
+        session: AsyncSession,
+        credentials_id: int,
+    ) -> None:
+        query = delete(UserPasswordReset).where(
+            UserPasswordReset.credentials_id == credentials_id
+        )
+        await session.execute(query)
+        await session.flush()

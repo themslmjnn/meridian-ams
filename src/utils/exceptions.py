@@ -81,5 +81,17 @@ class ExpiredActivationCodeError(AppException):
     error_code = "EXPIRED_ACTIVATION_TOKEN"
 
 
+class InvalidResetPasswordTokenError(AppException):
+    status_code = 400
+    detail = HTTP400.INVALID_RESET_TOKEN
+    error_code = "INVALID_RESET_TOKEN"
+
+
+class ExpiredResetPasswordTokenError(AppException):
+    status_code = 400
+    detail = HTTP400.EXPIRED_RESET_TOKEN
+    error_code = "EXPIRED_RESET_TOKEN"
+
+
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
     raise error
