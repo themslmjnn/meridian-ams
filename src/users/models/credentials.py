@@ -23,7 +23,6 @@ class UserCredentials(MutableBase):
 
     password_hash: Mapped[str | None] = mapped_column(nullable=True)
 
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
     account_type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
 
     status: Mapped[UserStatus] = mapped_column(
