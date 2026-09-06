@@ -3,15 +3,22 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
+from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from src.auth.repository import AuthRepository
+from src.auth.schemas import CreateAccessToken
 from src.core.caching import get_redis, get_settings
 from src.core.dependencies import get_session
+from src.core.security import create_access_token
 from src.database.connection import ImmutableBase
 from src.main import app
+from src.users.models.credentials import UserCredentials
+from src.users.repository.user import UserCredentialsRepository
+from src.users.utils.schemas import LoadOptionsSchema
 
 settings = get_settings()
 
@@ -145,3 +152,31 @@ def redis_health_mock(mocker):
         new_callable=AsyncMock,
         return_value={"status": "ok", "duration_ms": 1.0},
     )
+
+
+async def make_auth_header(
+    request: Request, session: AsyncSession, user: UserCredentials
+) -> dict:
+    user_credentials = await UserCredentialsRepository.get_by_public_id(
+        session, user.public_id, load_options=LoadOptionsSchema(load_sessions=True)
+    )
+
+    incoming_device_id = request.cookies.get("device_id")
+    if incoming_device_id:
+        existing_session = await AuthRepository.get_session_by_device_id(
+            session,
+            credentials_id=user_credentials.id,
+            device_id=incoming_device_id,
+        )
+
+    token = create_access_token(
+        CreateAccessToken(
+            sub=user_credentials.public_id,
+            role=user_credentials.role,
+            account_type=user_credentials.account_type,
+            session_id=existing_session.id,
+            atv=existing_session.access_token_version,
+        )
+    )
+
+    return {"Authorization": f"Bearer {token}"}
