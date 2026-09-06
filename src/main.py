@@ -28,6 +28,7 @@ from src.core.middleware import (
     SecurityHeadersMiddleware,
 )
 from src.database.connection import dispose_engine
+from src.users.routers.director import router as users_director_router
 from src.users.routers.guardian import router as users_guardian_router
 from src.users.routers.system_admin import router as users_system_admin_router
 from src.utils.email import close_email_client
@@ -193,6 +194,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(users_system_admin_router)
+    app.include_router(users_director_router)
     app.include_router(users_guardian_router)
 
     return app

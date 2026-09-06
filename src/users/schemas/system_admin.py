@@ -2,23 +2,12 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from src.users.schemas.director import UserResponseBase
 from src.users.utils import validators
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.base_schema import BaseSchema
-
-
-class UserResponseBase(BaseModel):
-    firstname: str
-    lastname: str
-    middlename: str | None
-
-    phone_number: str
-
-    role: UserRole
-
-    model_config = ConfigDict(extra="ignore")
 
 
 class UserResponseAdminDetailed(UserResponseBase, BaseSchema):

@@ -837,7 +837,7 @@ class UserServiceAdmin:
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            account_type=AccountType.WORK,
+            allowed_roles=constants.STAFF_ROLES,
         )
 
         return CursorPage[schemas.UserResponseBase](
@@ -885,7 +885,7 @@ class UserServiceAdmin:
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            account_type=AccountType.PERSONAL,
+            allowed_roles=constants.GUARDIAN_ROLE,
         )
 
         return CursorPage[schemas.UserResponseBase](

@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -68,7 +69,11 @@ async def get_cache(redis: Redis, key: str) -> str | None:
     """
 
     try:
-        return await redis.get(key)  # type: ignore[no-any-return]
+        value = await redis.get(key)
+        if value is None:
+            return None
+
+        return json.loads(value)  # type: ignore[no-any-return]
 
     except RedisError as exc:
         logger.warning("redis_cache_get_failed", key=key, error=str(exc))
@@ -87,7 +92,7 @@ async def set_cache(
     """
 
     try:
-        await redis.set(key, value, ex=ex)
+        await redis.set(key, json.dumps(value), ex=ex)
 
     except RedisError as exc:
         logger.warning("redis_cache_set_failed", key=key, error=str(exc))

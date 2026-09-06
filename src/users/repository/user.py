@@ -362,7 +362,6 @@ class UserRepositoryBase:
     def _apply_filters(
         base_query: Select,
         filters: SearchUserBase | None,
-        account_type: AccountType | None = None,
     ) -> Select:
         if filters is not None:
             if filters.firstname:
@@ -381,9 +380,6 @@ class UserRepositoryBase:
                 base_query = base_query.where(
                     UserCredentials.email.ilike(f"%{filters.email}%")
                 )
-
-        if account_type is not None:
-            base_query = base_query.where(UserCredentials.account_type == account_type)
 
         return base_query
 
@@ -486,7 +482,7 @@ class UserRepositoryBase:
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-        account_type: AccountType | None = None,
+        allowed_roles: frozenset[UserRole] | None = None,
     ) -> CursorPage:
         """
         Paginated list of WORK account credentials with identity fields joined.
@@ -498,11 +494,10 @@ class UserRepositoryBase:
 
         query = _BASE_JOIN.where(UserIdentity.role != UserRole.SYSTEM_ADMIN)
 
-        query = UserRepositoryBase._apply_filters(
-            query,
-            filters=filters,
-            account_type=account_type,
-        )
+        if allowed_roles is not None:
+            query = query.where(UserIdentity.role.in_(allowed_roles))
+
+        query = UserRepositoryBase._apply_filters(query, filters=filters)
 
         return await UserRepositoryBase._paginate_mapped(
             session,
@@ -520,9 +515,11 @@ class UserRepositoryBase:
     ) -> RowMapping | None:
         query = _BASE_JOIN.where(
             UserIdentity.role != UserRole.SYSTEM_ADMIN,
-            UserIdentity.role.in_(allowed_roles),
             UserCredentials.public_id == public_id,
         )
+
+        if allowed_roles is not None:
+            query = query.where(UserIdentity.role.in_(allowed_roles))
 
         result = await session.execute(query)
 

@@ -8,6 +8,7 @@ from src.core.pagination import CursorPage
 from src.users.schemas.director import UserResponseDirectorDetailed
 from src.users.schemas.system_admin import SearchUserBase
 from src.users.services.director import UserServiceDirector
+from src.users.utils.schemas import UserResponseBase
 
 router = APIRouter(
     prefix="/api/v1/director/users",
@@ -17,7 +18,7 @@ router = APIRouter(
 
 @router.get(
     "/staff",
-    response_model=CursorPage[UserResponseDirectorDetailed],
+    response_model=CursorPage[UserResponseBase],
 )
 async def get_staff(
     session: session_dependency,

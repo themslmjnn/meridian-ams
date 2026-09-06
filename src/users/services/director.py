@@ -13,6 +13,7 @@ from src.users.schemas.director import UserResponseDirectorDetailed
 from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.constants import TEACHER_ROLE
 from src.users.utils.exceptions import UserNotFoundError
+from src.users.utils.schemas import UserResponseBase
 from src.utils.cache_keys import UserCacheKey
 
 logger = structlog.get_logger(__name__)
@@ -27,7 +28,7 @@ class UserServiceDirector:
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-    ) -> CursorPage[UserResponseDirectorDetailed]:
+    ) -> CursorPage[UserResponseBase]:
         page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
@@ -37,10 +38,8 @@ class UserServiceDirector:
             allowed_roles=TEACHER_ROLE,
         )
 
-        return CursorPage[UserResponseDirectorDetailed](
-            items=[
-                UserResponseDirectorDetailed.model_validate(row) for row in page.items
-            ],
+        return CursorPage[UserResponseBase](
+            items=[UserResponseBase.model_validate(row) for row in page.items],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
