@@ -25,6 +25,12 @@ class SessionCacheKey:
             raise ValueError(f"Malformed ATV cache value: {cached!r}") from exc
 
 
+class IdempotencyCacheKey:
+    @staticmethod
+    def idempotency_key(key: str) -> str:
+        return f"idempotency:{key}"
+
+
 class UserCacheKey:
     @staticmethod
     def user_detail_key_admin(public_id: int) -> str:

@@ -104,6 +104,7 @@ async def activate(
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
 @ip_limiter.limit("5/minute")
 async def forgot_password(
+    request: Request,
     session: session_dependency,
     payload: ForgotPasswordRequest,
 ):

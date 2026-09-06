@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP400, HTTP401, HTTP403
+from src.utils.constants import HTTP400, HTTP401, HTTP403, HTTP409
 
 
 # HTTP400
@@ -118,6 +118,13 @@ class AccountWithdrawnError(AppException):
     status_code = 403
     detail = HTTP403.ACCOUNT_WITHDRAWN
     error_code = "ACCOUNT_WITHDRAWN"
+
+
+# HTTP409
+class IdempotencyConflict(AppException):
+    status_code = 409
+    detail = HTTP409.IDEMPOTENCY_CONFLICT
+    error_code = "IDEMPOTENCY_CONFLICT"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:

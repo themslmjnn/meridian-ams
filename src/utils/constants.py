@@ -25,3 +25,9 @@ class HTTP403:
     ACCOUNT_GRADUATED = "This account belongs to a graduated student"
     ACCOUNT_EXPELLED = "This account has been expelled"
     ACCOUNT_WITHDRAWN = "This account has been withdrawn"
+
+
+class HTTP409:
+    IDEMPOTENCY_CONFLICT = (
+        "A request with this idempotency key is already being processed"
+    )
