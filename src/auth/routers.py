@@ -15,6 +15,7 @@ from src.core.dependencies import (
     redis_dependency,
     session_dependency,
 )
+from src.core.limiter import ip_limiter
 from src.utils.exceptions import InvalidRefreshTokenError
 
 router = APIRouter(
@@ -24,6 +25,7 @@ router = APIRouter(
 
 
 @router.post("/login", response_model=LoginResponse, status_code=status.HTTP_200_OK)
+@ip_limiter.limit("5/minute")
 async def login(
     request: Request,
     response: Response,
@@ -63,10 +65,12 @@ async def logout_all(
 @router.post(
     "/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK
 )
+@ip_limiter.limit("30/minute")
 async def refresh_token(
     request: Request,
     response: Response,
     session: session_dependency,
+    redis: redis_dependency,
     refresh_token: str | None = Cookie(default=None),
     refresh_token_family: str | None = Cookie(default=None),
 ):
@@ -74,13 +78,14 @@ async def refresh_token(
         raise InvalidRefreshTokenError()
 
     return await AuthService.refresh_token(
-        request, response, session, refresh_token, refresh_token_family
+        response, session, redis, refresh_token, refresh_token_family
     )
 
 
 @router.post(
     "/activation", response_model=LoginResponse, status_code=status.HTTP_200_OK
 )
+@ip_limiter.limit("3/minute")
 async def activate(
     request: Request,
     response: Response,
@@ -97,6 +102,7 @@ async def activate(
 
 
 @router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+@ip_limiter.limit("5/minute")
 async def forgot_password(
     session: session_dependency,
     payload: ForgotPasswordRequest,
@@ -105,9 +111,11 @@ async def forgot_password(
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@ip_limiter.limit("5/minute")
 async def reset_password(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     payload: ResetPasswordRequest,
 ):
-    await AuthService.reset_password(request, session, payload)
+    await AuthService.reset_password(session, redis, payload)

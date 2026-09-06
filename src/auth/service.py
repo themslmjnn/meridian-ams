@@ -207,9 +207,9 @@ class AuthService:
             lockout.failed_attempts += 1
             lockout.last_failed_at = datetime.now(UTC)
 
-            if lockout.failed_attempts >= get_settings()().MAX_FAILED_LOGIN_ATTEMPTS:
+            if lockout.failed_attempts >= get_settings().MAX_FAILED_LOGIN_ATTEMPTS:
                 lockout.locked_until = datetime.now(UTC) + timedelta(
-                    minutes=get_settings()().LOCKOUT_DURATION_MINUTES
+                    minutes=get_settings().LOCKOUT_DURATION_MINUTES
                 )
 
                 logger.warning(
