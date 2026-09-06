@@ -7,6 +7,8 @@ class EmailType(StrEnum):
     ADMIN_CREDENTIALS_OVERRIDE = "admin_credentials_override"
     ACCOUNT_DEACTIVATION = "account_deactivation"
     ACCOUNT_ACTIVATION = "account_activation"
+    ACCOUNT_DELETION = "account_deletion"
+    CANCEL_ACCOUNT_DELETION = "cancel_account_deletion"
     PASSWORD_RESET_ADMIN = "password_reset_admin"
     EMAIL_CHANGE_CODE = "email_change_code"
     EMAIL_CHANGED = "email_changed"
