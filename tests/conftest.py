@@ -29,17 +29,12 @@ from tests.factories import (
 
 settings = get_settings()
 
-ASYNC_DB_URL = (
-    f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PSSW}"
-    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
-)
-
 SYNC_DB_URL = (
     f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PSSW}"
     f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 
-test_engine = create_async_engine(url=ASYNC_DB_URL, poolclass=NullPool)
+test_engine = create_async_engine(url=settings.DATABASE_URL, poolclass=NullPool)
 
 
 @pytest.fixture(scope="session", autouse=True)
