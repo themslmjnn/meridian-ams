@@ -171,6 +171,7 @@ async def cancel_guardian_deletion_request(
 @router.get(
     "/staff",
     response_model=CursorPage[UserResponseBase],
+    status_code=status.HTTP_200_OK,
 )
 async def get_staff(
     session: session_dependency,
@@ -192,6 +193,7 @@ async def get_staff(
 @router.get(
     "/staff/{public_id}",
     response_model=UserResponseAdminDetailed,
+    status_code=status.HTTP_200_OK,
 )
 async def get_staff_by_public_id(
     session: session_dependency,
@@ -205,6 +207,7 @@ async def get_staff_by_public_id(
 @router.get(
     "/guardians",
     response_model=CursorPage[UserResponseBase],
+    status_code=status.HTTP_200_OK,
 )
 async def get_guardians(
     session: session_dependency,
@@ -226,6 +229,7 @@ async def get_guardians(
 @router.get(
     "/guardians/{public_id}",
     response_model=UserResponseAdminDetailed,
+    status_code=status.HTTP_200_OK,
 )
 async def get_guardian_by_public_id(
     session: session_dependency,

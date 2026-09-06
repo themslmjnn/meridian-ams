@@ -782,12 +782,13 @@ class UserServiceAdmin:
 
         user_email = user_credentials.email
 
+        if user_credentials.status != UserStatus.PENDING_DELETION:
+            print(user_credentials.status)
+            raise exceptions.GuardianNotPendingDeletionError()
+
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
             session, public_id, user_credentials.pre_deletion_status
         )
-
-        if user_credentials.status != UserStatus.PENDING_DELETION:
-            raise exceptions.GuardianNotPendingDeletionError()
 
         if not reactivated:
             await session.rollback()

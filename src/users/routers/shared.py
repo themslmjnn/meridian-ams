@@ -73,8 +73,6 @@ async def update_me_password(
     session: session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
-    update_request: UpdateMePassword,
+    payload: UpdateMePassword,
 ):
-    await UserServiceSelf.update_me_password(
-        session, redis, current_user.id, update_request
-    )
+    await UserServiceSelf.update_me_password(session, redis, current_user, payload)

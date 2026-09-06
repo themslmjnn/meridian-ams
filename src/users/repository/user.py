@@ -317,11 +317,7 @@ class UserSessionRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def invalidate_session(
-        session: AsyncSession,
-        user_session: UserSession,
-    ) -> None:
-
+    async def invalidate_session(user_session: UserSession) -> None:
         user_session.access_token_version += 1
         user_session.refresh_token_hash = None
         user_session.previous_refresh_token_hash = None
@@ -330,12 +326,9 @@ class UserSessionRepository:
         user_session.rotated_at = None
 
     @staticmethod
-    async def invalidate_all_sessions(
-        session: AsyncSession,
-        user_sessions: list[UserSession],
-    ) -> None:
+    async def invalidate_all_sessions(user_sessions: list[UserSession]) -> None:
         for user_session in user_sessions:
-            await UserSessionRepository.invalidate_session(session, user_session)
+            await UserSessionRepository.invalidate_session(user_session)
 
 
 class UserResponseRepository:

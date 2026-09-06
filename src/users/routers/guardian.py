@@ -28,10 +28,7 @@ async def create_guardian_self_deletion_request(
     )
 
 
-@router.patch(
-    "/profile",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
+@router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
 @user_limiter.limit("10/minute")
 async def update_me_profile(
     request: Request,

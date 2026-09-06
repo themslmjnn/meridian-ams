@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 
 from src.core.dependencies import redis_dependency, require_director, session_dependency
 from src.core.pagination import CursorPage
@@ -19,6 +19,7 @@ router = APIRouter(
 @router.get(
     "/staff",
     response_model=CursorPage[UserResponseBase],
+    status_code=status.HTTP_200_OK,
 )
 async def get_staff(
     session: session_dependency,
@@ -40,6 +41,7 @@ async def get_staff(
 @router.get(
     "/staff/{public_id}",
     response_model=UserResponseDirectorDetailed,
+    status_code=status.HTTP_200_OK,
 )
 async def get_staff_by_public_id(
     session: session_dependency,
