@@ -682,7 +682,7 @@ class AuthService:
 
             raise exceptions.InvalidActivationCodeError()
 
-        user_credentials.password_hash = await hash_password(payload.password)
+        user_credentials.password_hash = await hash_password(payload.new_password)
         user_credentials.status = UserStatus.ACTIVE
 
         refresh_token_family = secrets.token_urlsafe(32)

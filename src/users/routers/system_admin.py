@@ -13,12 +13,12 @@ from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
     CreateUserRequest,
     SearchUserBase,
-    UpdateUserCredentials,
     UpdateUserRequest,
     UserResponseAdminDetailed,
     UserResponseBase,
 )
 from src.users.services.system_admin import UserServiceAdmin
+from src.users.utils.schemas import UpdateUserCredentials
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
