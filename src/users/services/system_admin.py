@@ -853,10 +853,10 @@ class UserServiceAdmin:
     ) -> schemas.UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        cached = await get_cache(redis, cache_key)
+        cached_data = await get_cache(redis, cache_key)
 
-        if cached is not None:
-            return schemas.UserResponseAdminDetailed.model_validate(cached)
+        if cached_data is not None:
+            return schemas.UserResponseAdminDetailed.model_validate(cached_data)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
             session, public_id, allowed_roles=constants.STAFF_ROLES
@@ -901,10 +901,10 @@ class UserServiceAdmin:
     ) -> schemas.UserResponseAdminDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
-        cached = await get_cache(redis, cache_key)
+        cached_data = await get_cache(redis, cache_key)
 
-        if cached is not None:
-            return schemas.UserResponseAdminDetailed.model_validate(cached)
+        if cached_data is not None:
+            return schemas.UserResponseAdminDetailed.model_validate(cached_data)
 
         guardian = await UserRepositoryBase.get_user_by_public_id(
             session, public_id, allowed_roles=constants.GUARDIAN_ROLE
