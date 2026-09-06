@@ -18,6 +18,13 @@ from src.database.connection import ImmutableBase
 from src.main import app
 from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserCredentialsRepository
+from src.users.schemas.system_admin import (
+    CreateGuardianAdminWithExistingIdentity,
+    CreateGuardianAdminWithNewIdentity,
+    CreateStaffAdmin,
+    CreateStudentAdmin,
+)
+from src.users.utils.enums import UserRole
 from src.users.utils.schemas import LoadOptionsSchema
 from tests.factories import (
     make_director,
@@ -207,3 +214,48 @@ async def student(test_session):
 @pytest_asyncio.fixture
 async def guardian(test_session):
     return await make_guardian(test_session)
+
+
+create_user_request = {
+    "firstname": "New",
+    "lastname": "User",
+    "phone_number": "+992 111 111 101",
+    "username": "new_test_username",
+    "email": "new_test_email@gmail.com",
+}
+
+
+@pytest.fixture
+def valid_student_payload():
+    return CreateStudentAdmin(
+        **create_user_request,
+        type="student",
+        date_of_birth="2008-05-01",
+    )
+
+
+@pytest.fixture
+def valid_staff_payload():
+    return CreateStaffAdmin(
+        **create_user_request,
+        role=UserRole.TEACHER,
+        type="staff",
+    )
+
+
+@pytest.fixture
+def valid_new_guardian_payload():
+    return CreateGuardianAdminWithNewIdentity(
+        **create_user_request,
+        type="new_guardian",
+    )
+
+
+@pytest.fixture
+def valid_existing_guardian_payload():
+    return CreateGuardianAdminWithExistingIdentity(
+        type="existing_guardian",
+        existing_identity_id=999999,
+        username="new_test_username",
+        email="new_test_email@gmail.com",
+    )
