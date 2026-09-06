@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.users.schemas.system_admin as schemas
 import src.users.utils.constants as constants
 import src.users.utils.exceptions as exceptions
-from src.core.advisory_locks import acquire_student_contact_locks
+from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.pagination import CursorPage
@@ -28,6 +28,7 @@ from src.users.repository.user import (
     UserIdentityRepository,
     UserRepositoryBase,
     UserResponseRepository,
+    UserSessionRepository,
 )
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.helpers import check_contact_limit
@@ -72,24 +73,24 @@ class UserServiceAdmin:
 
         is_student = resolved_role == UserRole.STUDENT
 
-        if not guardian_existing_identity:
-            if is_student:
-                await acquire_student_contact_locks(
-                    session,
-                    phone_number=payload.phone_number,
-                    email=payload.email,
-                    is_student=is_student,
-                )
+        phone_number = None if guardian_existing_identity else payload.phone_number
 
-            await check_contact_limit(
-                session,
-                current_user_id,
-                username=payload.username,
-                phone_number=payload.phone_number,
-                email=payload.email,
-                account_type=account_type,
-                resolved_role=resolved_role,
-            )
+        await acquire_contact_locks(
+            session,
+            phone_number=phone_number,
+            email=payload.email,
+            is_student=is_student,
+        )
+
+        await check_contact_limit(
+            session,
+            current_user_id,
+            username=payload.username,
+            phone_number=phone_number,
+            email=payload.email,
+            account_type=account_type,
+            resolved_role=resolved_role,
+        )
 
         raw_activation_token, hashed_activation_token = generate_token()
 
@@ -245,25 +246,25 @@ class UserServiceAdmin:
             and payload.phone_number != user_identity.phone_number
         )
 
-        if is_phone_number_changing:
-            if is_student:
-                await acquire_student_contact_locks(
-                    session,
-                    phone_number=payload.phone_number,
-                    email=None,
-                    is_student=True,
-                )
+        phone_number = payload.phone_number if is_phone_number_changing else None
 
-            await check_contact_limit(
-                session,
-                current_user_id,
-                username=user_credentials.username,
-                phone_number=payload.phone_number,
-                email=None,
-                resolved_role=resolved_role,
-                account_type=account_type,
-                exclude_credentials_id=user_credentials.id,
-            )
+        await acquire_contact_locks(
+            session,
+            phone_number=phone_number,
+            email=None,
+            is_student=is_student,
+        )
+
+        await check_contact_limit(
+            session,
+            current_user_id,
+            username=user_credentials.username,
+            phone_number=phone_number,
+            email=None,
+            resolved_role=resolved_role,
+            account_type=account_type,
+            exclude_credentials_id=user_credentials.id,
+        )
 
         try:
             update_object(user_identity, payload)
@@ -328,19 +329,6 @@ class UserServiceAdmin:
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        match user_credentials.identity.role:
-            case UserRole.STUDENT:
-                account_type = AccountType.STUDENT
-
-            case UserRole.GUARDIAN:
-                account_type = AccountType.PERSONAL
-
-            case UserRole.TEACHER | UserRole.DIRECTOR:
-                account_type = AccountType.WORK
-
-            case _:
-                assert_never(user_credentials.identity.role)
-
         is_student = user_credentials.identity.role == UserRole.STUDENT
         is_email_changing = (
             payload.email is not None and payload.email != user_credentials.email
@@ -349,23 +337,27 @@ class UserServiceAdmin:
             is_email_changing
             and user_credentials.status == UserStatus.PENDING_ACTIVATION
         )
+        account_type = user_credentials.account_type
 
-        if is_email_changing:
-            if is_student:
-                await acquire_student_contact_locks(
-                    session, phone_number=None, email=payload.email, is_student=True
-                )
+        email = payload.email if is_email_changing else None
 
-            await check_contact_limit(
-                session,
-                current_user_id,
-                username=user_credentials.username,
-                phone_number=None,
-                email=payload.email,
-                resolved_role=user_credentials.identity.role,
-                account_type=account_type,
-                exclude_credentials_id=user_credentials.id,
-            )
+        await acquire_contact_locks(
+            session,
+            phone_number=None,
+            email=email,
+            is_student=is_student,
+        )
+
+        await check_contact_limit(
+            session,
+            current_user_id,
+            username=user_credentials.username,
+            phone_number=None,
+            email=email,
+            resolved_role=user_credentials.identity.role,
+            account_type=account_type,
+            exclude_credentials_id=user_credentials.id,
+        )
 
         try:
             old_email = user_credentials.email
@@ -373,19 +365,14 @@ class UserServiceAdmin:
 
             update_object(user_credentials, payload)
 
-            for session_row in user_credentials.sessions:
-                session_row.access_token_version += 1
-                session_row.refresh_token_hash = None
-                session_row.refresh_token_family = None
-                session_row.refresh_token_expires_at = None
+            await UserSessionRepository.invalidate_all_sessions(
+                session, user_credentials.sessions
+            )
 
             if user_credentials.email_change is not None:
                 await session.delete(user_credentials.email_change)
 
             if should_reissue_activation_token:
-                if should_reissue_activation_token is None:
-                    raise exceptions.UserAlreadyActiveError()
-
                 raw_activation_token, hashed_activation_token = generate_token()
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
                     hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
@@ -485,7 +472,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
@@ -506,15 +493,12 @@ class UserServiceAdmin:
 
         user_credentials.status = UserStatus.DEACTIVATED
 
-        for session_row in user_credentials.sessions:
-            session_row.access_token_version += 1
-            session_row.refresh_token_hash = None
-            session_row.refresh_token_family = None
-            session_row.refresh_token_expires_at = None
-
+        await UserSessionRepository.invalidate_all_sessions(
+            session, user_credentials.sessions
+        )
         await session.commit()
 
-        asyncio.schemas.create_task(
+        asyncio.create_task(
             emails.send_email_safe(
                 emails.send_account_deactivation_email(user_credentials.email),
                 email_type=EmailType.ACCOUNT_DEACTIVATION,
@@ -545,7 +529,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_login_lockout=True),
         )
         if user_credentials is None:
@@ -601,7 +585,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
         if user_credentials is None:
@@ -644,7 +628,7 @@ class UserServiceAdmin:
         await session.commit()
 
         logger.info(
-            "reset_password_request_schemas.created",
+            "reset_password_request_created",
             public_id=public_id,
             created_by=current_user_id,
         )
@@ -658,10 +642,8 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_INVISIBLE_ROLES,
-            load_options=LoadOptionsSchema(
-                load_activation=True,
-            ),
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            load_options=LoadOptionsSchema(load_activation=True),
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
@@ -678,7 +660,7 @@ class UserServiceAdmin:
 
         if user_credentials.activation is None:
             logger.error(
-                "user_is_already_active",
+                "activation_row_missing",
                 public_id=public_id,
                 status=user_credentials.status,
             )
@@ -686,7 +668,6 @@ class UserServiceAdmin:
             raise exceptions.UserAlreadyActiveError()
 
         raw_activation_token, hashed_activation_token = generate_token()
-
         activation_token_expires_at = datetime.now(UTC) + timedelta(
             hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
         )
@@ -727,14 +708,10 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            account_type=AccountType.PERSONAL,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
-
-        if user_credentials.status not in (UserStatus.ACTIVE, UserStatus.INACTIVE):
-            raise exceptions.InvalidStatusTransitionError()
 
         if user_credentials.status == UserStatus.PENDING_DELETION:
             logger.warning(
@@ -746,6 +723,14 @@ class UserServiceAdmin:
 
             raise exceptions.GuardianAlreadyPendingDeletionError()
 
+        if user_credentials.status not in (
+            UserStatus.ACTIVE,
+            UserStatus.DEACTIVATED,
+            UserStatus.PENDING_ACTIVATION,
+        ):
+            raise exceptions.InvalidStatusTransitionError()
+
+        user_email = user_credentials.email
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
             days=constants.DELETION_GRACE_PERIOD_DAYS
         )
@@ -754,19 +739,15 @@ class UserServiceAdmin:
         user_credentials.status = UserStatus.PENDING_DELETION
         user_credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        for session_row in user_credentials.sessions:
-            session_row.access_token_version += 1
-            session_row.refresh_token_hash = None
-            session_row.refresh_token_family = None
-            session_row.refresh_token_expires_at = None
-
-        user_credentials_email = user_credentials.email
+        await UserSessionRepository.invalidate_all_sessions(
+            session, user_credentials.sessions
+        )
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_deletion_email(user_credentials_email),
+                emails.send_account_deletion_email(user_email),
                 email_type=EmailType.ACCOUNT_DELETION,
             )
         )
@@ -802,8 +783,11 @@ class UserServiceAdmin:
         user_email = user_credentials.email
 
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
-            session, public_id
+            session, public_id, user_credentials.pre_deletion_status
         )
+
+        if user_credentials.status != UserStatus.PENDING_DELETION:
+            raise exceptions.GuardianNotPendingDeletionError()
 
         if not reactivated:
             await session.rollback()
@@ -846,21 +830,18 @@ class UserServiceAdmin:
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-    ) -> CursorPage[schemas.UserResponseAdminDetailed]:
+    ) -> CursorPage[schemas.UserResponseBase]:
         page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            allowed_roles=constants.STAFF_ROLES,
+            account_type=AccountType.WORK,
         )
 
-        return CursorPage[schemas.UserResponseAdminDetailed](
-            items=[
-                schemas.UserResponseAdminDetailed.model_validate(row)
-                for row in page.items
-            ],
+        return CursorPage[schemas.UserResponseBase](
+            items=[schemas.UserResponseBase.model_validate(row) for row in page.items],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
@@ -897,21 +878,18 @@ class UserServiceAdmin:
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-    ) -> CursorPage[schemas.UserResponseAdminDetailed]:
+    ) -> CursorPage[schemas.UserResponseBase]:
         page = await UserRepositoryBase.get_users(
             session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
-            allowed_roles=constants.GUARDIAN_ROLE,
+            account_type=AccountType.PERSONAL,
         )
 
-        return CursorPage[schemas.UserResponseAdminDetailed](
-            items=[
-                schemas.UserResponseAdminDetailed.model_validate(row)
-                for row in page.items
-            ],
+        return CursorPage[schemas.UserResponseBase](
+            items=[schemas.UserResponseBase.model_validate(row) for row in page.items],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,

@@ -10,7 +10,7 @@ from src.users.repository.user import UserCredentialsRepository, UserIdentityRep
 
 logger = structlog.get_logger(__name__)
 
-_BATCH_SIZE = 50
+_BATCH_SIZE = 5
 
 
 async def _run_deletion_sweep() -> None:

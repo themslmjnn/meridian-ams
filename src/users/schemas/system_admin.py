@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.users.utils import validators
 from src.users.utils.enums import AccountType, UserRole, UserStatus
@@ -14,14 +14,16 @@ class UserResponseBase(BaseModel):
     lastname: str
     middlename: str | None
 
+    phone_number: str
+
+    role: UserRole
+
+    model_config = ConfigDict(extra="ignore")
+
 
 class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
     date_of_birth: date | None
     address: str | None
-
-    phone_number: str
-
-    role: UserRole
 
     public_id: uuid.UUID
 
@@ -111,7 +113,7 @@ class CreateGuardianAdminWithNewIdentity(CreateUserBase):
 class CreateGuardianAdminWithExistingIdentity(BaseModel):
     type: Literal["existing_guardian"] = "existing_guardian"
 
-    existing_identity_id: int
+    existing_identity_id: int = Field(ge=1)
 
     username: str = Field(min_length=6, max_length=20)
     email: str

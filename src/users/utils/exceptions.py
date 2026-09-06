@@ -55,6 +55,12 @@ class UserNotFoundError(AppException):
     error_code = "USER_NOT_FOUND"
 
 
+class GuardianNotPendingDeletionError(AppException):
+    status_code = 404
+    detail = HTTP404.PENDING_DELETION
+    error_code = "GUARDIAN_NOT_PENDING_DELETION"
+
+
 class NoPendingEmailChangeError(AppException):
     status_code = 404
     detail = HTTP404.NO_PENDING_EMAIL_CHANGE

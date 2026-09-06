@@ -16,6 +16,7 @@ from src.users.schemas.system_admin import (
     UpdateUserCredentials,
     UpdateUserRequest,
     UserResponseAdminDetailed,
+    UserResponseBase,
 )
 from src.users.services.system_admin import UserServiceAdmin
 
@@ -77,7 +78,7 @@ async def update_user_credentials(
 
 
 @router.patch("/{public_id}/deactivation", status_code=status.HTTP_204_NO_CONTENT)
-@user_limiter.limit("5/minute")
+@user_limiter.limit("7/minute")
 async def deactivate_user(
     request: Request,
     session: session_dependency,
@@ -91,7 +92,7 @@ async def deactivate_user(
 
 
 @router.patch("/{public_id}/activation", status_code=status.HTTP_204_NO_CONTENT)
-@user_limiter.limit("10/minute")
+@user_limiter.limit("7/minute")
 async def activate_user(
     request: Request,
     session: session_dependency,
@@ -169,7 +170,7 @@ async def cancel_guardian_deletion_request(
 
 @router.get(
     "/staff",
-    response_model=CursorPage[UserResponseAdminDetailed],
+    response_model=CursorPage[UserResponseBase],
 )
 async def get_staff(
     session: session_dependency,
@@ -203,7 +204,7 @@ async def get_staff_by_public_id(
 
 @router.get(
     "/guardians",
-    response_model=CursorPage[UserResponseAdminDetailed],
+    response_model=CursorPage[UserResponseBase],
 )
 async def get_guardians(
     session: session_dependency,

@@ -33,6 +33,7 @@ class HTTP404:
     CREDENTIALS = "Credentials not found"
     USER = "User not found"
     NO_PENDING_EMAIL_CHANGE = "No email change is currently pending"
+    PENDING_DELETION = "Guardian is not pending deletion error"
 
 
 class HTTP409:

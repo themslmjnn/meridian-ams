@@ -15,7 +15,7 @@ from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.schemas import LoadOptionsSchema
 
-_CREDENTIALS_IDENTITY_COLUMNS = [
+_USER_MAPPED_COLUMNS_DETAILED = [
     UserCredentials.public_id,
     UserCredentials.username,
     UserCredentials.email,
@@ -33,7 +33,7 @@ _CREDENTIALS_IDENTITY_COLUMNS = [
     UserIdentity.address,
 ]
 
-_BASE_JOIN = select(*_CREDENTIALS_IDENTITY_COLUMNS).join(
+_BASE_JOIN = select(*_USER_MAPPED_COLUMNS_DETAILED).join(
     UserIdentity, UserCredentials.identity_id == UserIdentity.id
 )
 
@@ -215,17 +215,17 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def reactivate_pending_deletion_user(
-        session: AsyncSession, public_id: uuid.UUID
+        session: AsyncSession, public_id: uuid.UUID, pre_deletion_status: UserRole
     ) -> bool:
         query = (
             update(UserCredentials)
             .where(
                 UserCredentials.public_id == public_id,
-                UserCredentials.role == UserRole.GUARDIAN,
+                UserCredentials.account_type == AccountType.PERSONAL,
                 UserCredentials.status == UserStatus.PENDING_DELETION,
             )
             .values(
-                status=UserStatus.ACTIVE,
+                status=pre_deletion_status,
                 deletion_scheduled_for=None,
             )
         )
@@ -316,6 +316,27 @@ class UserSessionRepository:
 
         return result.scalar_one_or_none()
 
+    @staticmethod
+    async def invalidate_session(
+        session: AsyncSession,
+        user_session: UserSession,
+    ) -> None:
+
+        user_session.access_token_version += 1
+        user_session.refresh_token_hash = None
+        user_session.previous_refresh_token_hash = None
+        user_session.refresh_token_family = None
+        user_session.refresh_token_expires_at = None
+        user_session.rotated_at = None
+
+    @staticmethod
+    async def invalidate_all_sessions(
+        session: AsyncSession,
+        user_sessions: list[UserSession],
+    ) -> None:
+        for user_session in user_sessions:
+            await UserSessionRepository.invalidate_session(session, user_session)
+
 
 class UserResponseRepository:
     """
@@ -341,28 +362,28 @@ class UserRepositoryBase:
     def _apply_filters(
         base_query: Select,
         filters: SearchUserBase | None,
-        allowed_roles: frozenset[UserRole] | None = None,
+        account_type: AccountType | None = None,
     ) -> Select:
         if filters is not None:
             if filters.firstname:
-                base_query = base_query.filter(
+                base_query = base_query.where(
                     UserIdentity.firstname.ilike(f"%{filters.firstname}%")
                 )
             if filters.lastname:
-                base_query = base_query.filter(
+                base_query = base_query.where(
                     UserIdentity.lastname.ilike(f"%{filters.lastname}%")
                 )
             if filters.phone_number:
-                base_query = base_query.filter(
+                base_query = base_query.where(
                     UserIdentity.phone_number.ilike(f"%{filters.phone_number}%")
                 )
             if filters.email:
-                base_query = base_query.filter(
+                base_query = base_query.where(
                     UserCredentials.email.ilike(f"%{filters.email}%")
                 )
 
-        if allowed_roles:
-            base_query = base_query.filter(UserCredentials.role.in_(allowed_roles))
+        if account_type is not None:
+            base_query = base_query.where(UserCredentials.account_type == account_type)
 
         return base_query
 
@@ -465,7 +486,7 @@ class UserRepositoryBase:
         limit: int = 20,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
-        allowed_roles: frozenset[UserRole] | None = None,
+        account_type: AccountType | None = None,
     ) -> CursorPage:
         """
         Paginated list of WORK account credentials with identity fields joined.
@@ -475,12 +496,12 @@ class UserRepositoryBase:
         system admins are not visible to other admins in list views).
         """
 
-        query = _BASE_JOIN.where(UserCredentials.role != UserRole.SYSTEM_ADMIN)
+        query = _BASE_JOIN.where(UserIdentity.role != UserRole.SYSTEM_ADMIN)
 
         query = UserRepositoryBase._apply_filters(
             query,
             filters=filters,
-            allowed_roles=allowed_roles,
+            account_type=account_type,
         )
 
         return await UserRepositoryBase._paginate_mapped(
@@ -497,9 +518,9 @@ class UserRepositoryBase:
         public_id: uuid.UUID,
         allowed_roles: frozenset[UserRole] | None = None,
     ) -> RowMapping | None:
-        query = _BASE_JOIN.filter(
-            UserCredentials.role != UserRole.SYSTEM_ADMIN,
-            UserCredentials.role.in_(allowed_roles),
+        query = _BASE_JOIN.where(
+            UserIdentity.role != UserRole.SYSTEM_ADMIN,
+            UserIdentity.role.in_(allowed_roles),
             UserCredentials.public_id == public_id,
         )
 

@@ -35,7 +35,11 @@ from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
 from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
-from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
+from src.users.repository.user import (
+    UserCredentialsRepository,
+    UserIdentityRepository,
+    UserSessionRepository,
+)
 from src.users.utils.enums import UserStatus
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils.cache_keys import SessionCacheKey
@@ -634,11 +638,14 @@ class AuthService:
         credentials = await AuthRepository.get_credentials_by_activation_token_hash(
             session, token_hash
         )
-
         if credentials is None or credentials.activation is None:
             logger.warning("activation_failed", reason="token_not_found")
 
             raise exceptions.InvalidActivationCodeError()
+
+        user_identity = await UserIdentityRepository.get_by_id(
+            session, credentials.identity_id
+        )
 
         if datetime.now(UTC) > credentials.activation.activation_token_expires_at:
             logger.warning(
@@ -702,7 +709,7 @@ class AuthService:
         access_token = create_access_token(
             CreateAccessToken(
                 public_id=credentials.public_id,
-                role=credentials.role,
+                role=user_identity.role,
                 account_type=credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
@@ -714,7 +721,7 @@ class AuthService:
         logger.info(
             "account_activated",
             credentials_id=credentials.id,
-            role=credentials.role,
+            role=user_identity.role,
             session_id=user_session.id,
         )
 

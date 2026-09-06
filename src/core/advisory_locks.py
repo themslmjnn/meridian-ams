@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = structlog.get_logger(__name__)
 
-NAMESPACE_STUDENT_PHONE_NUMBER = 9001
-NAMESPACE_STUDENT_EMAIL = 9002
+NAMESPACE_PHONE_NUMBER = 9001
+NAMESPACE_EMAIL = 9002
 
 ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(:ns, :key)"
 
@@ -19,7 +19,7 @@ def _compute_lock_key(value: str) -> int:
     return unsigned - 2**32 if unsigned >= 2**31 else unsigned
 
 
-async def acquire_student_contact_locks(
+async def acquire_contact_locks(
     session: AsyncSession,
     *,
     phone_number: str | None,
@@ -32,19 +32,19 @@ async def acquire_student_contact_locks(
         logger.debug(
             "acquiring_advisory_lock",
             lock_type="phone_number",
-            namespace=NAMESPACE_STUDENT_PHONE_NUMBER,
+            namespace=NAMESPACE_PHONE_NUMBER,
             key=key,
         )
 
         await session.execute(
             text(ADVISORY_LOCK_SQL),
-            {"ns": NAMESPACE_STUDENT_PHONE_NUMBER, "key": key},
+            {"ns": NAMESPACE_PHONE_NUMBER, "key": key},
         )
 
         logger.debug(
             "advisory_lock_acquired",
             lock_type="phone_number",
-            namespace=NAMESPACE_STUDENT_PHONE_NUMBER,
+            namespace=NAMESPACE_PHONE_NUMBER,
             key=key,
         )
 
@@ -54,18 +54,18 @@ async def acquire_student_contact_locks(
         logger.debug(
             "acquiring_advisory_lock",
             lock_type="student_email",
-            namespace=NAMESPACE_STUDENT_EMAIL,
+            namespace=NAMESPACE_EMAIL,
             key=key,
         )
 
         await session.execute(
             text(ADVISORY_LOCK_SQL),
-            {"ns": NAMESPACE_STUDENT_EMAIL, "key": key},
+            {"ns": NAMESPACE_EMAIL, "key": key},
         )
 
         logger.debug(
             "advisory_lock_acquired",
             lock_type="student_email",
-            namespace=NAMESPACE_STUDENT_EMAIL,
+            namespace=NAMESPACE_EMAIL,
             key=key,
         )
