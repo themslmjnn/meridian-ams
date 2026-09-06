@@ -6,8 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.pagination import CursorPage, paginate
 from src.emails.models import Email
 from src.emails.schemas import SearchEmail
-from src.emails.utils.enums import EmailSortField, EmailStatus
-from src.utils.enums import OrderBy
+from src.emails.utils.enums import EmailStatus
 
 
 class EmailRepository:
@@ -75,31 +74,16 @@ class EmailRepository:
         return base_query
 
     @staticmethod
-    def apply_sorting(base_query: Select, sort_by: str, order: str) -> Select:
-        if sort_by not in EmailSortField:
-            sort_by = EmailSortField.CREATED_AT
-
-        sort_column = getattr(Email, sort_by)
-
-        if order == OrderBy.DESC:
-            return base_query.order_by(sort_column.desc())
-
-        return base_query.order_by(sort_column.asc())
-
-    @staticmethod
     async def get_emails(
         session: AsyncSession,
         *,
         filters: SearchEmail | None = None,
         limit: int = 20,
-        sort_by: str = EmailSortField.CREATED_AT,
-        order: str = OrderBy.DESC,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
     ) -> CursorPage:
         query = select(Email)
         query = EmailRepository.apply_filters(query, filters)
-        query = EmailRepository.apply_sorting(query, sort_by, order)
 
         return await paginate(
             session,

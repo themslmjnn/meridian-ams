@@ -4,11 +4,8 @@ from src.core.caching import get_cache, set_cache
 from src.core.pagination import CursorPage
 from src.emails.repository import EmailRepository
 from src.emails.schemas import EmailResponseBase, EmailResponseDetailed, SearchEmail
-from src.emails.utils.enums import EmailSortField
 from src.emails.utils.exceptions import EmailNotFoundError
 from src.utils.cache_keys import EmailCacheKey
-from src.utils.enums import OrderBy
-from src.utils.helpers import ensure_exists
 
 
 class EmailService:
@@ -18,8 +15,6 @@ class EmailService:
         *,
         filters: SearchEmail | None = None,
         limit: int = 20,
-        sort_by: str = EmailSortField.CREATED_AT,
-        order: str = OrderBy.DESC,
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
     ) -> CursorPage[EmailResponseBase]:
@@ -27,8 +22,6 @@ class EmailService:
             session,
             filters=filters,
             limit=limit,
-            sort_by=sort_by,
-            order=order,
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
         )
@@ -46,17 +39,20 @@ class EmailService:
         email_id: int,
     ) -> EmailResponseDetailed:
         cache_key = EmailCacheKey.email_detail_key(email_id)
-        cached = await get_cache(cache_key)
+        cached_data = await get_cache(cache_key)
 
-        if cached is not None:
-            return EmailResponseDetailed.model_validate(cached)
+        if cached_data is not None:
+            return EmailResponseDetailed.model_validate(cached_data)
 
         email = await EmailRepository.get_email_by_id(session, email_id)
-        ensure_exists(email, EmailNotFoundError())
+        if email is None:
+            raise EmailNotFoundError()
 
-        await set_cache(cache_key, email.model_dump(mode="json"), 900)
+        response = EmailResponseDetailed.model_validate(email)
 
-        return EmailResponseDetailed.model_validate(email)
+        await set_cache(cache_key, response.model_dump(mode="json"), 900)
+
+        return response
 
     @staticmethod
     async def retry_failed_email(
@@ -64,7 +60,8 @@ class EmailService:
         email_id: int,
     ) -> None:
         failed_email = await EmailRepository.get_email_by_id(session, email_id)
-        ensure_exists(failed_email, EmailNotFoundError())
+        if failed_email is None:
+            raise EmailNotFoundError()
 
         await EmailRepository.reset_for_retry(failed_email)
 
