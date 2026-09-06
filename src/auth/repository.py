@@ -46,8 +46,6 @@ class AuthRepository:
         session: AsyncSession,
         credentials_id: int,
     ) -> None:
-        # Find the session with the oldest last_active_at.
-        # NULL last_active_at means never used — evict those first.
         query = (
             select(UserSession)
             .where(UserSession.credentials_id == credentials_id)
@@ -67,14 +65,6 @@ class AuthRepository:
             await session.flush()
 
     @staticmethod
-    async def delete_session(
-        session: AsyncSession,
-        user_session: UserSession,
-    ) -> None:
-        await session.delete(user_session)
-        await session.flush()
-
-    @staticmethod
     async def delete_all_sessions(
         session: AsyncSession,
         credentials_id: int,
@@ -82,6 +72,7 @@ class AuthRepository:
         query = delete(UserSession).where(UserSession.credentials_id == credentials_id)
 
         await session.execute(query)
+
         await session.flush()
 
     @staticmethod
@@ -154,11 +145,13 @@ class AuthRepository:
         Atomically delete the UserActivation row using DELETE ... RETURNING.
         Returns True if the row was claimed, False if another request got there first.
         """
+
         query = (
             delete(UserActivation)
             .where(UserActivation.credentials_id == credentials_id)
             .returning(UserActivation.id)
         )
+
         result = await session.execute(query)
 
         await session.flush()
@@ -208,5 +201,7 @@ class AuthRepository:
         query = delete(UserPasswordReset).where(
             UserPasswordReset.credentials_id == credentials_id
         )
+
         await session.execute(query)
+
         await session.flush()

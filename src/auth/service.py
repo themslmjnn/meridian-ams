@@ -121,42 +121,47 @@ class AuthService:
         user_agent: str | None,
     ) -> LoginResponse:
 
-        credentials = await UserCredentialsRepository.get_by_username(
+        user_credentials = await UserCredentialsRepository.get_by_username(
             session,
             form_data.username,
-            load_options=LoadOptionsSchema(load_identity=True, load_login_lockout=True),
+            load_options=LoadOptionsSchema(
+                load_identity=True,
+                load_login_lockout=True,
+            ),
         )
 
-        if credentials is None:
+        if user_credentials is None:
             await verify_password(
                 form_data.password,
                 "$2b$12$placeholder.hash.to.keep.timing.consistent.x",
             )
 
             logger.warning(
-                "login_failed", reason="user_not_found", username=form_data.username
+                "login_failed",
+                reason="user_not_found",
+                username=form_data.username,
             )
 
             raise exceptions.InvalidCredentialsError()
 
-        lockout = credentials.login_lockout
+        lockout = user_credentials.login_lockout
 
         if lockout.locked_until and datetime.now(UTC) < lockout.locked_until:
-            new_login_history = LoginHistory(
-                credentials_id=credentials.id,
-                success=False,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                failure_reason="account_locked",
+            session.add(
+                LoginHistory(
+                    credentials_id=user_credentials.id,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    failure_reason="account_locked",
+                )
             )
-
-            session.add(new_login_history)
             await session.commit()
 
             logger.warning(
                 "login_blocked",
                 reason="account_locked",
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
                 locked_until=lockout.locked_until.isoformat(),
             )
 
@@ -164,39 +169,40 @@ class AuthService:
                 detail=f"Account locked until {lockout.locked_until.strftime('%H:%M UTC')}"
             )
 
-        if credentials.status == UserStatus.PENDING_ACTIVATION:
-            new_login_history = LoginHistory(
-                credentials_id=credentials.id,
-                success=False,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                failure_reason="account_not_activated",
+        if user_credentials.status == UserStatus.PENDING_ACTIVATION:
+            session.add(
+                LoginHistory(
+                    credentials_id=user_credentials.id,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    failure_reason="account_not_activated",
+                )
             )
-
-            session.add(new_login_history)
             await session.commit()
 
             raise exceptions.AccountInactiveError()
 
-        if credentials.status not in (
+        if user_credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_DELETION,
         ):
-            new_login_history = LoginHistory(
-                credentials_id=credentials.id,
-                success=False,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                failure_reason=f"account_{credentials.status.value}",
+            session.add(
+                LoginHistory(
+                    credentials_id=user_credentials.id,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    failure_reason=f"account_{user_credentials.status.value}",
+                )
             )
 
-            session.add(new_login_history)
             await session.commit()
 
             raise exceptions.AccessDeniedError()
 
         if not await verify_password(
-            form_data.password, credentials.password_hash or ""
+            form_data.password, user_credentials.password_hash or ""
         ):
             lockout.failed_attempts += 1
             lockout.last_failed_at = datetime.now(UTC)
@@ -208,38 +214,38 @@ class AuthService:
 
                 logger.warning(
                     "account_locked",
-                    credentials_id=credentials.id,
+                    credentials_id=user_credentials.id,
                     failed_attempts=lockout.failed_attempts,
                     locked_until=lockout.locked_until.isoformat(),
                 )
 
-            new_login_history = LoginHistory(
-                credentials_id=credentials.id,
-                success=False,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                failure_reason="invalid_password",
+            session.add(
+                LoginHistory(
+                    credentials_id=user_credentials.id,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    failure_reason="invalid_password",
+                )
             )
-
-            session.add(new_login_history)
             await session.commit()
 
             logger.warning(
                 "login_failed",
                 reason="invalid_password",
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
                 failed_attempts=lockout.failed_attempts,
             )
 
             raise exceptions.InvalidCredentialsError()
 
-        if credentials.status == UserStatus.PENDING_DELETION:
+        if user_credentials.status == UserStatus.PENDING_DELETION:
             if (
-                credentials.deletion_scheduled_for is None
-                or credentials.deletion_scheduled_for <= datetime.now(UTC)
+                user_credentials.deletion_scheduled_for is None
+                or user_credentials.deletion_scheduled_for <= datetime.now(UTC)
             ):
                 new_login_history = LoginHistory(
-                    credentials_id=credentials.id,
+                    credentials_id=user_credentials.id,
                     success=False,
                     ip_address=ip_address,
                     user_agent=user_agent,
@@ -251,11 +257,13 @@ class AuthService:
 
                 raise exceptions.InvalidCredentialsError()
 
-            credentials.status = credentials.pre_deletion_status
-            credentials.deletion_scheduled_for = None
-            credentials.pre_deletion_status = None
+            user_credentials.status = user_credentials.pre_deletion_status
+            user_credentials.deletion_scheduled_for = None
+            user_credentials.pre_deletion_status = None
 
-            logger.info("deletion_implicitly_cancelled", credentials_id=credentials.id)
+            logger.info(
+                "deletion_implicitly_cancelled", credentials_id=user_credentials.id
+            )
 
         lockout.failed_attempts = 0
         lockout.locked_until = None
@@ -267,18 +275,17 @@ class AuthService:
         if incoming_device_id:
             existing_session = await AuthRepository.get_session_by_device_id(
                 session,
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
                 device_id=incoming_device_id,
             )
 
         if existing_session is not None:
-            # Known device — rotate tokens on existing session row
             device_id = incoming_device_id
             refresh_token_family = secrets.token_urlsafe(32)
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 CreateRefreshToken(
-                    public_id=credentials.public_id,
+                    public_id=user_credentials.public_id,
                     session_id=existing_session.id,
                 )
             )
@@ -300,14 +307,14 @@ class AuthService:
 
         else:
             session_count = await AuthRepository.get_session_count(
-                session, credentials.id
+                session, user_credentials.id
             )
             if session_count >= _SESSION_CAP:
-                await AuthRepository.evict_oldest_session(session, credentials.id)
+                await AuthRepository.evict_oldest_session(session, user_credentials.id)
 
                 logger.info(
                     "session_evicted",
-                    credentials_id=credentials.id,
+                    credentials_id=user_credentials.id,
                     reason="session_cap_reached",
                     cap=_SESSION_CAP,
                 )
@@ -316,7 +323,7 @@ class AuthService:
             refresh_token_family = secrets.token_urlsafe(32)
 
             user_session = UserSession(
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
                 refresh_token_hash="",  # set below after flush gives us session.id
                 refresh_token_family=refresh_token_family,
                 refresh_token_expires_at=datetime.now(UTC)
@@ -331,7 +338,7 @@ class AuthService:
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 CreateRefreshToken(
-                    public_id=credentials.public_id,
+                    public_id=user_credentials.public_id,
                     session_id=user_session.id,
                 )
             )
@@ -340,28 +347,28 @@ class AuthService:
 
         access_token = create_access_token(
             CreateAccessToken(
-                public_id=credentials.public_id,
-                role=credentials.identity.role,
-                account_type=credentials.account_type,
+                public_id=user_credentials.public_id,
+                role=user_credentials.identity.role,
+                account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
             )
         )
 
-        new_login_history = LoginHistory(
-            credentials_id=credentials.id,
-            success=True,
-            ip_address=ip_address,
-            user_agent=user_agent,
+        session.add(
+            LoginHistory(
+                credentials_id=user_credentials.id,
+                success=True,
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
         )
-
-        session.add(new_login_history)
         await session.commit()
 
         logger.info(
             "login_success",
-            credentials_id=credentials.id,
-            role=credentials.identity.role,
+            credentials_id=user_credentials.id,
+            role=user_credentials.identity.role,
             session_id=user_session.id,
             device="existing" if existing_session else "new",
         )
@@ -384,10 +391,12 @@ class AuthService:
         )
 
         if user_session is not None:
-            await AuthRepository.delete_session(session, user_session)
+            await session.delete(user_session)
             await session.commit()
 
-        await delete_cache(redis, SessionCacheKey(current_user.session_id))
+        await delete_cache(
+            redis, SessionCacheKey.access_token_version_key(current_user.session_id)
+        )
 
         AuthService._clear_refresh_cookie(response)
         AuthService._clear_refresh_family_cookie(response)
@@ -405,7 +414,6 @@ class AuthService:
         response: Response,
         current_user: CurrentUser,
     ) -> None:
-        # Fetch all session IDs before deleting — needed for cache invalidation
         session_ids = await AuthRepository.get_session_ids(
             session, current_user.credentials_id
         )
@@ -522,39 +530,31 @@ class AuthService:
             )
 
             if within_grace:
-                # Second tab raced — return the already-rotated token
-                # that's sitting in their cookie from the first request.
-                # We can't re-send the raw token (we don't store it),
-                # so we issue a fresh access token against the current session state.
-                credentials = await UserCredentialsRepository.get_by_id(
-                    session, user_session.credentials_id
+                user_credentials = await UserCredentialsRepository.get_by_id(
+                    session,
+                    user_session.credentials_id,
+                    load_options=LoadOptionsSchema(load_identity=True),
                 )
 
                 access_token = create_access_token(
                     CreateAccessToken(
-                        public_id=credentials.public_id,
-                        role=credentials.role,
-                        account_type=credentials.account_type,
+                        public_id=user_credentials.public_id,
+                        role=user_credentials.identity.role,
+                        account_type=user_credentials.account_type,
                         session_id=user_session.id,
                         access_token_version=user_session.access_token_version,
                     )
                 )
 
-                logger.info(
-                    "refresh_grace_window_hit",
-                    session_id=session_id,
-                )
-                # Cookies already set from the first rotation — don't overwrite
+                logger.info("refresh_grace_window_hit", session_id=session_id)
                 return LoginResponse(access_token=access_token, token_type="bearer")
 
             else:
-                # Previous token used outside grace window — replay attack
                 await AuthRepository.invalidate_session_family(session, user_session)
                 await session.commit()
 
                 await delete_cache(
-                    redis,
-                    SessionCacheKey.access_token_version_key(session_id),
+                    redis, SessionCacheKey.access_token_version_key(session_id)
                 )
 
                 logger.warning(
@@ -568,17 +568,19 @@ class AuthService:
 
                 raise exceptions.InvalidRefreshTokenError()
 
-        credentials = await UserCredentialsRepository.get_by_id(
-            session, user_session.credentials_id
+        user_credentials = await UserCredentialsRepository.get_by_id(
+            session,
+            user_session.credentials_id,
+            load_options=LoadOptionsSchema(load_identity=True),
         )
 
-        if credentials is None:
+        if user_credentials is None:
             raise exceptions.InvalidRefreshTokenError()
 
         new_family = secrets.token_urlsafe(32)
         raw_new_refresh_token, hashed_new_refresh_token = create_refresh_token(
             CreateRefreshToken(
-                public_id=credentials.public_id,
+                public_id=user_credentials.public_id,
                 session_id=user_session.id,
             )
         )
@@ -594,9 +596,9 @@ class AuthService:
 
         access_token = create_access_token(
             CreateAccessToken(
-                public_id=credentials.public_id,
-                role=credentials.role,
-                account_type=credentials.account_type,
+                public_id=user_credentials.public_id,
+                role=user_credentials.identity.role,
+                account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
             )
@@ -604,12 +606,11 @@ class AuthService:
 
         await session.commit()
 
-        # Refresh ATV cache with current version + TTL reset
         await set_cache_critical(
             redis,
             SessionCacheKey.access_token_version_key(session_id),
             SessionCacheKey.pack_atv_cache(
-                user_session.access_token_version, credentials.id
+                user_session.access_token_version, user_credentials.id
             ),
             ex=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES * 60,
         )
@@ -617,7 +618,7 @@ class AuthService:
         logger.info(
             "refresh_token_rotated",
             session_id=session_id,
-            credentials_id=credentials.id,
+            credentials_id=user_credentials.id,
         )
 
         AuthService._set_refresh_cookie(response, raw_new_refresh_token)
@@ -635,57 +636,60 @@ class AuthService:
     ) -> LoginResponse:
         token_hash = sha256(payload.activation_token)
 
-        credentials = await AuthRepository.get_credentials_by_activation_token_hash(
-            session, token_hash
+        user_credentials = (
+            await AuthRepository.get_credentials_by_activation_token_hash(
+                session, token_hash
+            )
         )
-        if credentials is None or credentials.activation is None:
+        if user_credentials is None or user_credentials.activation is None:
             logger.warning("activation_failed", reason="token_not_found")
 
             raise exceptions.InvalidActivationCodeError()
 
         user_identity = await UserIdentityRepository.get_by_id(
-            session, credentials.identity_id
+            session, user_credentials.identity_id
         )
 
-        if datetime.now(UTC) > credentials.activation.activation_token_expires_at:
+        if datetime.now(UTC) > user_credentials.activation.activation_token_expires_at:
             logger.warning(
                 "activation_failed",
                 reason="token_expired",
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
             )
 
             raise exceptions.ExpiredActivationCodeError()
 
-        if credentials.status != UserStatus.PENDING_ACTIVATION:
+        if user_credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
                 "activation_failed",
                 reason="wrong_status",
-                credentials_id=credentials.id,
-                status=credentials.status,
+                credentials_id=user_credentials.id,
+                status=user_credentials.status,
             )
 
             raise exceptions.UserNotPendingActivationError()
 
-        claimed = await AuthRepository.claim_activation_token(session, credentials.id)
+        claimed = await AuthRepository.claim_activation_token(
+            session, user_credentials.id
+        )
 
         if not claimed:
-            # Another concurrent request got here first
             logger.warning(
                 "activation_failed",
                 reason="concurrent_claim",
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
             )
 
             raise exceptions.InvalidActivationCodeError()
 
-        credentials.password_hash = await hash_password(payload.password)
-        credentials.status = UserStatus.ACTIVE
+        user_credentials.password_hash = await hash_password(payload.password)
+        user_credentials.status = UserStatus.ACTIVE
 
         refresh_token_family = secrets.token_urlsafe(32)
         device_id = secrets.token_urlsafe(32)
 
         user_session = UserSession(
-            credentials_id=credentials.id,
+            credentials_id=user_credentials.id,
             refresh_token_hash="",
             refresh_token_family=refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
@@ -700,7 +704,7 @@ class AuthService:
 
         raw_refresh_token, hashed_refresh_token = create_refresh_token(
             CreateRefreshToken(
-                public_id=credentials.public_id,
+                public_id=user_credentials.public_id,
                 session_id=user_session.id,
             )
         )
@@ -708,9 +712,9 @@ class AuthService:
 
         access_token = create_access_token(
             CreateAccessToken(
-                public_id=credentials.public_id,
+                public_id=user_credentials.public_id,
                 role=user_identity.role,
-                account_type=credentials.account_type,
+                account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
             )
@@ -720,7 +724,7 @@ class AuthService:
 
         logger.info(
             "account_activated",
-            credentials_id=credentials.id,
+            credentials_id=user_credentials.id,
             role=user_identity.role,
             session_id=user_session.id,
         )
@@ -736,11 +740,9 @@ class AuthService:
         session: AsyncSession,
         payload: ForgotPasswordRequest,
     ) -> None:
-        # Always hash regardless of whether email exists —
-        # keeps response time consistent, prevents email enumeration
         raw_token, token_hash = generate_token()
 
-        credentials = await UserCredentialsRepository.get_by_email(
+        user_credentials = await UserCredentialsRepository.get_by_email(
             session,
             payload.email,
             load_options=LoadOptionsSchema(
@@ -749,29 +751,28 @@ class AuthService:
             ),
         )
 
-        if credentials is None:
+        if user_credentials is None:
             logger.info(
-                "forgot_password_email_not_found",
-                reason="no_account_for_email",
+                "forgot_password_email_not_found", reason="no_account_for_email"
             )
-            # Return silently — never reveal whether email exists
+
             return
 
-        if credentials.status not in (
+        if user_credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_ACTIVATION,
         ):
             logger.info(
                 "forgot_password_skipped",
-                credentials_id=credentials.id,
-                reason=f"status_{credentials.status.value}",
+                credentials_id=user_credentials.id,
+                reason=f"status_{user_credentials.status.value}",
             )
 
             return
 
-        if credentials.password_reset is None:
+        if user_credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
                 reset_password_token_hash=token_hash,
                 reset_password_token_expires_at=datetime.now(UTC)
                 + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
@@ -779,26 +780,27 @@ class AuthService:
 
             session.add(new_password_reset)
         else:
-            credentials.password_reset.reset_password_token_hash = token_hash
-            credentials.password_reset.reset_password_token_expires_at = datetime.now(
-                UTC
-            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+            user_credentials.password_reset.reset_password_token_hash = token_hash
+            user_credentials.password_reset.reset_password_token_expires_at = (
+                datetime.now(UTC)
+                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+            )
 
         subject, html_body = build_reset_password_email(raw_token)
 
-        new_email = Email(
-            recipient_email=credentials.email,
-            subject=subject,
-            body_html=html_body,
-            email_type=EmailType.PASSWORD_RESET_ADMIN,
+        session.add(
+            Email(
+                recipient_email=user_credentials.email,
+                subject=subject,
+                body_html=html_body,
+                email_type=EmailType.PASSWORD_RESET_ADMIN,
+            )
         )
-
-        session.add(new_email)
         await session.commit()
 
         logger.info(
             "forgot_password_token_issued",
-            credentials_id=credentials.id,
+            credentials_id=user_credentials.id,
         )
 
     @staticmethod
@@ -809,61 +811,63 @@ class AuthService:
     ) -> None:
         token_hash = sha256(payload.token)
 
-        credentials = await AuthRepository.get_credentials_by_reset_token_hash(
+        user_credentials = await AuthRepository.get_credentials_by_reset_token_hash(
             session, token_hash
         )
 
-        if credentials is None or credentials.password_reset is None:
+        if user_credentials is None or user_credentials.password_reset is None:
             logger.warning("reset_password_failed", reason="token_not_found")
 
             raise exceptions.InvalidResetPasswordTokenError()
 
         if (
             datetime.now(UTC)
-            > credentials.password_reset.reset_password_token_expires_at
+            > user_credentials.password_reset.reset_password_token_expires_at
         ):
             logger.warning(
                 "reset_password_failed",
                 reason="token_expired",
-                credentials_id=credentials.id,
+                credentials_id=user_credentials.id,
             )
 
             raise exceptions.ExpiredResetPasswordTokenError()
 
-        if credentials.status not in (
+        if user_credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_ACTIVATION,
         ):
             logger.warning(
                 "reset_password_failed",
-                reason=f"status_{credentials.status.value}",
-                credentials_id=credentials.id,
+                reason=f"status_{user_credentials.status.value}",
+                credentials_id=user_credentials.id,
             )
 
             raise exceptions.InvalidResetPasswordTokenError()
 
-        session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
-
-        await AuthRepository.delete_all_sessions(session, credentials.id)
-
-        await AuthRepository.delete_password_reset_token(session, credentials.id)
-
-        credentials.password_hash = await hash_password(payload.new_password)
-
-        if credentials.login_lockout is not None:
-            credentials.login_lockout.failed_attempts = 0
-            credentials.login_lockout.locked_until = None
-            credentials.login_lockout.last_failed_at = None
-
-        new_login_history = LoginHistory(
-            credentials_id=credentials.id,
-            success=True,
-            ip_address=None,
-            user_agent=None,
-            failure_reason="password_reset",
+        session_ids = await AuthRepository.get_all_session_ids(
+            session, user_credentials.id
         )
 
-        session.add(new_login_history)
+        await AuthRepository.delete_all_sessions(session, user_credentials.id)
+
+        await AuthRepository.delete_password_reset_token(session, user_credentials.id)
+
+        user_credentials.password_hash = await hash_password(payload.new_password)
+
+        if user_credentials.login_lockout is not None:
+            user_credentials.login_lockout.failed_attempts = 0
+            user_credentials.login_lockout.locked_until = None
+            user_credentials.login_lockout.last_failed_at = None
+
+        session.add(
+            LoginHistory(
+                credentials_id=user_credentials.id,
+                success=True,
+                ip_address=None,
+                user_agent=None,
+                failure_reason="password_reset",
+            )
+        )
         await session.commit()
 
         for session_id in session_ids:
@@ -873,6 +877,6 @@ class AuthService:
 
         logger.info(
             "password_reset_complete",
-            credentials_id=credentials.id,
+            credentials_id=user_credentials.id,
             sessions_revoked=len(session_ids),
         )
