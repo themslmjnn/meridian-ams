@@ -259,3 +259,125 @@ def valid_existing_guardian_payload():
         username="new_test_username",
         email="new_test_email@gmail.com",
     )
+
+
+@pytest.fixture
+def mock_users_delete_cache_system_admin(mocker):
+    return mocker.patch("src.users.services.system_admin.delete_cache")
+
+
+@pytest.fixture
+def mock_users_set_cache_system_admin(mocker):
+    return mocker.patch("src.users.services.system_admin.set_cache")
+
+
+@pytest.fixture
+def mock_users_set_cache_director(mocker):
+    return mocker.patch("src.users.services.director.set_cache")
+
+@pytest.fixture
+def mock_users_delete_cache_shared(mocker):
+    return mocker.patch("src.users.services.shared.delete_cache")
+
+
+@pytest.fixture
+def mock_users_set_cache_shared(mocker):
+    return mocker.patch("src.users.services.shared.set_cache")
+
+
+
+@pytest.fixture
+def mock_users_advisory_lock_system_admin(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.acquire_contact_locks"
+    )
+
+
+@pytest.fixture
+def mock_users_advisory_lock_shared(mocker):
+    return mocker.patch(
+        "src.users.services.shared.acquire_contact_locks"
+    )
+
+
+@pytest.fixture
+def mock_users_check_contact_limit_system_admin(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.check_contact_limit"
+    )
+
+
+@pytest.fixture
+def mock_users_check_contact_limit_shared(mocker):
+    return mocker.patch(
+        "src.users.services.shared.check_contact_limit"
+    )
+
+
+@pytest.fixture
+def mock_send_account_info_updated_email(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.emails.send_account_info_updated_email"
+    )
+
+
+@pytest.fixture
+def mock_send_account_deactivation_email(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.emails.send_account_deactivation_email"
+    )
+
+
+@pytest.fixture
+def mock_send_account_activation_email(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.emails.send_account_activation_email"
+    )
+
+@pytest.fixture
+def mock_send_account_deletion_email(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.emails.send_account_deletion_email"
+    )
+
+
+@pytest.fixture
+def mock_send_account_deletion_canceled_email(mocker):
+    return mocker.patch(
+        "src.users.services.system_admin.emails.send_account_deletion_canceled_email"
+    )
+
+
+@pytest.fixture
+def mock_send_email_change_verification(mocker):
+    return mocker.patch(
+        "src.users.services.shared.emails.send_email_change_verification"
+    )
+
+
+@pytest.fixture
+def mock_send_email_changed_notification(mocker):
+    return mocker.patch(
+        "src.users.services.shared.emails.send_email_changed_notification"
+    )
+
+
+@pytest.fixture
+def mock_send_password_changed_notification(mocker):
+    return mocker.patch(
+        "src.users.services.shared.emails.send_password_changed_notification"
+
+    )
+
+@pytest.fixture
+def mock_send_account_self_deletion_email(mocker):
+    return mocker.patch(
+        "src.users.services.guardian.emails.send_account_deletion_email"
+    )
+
+
+@pytest.fixture
+def mock_send_account_info_self_updated_email(mocker):
+    return mocker.patch(
+        "src.users.services.guardian.emails.send_account_info_updated_email"
+    )
