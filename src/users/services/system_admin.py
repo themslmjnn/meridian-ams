@@ -366,13 +366,22 @@ class UserServiceAdmin:
             update_object(user_credentials, payload)
 
             await UserSessionRepository.invalidate_all_sessions(
-                session, user_credentials.sessions
+                user_credentials.sessions
             )
 
             if user_credentials.email_change is not None:
                 await session.delete(user_credentials.email_change)
 
             if should_reissue_activation_token:
+                if user_credentials.activation is None:
+                    logger.error(
+                        "activation_row_missing",
+                        public_id=public_id,
+                        status=user_credentials.status,
+                    )
+
+                    raise exceptions.ActivationRowMissingError()
+
                 raw_activation_token, hashed_activation_token = generate_token()
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
                     hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
@@ -429,11 +438,13 @@ class UserServiceAdmin:
 
                 session.add(new_email)
 
+            session_ids = [s.id for s in user_credentials.sessions]
+
             await session.commit()
 
             await delete_cache(
                 redis,
-                SessionCacheKey.access_token_version_key(public_id),
+                *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
@@ -493,9 +504,10 @@ class UserServiceAdmin:
 
         user_credentials.status = UserStatus.DEACTIVATED
 
-        await UserSessionRepository.invalidate_all_sessions(
-            session, user_credentials.sessions
-        )
+        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+
+        session_ids = [s.id for s in user_credentials.sessions]
+
         await session.commit()
 
         asyncio.create_task(
@@ -507,7 +519,7 @@ class UserServiceAdmin:
 
         await delete_cache(
             redis,
-            SessionCacheKey.access_token_version_key(public_id),
+            *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
             UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
@@ -665,7 +677,7 @@ class UserServiceAdmin:
                 status=user_credentials.status,
             )
 
-            raise exceptions.UserAlreadyActiveError()
+            raise exceptions.ActivationRowMissingError()
 
         raw_activation_token, hashed_activation_token = generate_token()
         activation_token_expires_at = datetime.now(UTC) + timedelta(

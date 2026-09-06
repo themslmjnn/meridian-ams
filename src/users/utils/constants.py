@@ -22,6 +22,7 @@ class HTTP400:
     EXPIRED_EMAIL_CHANGE_CODE = "Email change code has expired"
     INVALID_EMAIL_CHANGE_CODE = "Invalid email change code"
     INCORRECT_PASSWORD = "Incorrect password"
+    SAME_PASSWORD = "Same password"
 
 
 class HTTP403:
@@ -34,6 +35,7 @@ class HTTP404:
     USER = "User not found"
     NO_PENDING_EMAIL_CHANGE = "No email change is currently pending"
     PENDING_DELETION = "Guardian is not pending deletion error"
+    ACTIVATION_ROW = "Activation row missing"
 
 
 class HTTP409:

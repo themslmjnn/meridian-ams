@@ -29,6 +29,12 @@ class IncorrectPasswordError(AppException):
     error_code = "INCORRECT_PASSWORD"
 
 
+class SamePasswordError(AppException):
+    status_code = 400
+    detail = HTTP400.SAME_PASSWORD
+    error_code = "SAME_PASSWORD"
+
+
 # HTTP403
 class InvalidStatusTransitionError(AppException):
     status_code = 403
@@ -65,6 +71,12 @@ class NoPendingEmailChangeError(AppException):
     status_code = 404
     detail = HTTP404.NO_PENDING_EMAIL_CHANGE
     error_code = "NO_PENDING_EMAIL_CHANGE"
+
+
+class ActivationRowMissingError(AppException):
+    status_code = 404
+    detail = HTTP404.ACTIVATION_ROW
+    error_code = "ACTIVATION_ROW_MISSING"
 
 
 # HTTP409

@@ -12,7 +12,7 @@ class UpdateProfileGuardian(BaseModel):
 
     @field_validator("firstname")
     @classmethod
-    def validate_firstname(cls, v: str | None) -> str | None:
+    def _validate_firstname(cls, v: str | None) -> str | None:
         if v is None:
             return None
 
@@ -20,7 +20,7 @@ class UpdateProfileGuardian(BaseModel):
 
     @field_validator("lastname")
     @classmethod
-    def validate_lastname(cls, v: str | None) -> str | None:
+    def _validate_lastname(cls, v: str | None) -> str | None:
         if v is None:
             return None
 
@@ -28,7 +28,7 @@ class UpdateProfileGuardian(BaseModel):
 
     @field_validator("middlename")
     @classmethod
-    def validate_middlename(cls, v: str | None) -> str | None:
+    def _validate_middlename(cls, v: str | None) -> str | None:
         if v is None:
             return None
 
@@ -36,8 +36,8 @@ class UpdateProfileGuardian(BaseModel):
 
     @field_validator("phone_number", mode="after")
     @classmethod
-    def validate_phone_number(cls, field: str | None) -> str | None:
-        if field is None:
+    def _validate_phone_number(cls, v: str | None) -> str | None:
+        if v is None:
             return None
 
-        return validators.validate_phone_number(field)
+        return validators.validate_phone_number(v)

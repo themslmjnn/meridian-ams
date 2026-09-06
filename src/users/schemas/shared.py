@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 
 from src.users.utils import validators
 from src.utils.base_schema import BaseSchema
@@ -58,3 +58,10 @@ class UpdateMePassword(BaseModel):
     @classmethod
     def validate_password_strength(cls, v: str) -> str:
         return validators.validate_password(v)
+
+    @model_validator(mode="after")
+    def _validate_passwords_differ(self) -> "UpdateMePassword":
+        if self.current_password == self.new_password:
+            raise ValueError("New password must differ from current password")
+
+        return self

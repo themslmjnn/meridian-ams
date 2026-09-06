@@ -1429,7 +1429,6 @@ async def send_email_change_verification(
 
 
 async def send_email_changed_notification(
-    email: str,
     old_email: str,
     new_email: str,
 ) -> None:
@@ -1580,7 +1579,7 @@ async def send_email_changed_notification(
 
     await send_email(
         subject=subject,
-        to_email=email,
+        to_email=old_email,
         html_body=html,
     )
 

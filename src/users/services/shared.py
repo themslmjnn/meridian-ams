@@ -37,6 +37,7 @@ from src.users.utils.exceptions import (
     IncorrectPasswordError,
     InvalidEmailChangeCodeError,
     NoPendingEmailChangeError,
+    SamePasswordError,
     UserNotFoundError,
     handle_non_student_unique_contact_error,
     handle_username_integrity_error,
@@ -104,25 +105,27 @@ class UserServiceSelf:
             raise NoChangesDetectedError()
 
         if email_requested:
+            raw_code, hashed_code = generate_email_change_code()
+            code_expires_at = datetime.now(UTC) + timedelta(
+                minutes=get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES
+            )
+
             if user_credentials.email_change is None:
                 new_email_change = UserEmailChange(
                     credentials_id=user_credentials.id,
                     new_email=payload.email,
-                    email_change_token_hash=generate_email_change_code(),
-                    email_change_token_expires_at=datetime.now(UTC)
-                    + timedelta(
-                        minutes=get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES
-                    ),
+                    email_change_token_hash=hashed_code,
+                    email_change_token_expires_at=code_expires_at,
                 )
 
                 session.add(new_email_change)
             else:
                 pending_still_active = (
-                    user_credentials.email_change.email_change_code_expires_at is not None
+                    user_credentials.email_change.email_change_code_expires_at
+                    is not None
                     and user_credentials.email_change.email_change_code_expires_at
                     > datetime.now(UTC)
                 )
-
                 if (
                     user_credentials.email_change.new_email == payload.email
                     and pending_still_active
@@ -135,25 +138,23 @@ class UserServiceSelf:
 
                     raise DuplicateEmailChangeRequestError()
 
-        try:
-            if username_changing:
-                user_credentials.username = payload.username
-                user_credentials.sessions.access_token_version += 1
-
-            if email_requested:
-                raw_code, hashed_code = generate_email_change_code()
-                code_expires_at = datetime.now(UTC) + timedelta(
-                    minutes=get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES
-                )
-
                 user_credentials.email_change.new_email = payload.email
                 user_credentials.email_change.email_change_code_hash = hashed_code
                 user_credentials.email_change.email_change_code_expires_at = (
                     code_expires_at
                 )
 
+        try:
+            if username_changing:
+                user_credentials.username = payload.username
+
+                session_ids = [s.id for s in user_credentials.sessions]
+
+                await UserSessionRepository.invalidate_all_sessions(
+                    user_credentials.sessions
+                )
+
             await session.commit()
-            await session.refresh(user_credentials)
 
             if email_requested:
                 asyncio.create_task(
@@ -163,33 +164,35 @@ class UserServiceSelf:
                     )
                 )
 
-            await delete_cache(
-                redis,
-                UserCacheKey.user_detail_key_admin(user_credentials.public_id),
-                UserCacheKey.user_detail_key_staff(user_credentials.public_id),
-                UserCacheKey.user_detail_key_self(user_credentials.public_id),
-            )
+            keys_to_delete = [
+                UserCacheKey.user_detail_key_admin(current_user.public_id),
+                UserCacheKey.user_detail_key_staff(current_user.public_id),
+                UserCacheKey.user_detail_key_self(current_user.public_id),
+            ]
 
             if username_changing:
-                await delete_cache(
-                    redis,
-                    SessionCacheKey.access_token_version_key(
-                        user_credentials.public_id
-                    ),
+                keys_to_delete.extend(
+                    [
+                        SessionCacheKey.access_token_version_key(sid)
+                        for sid in session_ids
+                    ]
                 )
 
+            await delete_cache(redis, *keys_to_delete)
+
+            if username_changing:
                 logger.info(
                     "username_updated",
-                    public_id=user_credentials.public_id.public_id,
-                    new_username=user_credentials.public_id.username,
+                    public_id=str(current_user.public_id),
+                    new_username=user_credentials.username,
                     method="self_service",
                 )
 
             if email_requested:
                 logger.info(
-                    "user_email_payloaded",
-                    public_id=current_user.public_id,
-                    email_change_requested=user_credentials.public_id.email,
+                    "email_change_requested",
+                    public_id=str(current_user.public_id),
+                    new_email=payload.email,
                     method="self_service",
                 )
 
@@ -197,13 +200,13 @@ class UserServiceSelf:
             await session.rollback()
 
             logger.error(
-                "user_credentials_update_failed",
-                user_credentials_id=current_user.public_id,
+                "credentials_update_failed",
+                public_id=str(current_user.public_id),
                 reason=str(exc.orig),
                 method="self_service",
             )
-
             handle_username_integrity_error(exc)
+
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
@@ -218,12 +221,11 @@ class UserServiceSelf:
             current_user.public_id,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
-                load_login_lockout=True,
                 load_email_change=True,
             ),
         )
         if user_credentials is None:
-            CredentialsNotFoundError()
+            raise CredentialsNotFoundError()
 
         if (
             user_credentials.email_change.new_email is None
@@ -250,7 +252,9 @@ class UserServiceSelf:
         new_email = user_credentials.email_change.new_email
         is_student = user_credentials.account_type == AccountType.STUDENT
 
-        await acquire_contact_locks(session, phone_number=None, email=new_email)
+        await acquire_contact_locks(
+            session, phone_number=None, email=new_email, is_student=is_student
+        )
 
         await check_contact_limit(
             session,
@@ -267,21 +271,20 @@ class UserServiceSelf:
             old_email = user_credentials.email
             user_credentials.email = new_email
 
-            user_credentials.email_change.new_email = None
-            user_credentials.email_change.email_change_code_hash = None
-            user_credentials.email_change.email_change_code_expires_at = None
+            await session.delete(user_credentials.email_change)
+
+            session_ids = [s.id for s in user_credentials.sessions]
 
             await UserSessionRepository.invalidate_all_sessions(
                 user_credentials.sessions
             )
 
             await session.commit()
-            await session.refresh(user_credentials)
 
             asyncio.create_task(
                 emails.send_email_safe(
                     emails.send_email_changed_notification(
-                        user_credentials.email, old_email, user_credentials.email
+                        old_email, user_credentials.email
                     ),
                     email_type=EmailType.EMAIL_CHANGED,
                 )
@@ -289,7 +292,10 @@ class UserServiceSelf:
 
             await delete_cache(
                 redis,
-                SessionCacheKey.access_token_version_key(current_user.public_id),
+                *[
+                    SessionCacheKey.access_token_version_key(session_id)
+                    for session_id in session_ids
+                ],
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
                 UserCacheKey.user_detail_key_staff(current_user.public_id),
                 UserCacheKey.user_detail_key_self(current_user.public_id),
@@ -328,7 +334,10 @@ class UserServiceSelf:
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
-            CredentialsNotFoundError()
+            raise CredentialsNotFoundError()
+
+        if user_credentials.password_hash is None:
+            raise IncorrectPasswordError()
 
         is_current_password_valid = await verify_password(
             payload.current_password, user_credentials.password_hash
@@ -344,12 +353,16 @@ class UserServiceSelf:
 
             raise IncorrectPasswordError()
 
+        if payload.current_password == payload.new_password:
+            raise SamePasswordError()
+
         new_password_hash = await hash_password(payload.new_password)
 
         user_credentials.password_hash = new_password_hash
 
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+        session_ids = [s.id for s in user_credentials.sessions]
 
+        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
         await session.commit()
 
         asyncio.create_task(
@@ -360,7 +373,11 @@ class UserServiceSelf:
         )
 
         await delete_cache(
-            redis, SessionCacheKey.access_token_version_key(current_user.public_id)
+            redis,
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
         )
 
         logger.info(

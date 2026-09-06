@@ -106,12 +106,10 @@ class UserServiceGuardian:
         payload: UpdateProfileGuardian,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
-            current_user.public_id,
-            load_options=LoadOptionsSchema(load_identity=True),
+            session, current_user.public_id
         )
         if user_credentials is None:
-            CredentialsNotFoundError()
+            raise CredentialsNotFoundError()
 
         user_identity = await UserIdentityRepository.get_by_id(
             session, user_credentials.identity_id
@@ -157,7 +155,6 @@ class UserServiceGuardian:
             await delete_cache(
                 redis,
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
-                UserCacheKey.user_detail_key_staff(current_user.public_id),
                 UserCacheKey.user_detail_key_self(current_user.public_id),
             )
 
