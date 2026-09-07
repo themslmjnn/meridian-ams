@@ -41,29 +41,29 @@ from src.utils.helpers import update_object
 logger = structlog.get_logger(__name__)
 
 
-class UserServiceAdmin:
+class UserService:
     @staticmethod
     async def register_user(
         session: AsyncSession,
         current_user_id: int,
         payload: schemas.CreateUserRequest,
-    ) -> schemas.UserResponseAdminDetailed:
+    ) -> schemas.UserResponseDetailed:
         guardian_existing_identity = False
 
         match payload:
-            case schemas.CreateStudentAdmin():
+            case schemas.CreateStudent():
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
-            case schemas.CreateStaffAdmin():
+            case schemas.CreateStaff():
                 resolved_role = payload.role
                 account_type = AccountType.WORK
 
-            case schemas.CreateGuardianAdminWithNewIdentity():
+            case schemas.CreateGuardianWithNewIdentity():
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
 
-            case schemas.CreateGuardianAdminWithExistingIdentity():
+            case schemas.CreateGuardianWithExistingIdentity():
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
                 guardian_existing_identity = True
@@ -79,7 +79,6 @@ class UserServiceAdmin:
             session,
             phone_number=phone_number,
             email=payload.email,
-            is_student=is_student,
         )
 
         await check_contact_limit(
@@ -196,7 +195,7 @@ class UserServiceAdmin:
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
-    async def update_user(
+    async def update_profile(
         session: AsyncSession,
         redis: Redis,
         current_user_id: int,
@@ -206,7 +205,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
@@ -216,11 +215,11 @@ class UserServiceAdmin:
         )
 
         match payload:
-            case schemas.UpdateStudentAdmin():
+            case schemas.UpdateStudentProfile():
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
-            case schemas.UpdateStaffOrGuardianAdmin():
+            case schemas.UpdateStaffOrGuardianProfile():
                 resolved_role = user_identity.role
                 account_type = user_credentials.account_type
 
@@ -228,7 +227,7 @@ class UserServiceAdmin:
                 assert_never(payload)
 
         is_student = user_identity.role == UserRole.STUDENT
-        is_request_student_shaped = isinstance(payload, schemas.UpdateStudentAdmin)
+        is_request_student_shaped = isinstance(payload, schemas.UpdateStudentProfile)
 
         if is_student != is_request_student_shaped:
             logger.warning(
@@ -289,7 +288,7 @@ class UserServiceAdmin:
                 "user_profile_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
-                method="admin_update",
+                method="_update",
             )
 
         except IntegrityError as exc:
@@ -300,7 +299,7 @@ class UserServiceAdmin:
                 public_id=public_id,
                 requested_by=current_user_id,
                 reason=str(exc.orig),
-                method="admin_update",
+                method="_update",
             )
 
             if not is_student:
@@ -318,7 +317,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
                 load_activation=True,
@@ -420,7 +419,7 @@ class UserServiceAdmin:
                 notify_new_email = user_credentials.email if email_changed else None
 
                 subject, html_body = (
-                    emails.build_admin_credentials_override_notification_email(
+                    emails.build__credentials_override_notification_email(
                         notify_old_username,
                         notify_new_username,
                         notify_old_email,
@@ -432,7 +431,7 @@ class UserServiceAdmin:
                     recipient_email=old_email,
                     subject=subject,
                     body_html=html_body,
-                    email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
+                    email_type=EmailType._CREDENTIALS_OVERRIDE,
                     triggered_by=current_user_id,
                 )
 
@@ -445,7 +444,7 @@ class UserServiceAdmin:
             await delete_cache(
                 redis,
                 *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
-                UserCacheKey.user_detail_key_admin(public_id),
+                UserCacheKey.user_detail_key_(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
             )
@@ -454,7 +453,7 @@ class UserServiceAdmin:
                 "user_credentials_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
-                method="admin_credentials_override",
+                method="_credentials_override",
             )
 
         except IntegrityError as exc:
@@ -465,7 +464,7 @@ class UserServiceAdmin:
                 public_id=public_id,
                 requested_by=current_user_id,
                 reason=str(exc.orig),
-                method="admin_credentials_override",
+                method="_credentials_override",
             )
 
             exceptions.handle_username_integrity_error(exc)
@@ -483,7 +482,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
@@ -520,7 +519,7 @@ class UserServiceAdmin:
         await delete_cache(
             redis,
             *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
-            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
@@ -541,7 +540,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
             load_options=LoadOptionsSchema(load_login_lockout=True),
         )
         if user_credentials is None:
@@ -577,7 +576,7 @@ class UserServiceAdmin:
 
         await delete_cache(
             redis,
-            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
@@ -597,7 +596,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
         if user_credentials is None:
@@ -632,7 +631,7 @@ class UserServiceAdmin:
             recipient_email=user_credentials.email,
             subject=subject,
             body_html=html_body,
-            email_type=EmailType.PASSWORD_RESET_ADMIN,
+            email_type=EmailType.PASSWORD_RESET_,
             triggered_by=current_user_id,
         )
 
@@ -654,7 +653,7 @@ class UserServiceAdmin:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
+            excluded_roles=constants.SYSTEM__ROLE,
             load_options=LoadOptionsSchema(load_activation=True),
         )
         if user_credentials is None:
@@ -767,7 +766,7 @@ class UserServiceAdmin:
         await delete_cache(
             redis,
             SessionCacheKey.access_token_version_key(public_id),
-            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
 
@@ -825,7 +824,7 @@ class UserServiceAdmin:
 
         await delete_cache(
             redis,
-            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
 
@@ -863,13 +862,13 @@ class UserServiceAdmin:
     @staticmethod
     async def get_staff_by_public_id(
         session: AsyncSession, redis: Redis, public_id: uuid.UUID
-    ) -> schemas.UserResponseAdminDetailed:
-        cache_key = UserCacheKey.user_detail_key_admin(public_id)
+    ) -> schemas.UserResponseDetailed:
+        cache_key = UserCacheKey.user_detail_key_(public_id)
 
         cached_data = await get_cache(redis, cache_key)
 
         if cached_data is not None:
-            return schemas.UserResponseAdminDetailed.model_validate(cached_data)
+            return schemas.UserResponseDetailed.model_validate(cached_data)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
             session, public_id, allowed_roles=constants.STAFF_ROLES
@@ -877,7 +876,7 @@ class UserServiceAdmin:
         if staff is None:
             raise exceptions.UserNotFoundError()
 
-        response = schemas.UserResponseAdminDetailed.model_validate(staff)
+        response = schemas.UserResponseDetailed.model_validate(staff)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
@@ -911,13 +910,13 @@ class UserServiceAdmin:
     @staticmethod
     async def get_guardian_by_public_id(
         session: AsyncSession, redis: Redis, public_id: uuid.UUID
-    ) -> schemas.UserResponseAdminDetailed:
-        cache_key = UserCacheKey.user_detail_key_admin(public_id)
+    ) -> schemas.UserResponseDetailed:
+        cache_key = UserCacheKey.user_detail_key_(public_id)
 
         cached_data = await get_cache(redis, cache_key)
 
         if cached_data is not None:
-            return schemas.UserResponseAdminDetailed.model_validate(cached_data)
+            return schemas.UserResponseDetailed.model_validate(cached_data)
 
         guardian = await UserRepositoryBase.get_user_by_public_id(
             session, public_id, allowed_roles=constants.GUARDIAN_ROLE
@@ -925,7 +924,7 @@ class UserServiceAdmin:
         if guardian is None:
             raise exceptions.UserNotFoundError()
 
-        response = schemas.UserResponseAdminDetailed.model_validate(guardian)
+        response = schemas.UserResponseDetailed.model_validate(guardian)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 

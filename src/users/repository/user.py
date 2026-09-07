@@ -317,6 +317,21 @@ class UserSessionRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_by_credentials_id(
+        session: AsyncSession, credentials_id: int
+    ) -> UserSession | None:
+        query = (
+            select(UserSession)
+            .where(UserSession.credentials_id == credentials_id)
+            .order_by(UserSession.id.desc())
+            .limit(1)
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def invalidate_session(user_session: UserSession) -> None:
         user_session.access_token_version += 1
         user_session.refresh_token_hash = None

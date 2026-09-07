@@ -10,7 +10,7 @@ from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.base_schema import BaseSchema
 
 
-class UserResponseAdminDetailed(UserResponseBase, BaseSchema):
+class UserResponseDetailed(UserResponseBase, BaseSchema):
     date_of_birth: date | None
     address: str | None
 
@@ -71,7 +71,7 @@ class CreateUserBase(BaseModel):
         return validators.validate_email(v)
 
 
-class CreateStudentAdmin(CreateUserBase):
+class CreateStudent(CreateUserBase):
     type: Literal["student"] = "student"
 
     date_of_birth: date
@@ -83,23 +83,23 @@ class CreateStudentAdmin(CreateUserBase):
         return validators.validate_date_of_birth(v)
 
 
-class CreateStaffAdmin(CreateUserBase):
+class CreateStaff(CreateUserBase):
     type: Literal["staff"] = "staff"
 
     role: Literal[UserRole.DIRECTOR, UserRole.TEACHER] = UserRole.TEACHER
 
     @model_validator(mode="after")
-    def _validate_work_email_domain(self) -> "CreateStaffAdmin":
+    def _validate_work_email_domain(self) -> "CreateStaff":
         validators.validate_work_email_domain(self.email)
 
         return self
 
 
-class CreateGuardianAdminWithNewIdentity(CreateUserBase):
+class CreateGuardianWithNewIdentity(CreateUserBase):
     type: Literal["new_guardian"] = "new_guardian"
 
 
-class CreateGuardianAdminWithExistingIdentity(BaseModel):
+class CreateGuardianWithExistingIdentity(BaseModel):
     type: Literal["existing_guardian"] = "existing_guardian"
 
     existing_identity_id: int = Field(ge=1)
@@ -119,15 +119,15 @@ class CreateGuardianAdminWithExistingIdentity(BaseModel):
 
 
 CreateUserRequest = Annotated[
-    CreateStudentAdmin
-    | CreateStaffAdmin
-    | CreateGuardianAdminWithNewIdentity
-    | CreateGuardianAdminWithExistingIdentity,
+    CreateStudent
+    | CreateStaff
+    | CreateGuardianWithNewIdentity
+    | CreateGuardianWithExistingIdentity,
     Field(discriminator="type"),
 ]
 
 
-class UpdateUserBase(BaseModel):
+class UpdateProfileBase(BaseModel):
     firstname: str | None = Field(min_length=3, max_length=50, default=None)
     lastname: str | None = Field(min_length=3, max_length=50, default=None)
     middlename: str | None = Field(min_length=3, max_length=50, default=None)
@@ -167,11 +167,11 @@ class UpdateUserBase(BaseModel):
         return validators.validate_phone_number(v)
 
 
-class UpdateStaffOrGuardianAdmin(UpdateUserBase):
+class UpdateStaffOrGuardianProfile(UpdateProfileBase):
     type: Literal["staff_or_guardian"] = "staff_or_guardian"
 
 
-class UpdateStudentAdmin(UpdateUserBase):
+class UpdateStudentProfile(UpdateProfileBase):
     type: Literal["student"] = "student"
 
     date_of_birth: date | None = None
@@ -186,8 +186,8 @@ class UpdateStudentAdmin(UpdateUserBase):
         return validators.validate_date_of_birth(v)
 
 
-UpdateUserRequest = Annotated[
-    UpdateStaffOrGuardianAdmin | UpdateStudentAdmin,
+UpdateProfileRequest = Annotated[
+    UpdateStaffOrGuardianProfile | UpdateStudentProfile,
     Field(discriminator="type"),
 ]
 

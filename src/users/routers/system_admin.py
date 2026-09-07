@@ -13,11 +13,11 @@ from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
     CreateUserRequest,
     SearchUserBase,
-    UpdateUserRequest,
-    UserResponseAdminDetailed,
+    UpdateProfileRequest,
     UserResponseBase,
+    UserResponseDetailed,
 )
-from src.users.services.system_admin import UserServiceAdmin
+from src.users.services.system_admin import UserService
 from src.users.utils.schemas import UpdateUserCredentials
 
 router = APIRouter(
@@ -27,7 +27,7 @@ router = APIRouter(
 
 
 @router.post(
-    "", response_model=UserResponseAdminDetailed, status_code=status.HTTP_201_CREATED
+    "", response_model=UserResponseDetailed, status_code=status.HTTP_201_CREATED
 )
 @user_limiter.limit("7/minute")
 async def register_user(
@@ -36,7 +36,7 @@ async def register_user(
     current_user: require_system_admin,
     payload: CreateUserRequest,
 ):
-    return await UserServiceAdmin.register_user(
+    return await UserService.register_user(
         session, current_user.credentials_id, payload
     )
 
@@ -45,16 +45,16 @@ async def register_user(
     "/{public_id}/profile",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-@user_limiter.limit("7/minute")
-async def update_user(
+@user_limiter.limit("10/minute")
+async def update_profile(
     request: Request,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
-    payload: UpdateUserRequest,
+    payload: UpdateProfileRequest,
 ):
-    await UserServiceAdmin.update_user(
+    await UserService.update_profile(
         session, redis, current_user.credentials_id, public_id, payload
     )
 
@@ -192,7 +192,7 @@ async def get_staff(
 
 @router.get(
     "/staff/{public_id}",
-    response_model=UserResponseAdminDetailed,
+    response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
 async def get_staff_by_public_id(
@@ -228,7 +228,7 @@ async def get_guardians(
 
 @router.get(
     "/guardians/{public_id}",
-    response_model=UserResponseAdminDetailed,
+    response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
 async def get_guardian_by_public_id(
