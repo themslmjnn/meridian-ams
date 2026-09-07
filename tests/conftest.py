@@ -9,7 +9,6 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from src.auth.repository import AuthRepository
 from src.auth.schemas import CreateAccessToken
 from src.core.caching import get_redis, get_settings
 from src.core.dependencies import get_session
@@ -19,13 +18,13 @@ from src.main import app
 from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.schemas.system_admin import (
-    CreateGuardianAdminWithExistingIdentity,
-    CreateGuardianAdminWithNewIdentity,
-    CreateStaffAdmin,
-    CreateStudentAdmin,
+    CreateGuardianWithExistingIdentity,
+    CreateGuardianWithNewIdentity,
+    CreateStaff,
+    CreateStudent,
 )
+from src.users.services.system_admin import UserService
 from src.users.utils.enums import UserRole
-from src.users.utils.schemas import LoadOptionsSchema
 from tests.factories import (
     make_director,
     make_guardian,
@@ -219,7 +218,7 @@ create_user_request = {
 
 @pytest.fixture
 def valid_student_payload():
-    return CreateStudentAdmin(
+    return CreateStudent(
         **create_user_request,
         type="student",
         date_of_birth="2008-05-01",
@@ -228,7 +227,7 @@ def valid_student_payload():
 
 @pytest.fixture
 def valid_staff_payload():
-    return CreateStaffAdmin(
+    return CreateStaff(
         **create_user_request,
         role=UserRole.TEACHER,
         type="staff",
@@ -237,19 +236,86 @@ def valid_staff_payload():
 
 @pytest.fixture
 def valid_new_guardian_payload():
-    return CreateGuardianAdminWithNewIdentity(
+    return CreateGuardianWithNewIdentity(
         **create_user_request,
         type="new_guardian",
     )
 
 
-@pytest.fixture
-def valid_existing_guardian_payload():
-    return CreateGuardianAdminWithExistingIdentity(
+@pytest_asyncio.fixture
+async def registered_staff(
+    test_session: AsyncSession,
+    system_admin: UserCredentials,
+    valid_staff_payload: CreateStaff,
+) -> UserCredentials:
+    response = await UserService.register_user(
+        test_session, system_admin.credentials_id, valid_staff_payload
+    )
+
+    return await UserCredentialsRepository.get_by_public_id(
+        test_session, response["public_id"]
+    )
+
+
+@pytest_asyncio.fixture
+async def registered_student(
+    test_session: AsyncSession,
+    system_admin: UserCredentials,
+    valid_student_payload: CreateStudent,
+) -> UserCredentials:
+    response = await UserService.register_user(
+        test_session, system_admin.credentials_id, valid_student_payload
+    )
+
+    return await UserCredentialsRepository.get_by_public_id(
+        test_session, response["public_id"]
+    )
+
+
+@pytest_asyncio.fixture
+async def registered_new_guardian(
+    test_session: AsyncSession,
+    system_admin: UserCredentials,
+    valid_new_guardian_payload: CreateGuardianWithNewIdentity,
+) -> UserCredentials:
+    response = await UserService.register_user(
+        test_session, system_admin.credentials_id, valid_new_guardian_payload
+    )
+
+    return await UserCredentialsRepository.get_by_public_id(
+        test_session, response["public_id"]
+    )
+
+
+@pytest_asyncio.fixture
+async def existing_identity(test_session: AsyncSession) -> UserCredentials:
+    return await make_teacher(test_session)
+
+
+@pytest_asyncio.fixture
+async def valid_existing_guardian_payload(
+    existing_identity: UserCredentials,
+) -> CreateGuardianWithExistingIdentity:
+    return CreateGuardianWithExistingIdentity(
         type="existing_guardian",
-        existing_identity_id=999999,
-        username="new_test_username",
-        email="new_test_email@gmail.com",
+        existing_identity_id=existing_identity.identity_id,
+        username="existing_guardian_user",
+        email="existing.guardian@example.com",
+    )
+
+
+@pytest_asyncio.fixture
+async def registered_existing_guardian(
+    test_session: AsyncSession,
+    system_admin: UserCredentials,
+    valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
+) -> UserCredentials:
+    response = await UserService.register_user(
+        test_session, system_admin.credentials_id, valid_existing_guardian_payload
+    )
+
+    return await UserCredentialsRepository.get_by_public_id(
+        test_session, response["public_id"]
     )
 
 
