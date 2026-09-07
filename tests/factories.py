@@ -10,6 +10,7 @@ from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
+from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 
 _counter = itertools.count(1)
@@ -50,7 +51,7 @@ async def make_user(
     )
 
     test_session.add(new_user_identity)
-    test_session.flush()
+    await test_session.flush()
 
     new_user_credentials = UserCredentials(
         identity_id=new_user_identity.id,
@@ -78,11 +79,13 @@ async def make_user(
             else None
         ),
     )
+    new_session = UserSession(credentials_id=new_user_credentials.id)
     new_login_lockout = UserLoginLockout(
         credentials_id=new_user_credentials.id,
     )
 
     test_session.add(new_activation)
+    test_session.add(new_session)
     test_session.add(new_login_lockout)
 
     await test_session.commit()
@@ -117,5 +120,5 @@ async def make_student(session: AsyncSession, **kwargs) -> UserCredentials:
 
 async def make_guardian(session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        session, role=UserRole.TEACHER, account_type=AccountType.PERSONAL, **kwargs
+        session, role=UserRole.GUARDIAN, account_type=AccountType.PERSONAL, **kwargs
     )

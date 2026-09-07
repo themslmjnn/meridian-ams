@@ -17,7 +17,7 @@ from src.core.security import create_access_token
 from src.database.connection import ImmutableBase
 from src.main import app
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository
+from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
 from src.users.schemas.system_admin import (
     CreateGuardianAdminWithExistingIdentity,
     CreateGuardianAdminWithNewIdentity,
@@ -164,27 +164,19 @@ def redis_health_mock(mocker):
 
 
 async def make_auth_header(
-    request: Request, session: AsyncSession, user: UserCredentials
+    request: Request, session: AsyncSession, user_credentials: UserCredentials
 ) -> dict:
-    user_credentials = await UserCredentialsRepository.get_by_public_id(
-        session, user.public_id, load_options=LoadOptionsSchema(load_sessions=True)
+    user_session = await UserSessionRepository.get_by_credentials_id(
+        session, user_credentials.id
     )
-
-    incoming_device_id = request.cookies.get("device_id")
-    if incoming_device_id:
-        existing_session = await AuthRepository.get_session_by_device_id(
-            session,
-            credentials_id=user_credentials.id,
-            device_id=incoming_device_id,
-        )
 
     token = create_access_token(
         CreateAccessToken(
             sub=user_credentials.public_id,
             role=user_credentials.role,
             account_type=user_credentials.account_type,
-            session_id=existing_session.id,
-            atv=existing_session.access_token_version,
+            session_id=user_credentials.id,
+            atv=user_session.access_token_version,
         )
     )
 
@@ -275,6 +267,7 @@ def mock_users_set_cache_system_admin(mocker):
 def mock_users_set_cache_director(mocker):
     return mocker.patch("src.users.services.director.set_cache")
 
+
 @pytest.fixture
 def mock_users_delete_cache_shared(mocker):
     return mocker.patch("src.users.services.shared.delete_cache")
@@ -285,33 +278,24 @@ def mock_users_set_cache_shared(mocker):
     return mocker.patch("src.users.services.shared.set_cache")
 
 
-
 @pytest.fixture
 def mock_users_advisory_lock_system_admin(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.acquire_contact_locks"
-    )
+    return mocker.patch("src.users.services.system_admin.acquire_contact_locks")
 
 
 @pytest.fixture
 def mock_users_advisory_lock_shared(mocker):
-    return mocker.patch(
-        "src.users.services.shared.acquire_contact_locks"
-    )
+    return mocker.patch("src.users.services.shared.acquire_contact_locks")
 
 
 @pytest.fixture
 def mock_users_check_contact_limit_system_admin(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.check_contact_limit"
-    )
+    return mocker.patch("src.users.services.system_admin.check_contact_limit")
 
 
 @pytest.fixture
 def mock_users_check_contact_limit_shared(mocker):
-    return mocker.patch(
-        "src.users.services.shared.check_contact_limit"
-    )
+    return mocker.patch("src.users.services.shared.check_contact_limit")
 
 
 @pytest.fixture
@@ -333,6 +317,7 @@ def mock_send_account_activation_email(mocker):
     return mocker.patch(
         "src.users.services.system_admin.emails.send_account_activation_email"
     )
+
 
 @pytest.fixture
 def mock_send_account_deletion_email(mocker):
@@ -366,8 +351,8 @@ def mock_send_email_changed_notification(mocker):
 def mock_send_password_changed_notification(mocker):
     return mocker.patch(
         "src.users.services.shared.emails.send_password_changed_notification"
-
     )
+
 
 @pytest.fixture
 def mock_send_account_self_deletion_email(mocker):
