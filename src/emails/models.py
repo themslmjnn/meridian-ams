@@ -13,7 +13,7 @@ class Email(MutableBase):
     recipient_email: Mapped[str] = mapped_column(String(100), nullable=False)
 
     subject: Mapped[str] = mapped_column(String(200), nullable=False)
-    body_html: Mapped[str] = mapped_column(Text, nullable=False)
+    html_body: Mapped[str] = mapped_column(Text, nullable=False)
 
     email_type: Mapped[EmailType] = mapped_column(
         Enum(EmailType), nullable=False, index=True
