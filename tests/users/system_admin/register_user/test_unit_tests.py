@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import AppException
 from src.users.models.credentials import UserCredentials
+from src.users.repository.user import UserIdentityRepository
 from src.users.schemas.system_admin import (
     CreateGuardianWithExistingIdentity,
     CreateGuardianWithNewIdentity,
@@ -13,6 +14,8 @@ from src.users.services.system_admin import UserService
 from src.users.utils.exceptions import (
     DuplicateEmailError,
     DuplicatePhoneNumberError,
+    GuardianAccountAlreadyExistsError,
+    IdentityNotFoundError,
     MaxStudentsPerEmailError,
     MaxStudentsPerPhoneNumberError,
     UsernameAlreadyTakenError,
@@ -355,3 +358,75 @@ class TestDBConstraints:
 
         with pytest.raises(expected_exception):
             await UserService.register_user(test_session, system_admin.id, payload)
+
+
+class TestExistingIdentityGuardian:
+    async def test_reuses_existing_identity_row(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        existing_identity: UserCredentials,
+        valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
+    ) -> None:
+        identity_count_before = await UserIdentityRepository.count_identities(
+            test_session, existing_identity.id
+        )
+
+        await UserService.register_user(
+            test_session, system_admin.id, valid_existing_guardian_payload
+        )
+
+        identity_count_after = await UserIdentityRepository.count_identities(
+            test_session, existing_identity.id
+        )
+
+        assert identity_count_after == identity_count_before
+
+    async def test_creates_new_credentials_row(
+        self,
+        test_session: AsyncSession,
+        registered_existing_guardian: UserCredentials,
+    ) -> None:
+        credentials_rows = await UserIdentityRepository.count_credentials(
+            test_session, registered_existing_guardian.identity_id
+        )
+
+        assert credentials_rows == 2
+
+    async def test_raises_when_identity_not_found(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+    ) -> None:
+        payload = CreateGuardianWithExistingIdentity(
+            type="existing_guardian",
+            existing_identity_id=999999,
+            username="ghost_guardian",
+            email="ghost@example.com",
+        )
+
+        with pytest.raises(IdentityNotFoundError):
+            await UserService.register_user(test_session, system_admin.id, payload)
+
+    async def test_raises_when_guardian_account_already_exists(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        existing_identity: UserCredentials,
+        valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
+    ) -> None:
+        await UserService.register_user(
+            test_session, system_admin.id, valid_existing_guardian_payload
+        )
+
+        second_payload = CreateGuardianWithExistingIdentity(
+            type="existing_guardian",
+            existing_identity_id=existing_identity.identity_id,
+            username="second_guardian_user",
+            email="second.guardian@example.com",
+        )
+
+        with pytest.raises(GuardianAccountAlreadyExistsError):
+            await UserService.register_user(
+                test_session, system_admin.id, second_payload
+            )

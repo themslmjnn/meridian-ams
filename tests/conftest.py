@@ -251,7 +251,7 @@ async def registered_staff(
     valid_staff_payload: CreateStaff,
 ) -> UserCredentials:
     response = await UserService.register_user(
-        test_session, system_admin.credentials_id, valid_staff_payload
+        test_session, system_admin.id, valid_staff_payload
     )
 
     return await UserCredentialsRepository.get_by_public_id(
@@ -266,7 +266,7 @@ async def registered_student(
     valid_student_payload: CreateStudent,
 ) -> UserCredentials:
     response = await UserService.register_user(
-        test_session, system_admin.credentials_id, valid_student_payload
+        test_session, system_admin.id, valid_student_payload
     )
 
     return await UserCredentialsRepository.get_by_public_id(
@@ -281,7 +281,7 @@ async def registered_new_guardian(
     valid_new_guardian_payload: CreateGuardianWithNewIdentity,
 ) -> UserCredentials:
     response = await UserService.register_user(
-        test_session, system_admin.credentials_id, valid_new_guardian_payload
+        test_session, system_admin.id, valid_new_guardian_payload
     )
 
     return await UserCredentialsRepository.get_by_public_id(
@@ -313,7 +313,7 @@ async def registered_existing_guardian(
     valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
 ) -> UserCredentials:
     response = await UserService.register_user(
-        test_session, system_admin.credentials_id, valid_existing_guardian_payload
+        test_session, system_admin.id, valid_existing_guardian_payload
     )
 
     return await UserCredentialsRepository.get_by_public_id(

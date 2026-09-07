@@ -306,6 +306,24 @@ class UserIdentityRepository:
 
         return result.scalar_one()
 
+    @staticmethod
+    async def count_identities(session: AsyncSession, identity_id: int) -> int:
+        """
+        Count how many credentials rows reference this identity.
+        Used by the deletion worker to decide whether to also delete
+        the identity after deleting the guardian's credentials.
+        """
+
+        query = (
+            select(func.count())
+            .select_from(UserIdentity)
+            .where(UserIdentity.id == identity_id)
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one()
+
 
 class UserSessionRepository:
     @staticmethod
