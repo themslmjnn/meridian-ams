@@ -95,8 +95,16 @@ class EmailRepository:
         )
 
     @staticmethod
-    async def get_email_by_id(session: AsyncSession, email_id: int) -> Email | None:
+    async def get_by_id(session: AsyncSession, email_id: int) -> Email | None:
         query = select(Email).where(Email.id == email_id)
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_triggered_by(session: AsyncSession, credentials_id: int) -> Email | None:
+        query = select(Email).where(Email.triggered_by == credentials_id)
 
         result = await session.execute(query)
 

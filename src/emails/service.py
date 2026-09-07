@@ -44,7 +44,7 @@ class EmailService:
         if cached_data is not None:
             return EmailResponseDetailed.model_validate(cached_data)
 
-        email = await EmailRepository.get_email_by_id(session, email_id)
+        email = await EmailRepository.get_by_id(session, email_id)
         if email is None:
             raise EmailNotFoundError()
 
@@ -59,7 +59,7 @@ class EmailService:
         session: AsyncSession,
         email_id: int,
     ) -> None:
-        failed_email = await EmailRepository.get_email_by_id(session, email_id)
+        failed_email = await EmailRepository.get_by_id(session, email_id)
         if failed_email is None:
             raise EmailNotFoundError()
 
