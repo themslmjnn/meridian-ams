@@ -1,5 +1,7 @@
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.exceptions import AppException
 from src.users.models.credentials import UserCredentials
 from src.users.schemas.system_admin import (
     CreateGuardianWithExistingIdentity,
@@ -8,6 +10,13 @@ from src.users.schemas.system_admin import (
     CreateStudent,
 )
 from src.users.services.system_admin import UserService
+from src.users.utils.exceptions import (
+    DuplicateEmailError,
+    DuplicatePhoneNumberError,
+    MaxStudentsPerEmailError,
+    MaxStudentsPerPhoneNumberError,
+)
+from tests.factories import make_guardian, make_student, make_teacher
 
 
 class TestAdvisoryLock:
@@ -78,3 +87,72 @@ class TestAdvisoryLock:
             phone_number=None,
             email=valid_existing_guardian_payload.email,
         )
+
+
+class TestContactLimit:
+    @pytest.mark.parametrize(
+        ("field", "value", "expected_exception"),
+        [
+            ("phone_number", "+992555000001", MaxStudentsPerPhoneNumberError),
+            ("email", "shared.student@example.com", MaxStudentsPerEmailError),
+        ],
+    )
+    async def test_student_rejected_when_contact_limit_reached(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_student_payload: CreateStudent,
+        field: str,
+        value: str,
+        expected_exception: type[AppException],
+    ) -> None:
+        for i in range(3):
+            await make_student(
+                test_session,
+                username=f"limit_student_{i}",
+                **{field: value},
+            )
+
+        setattr(valid_student_payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(
+                test_session, system_admin.id, valid_student_payload
+            )
+
+    @pytest.mark.parametrize(
+        ("factory", "field", "value", "expected_exception"),
+        [
+            (make_teacher, "phone_number", "+992555000002", DuplicatePhoneNumberError),
+            (make_teacher, "email", "shared.staff@example.com", DuplicateEmailError),
+            (make_guardian, "phone_number", "+992555000003", DuplicatePhoneNumberError),
+            (
+                make_guardian,
+                "email",
+                "shared.guardian@example.com",
+                DuplicateEmailError,
+            ),
+        ],
+    )
+    async def test_staff_and_guardian_rejected_when_contact_limit_reached(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+        valid_new_guardian_payload: CreateGuardianWithNewIdentity,
+        factory,
+        field: str,
+        value: str,
+        expected_exception: type[AppException],
+    ) -> None:
+        await factory(test_session, **{field: value})
+
+        payload = (
+            valid_staff_payload
+            if factory is make_teacher
+            else valid_new_guardian_payload
+        )
+        setattr(payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(test_session, system_admin.id, payload)

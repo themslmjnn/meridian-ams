@@ -72,12 +72,12 @@ class Settings(BaseSettings):
 
     EMAIL_API_KEY: str | None = None
     MAIL_FROM: str | None = None
-    MAIL_FROM_NAME: str = "Meridian AMS"
+    MAIL_FROM_NAME: str | None = "Meridian AMS"
 
-    MAILTRAP_HOST: str = "sandbox.smtp.mailtrap.io"
-    MAILTRAP_PORT: int = 587
-    MAILTRAP_USERNAME: str
-    MAILTRAP_PASSWORD: str
+    MAILTRAP_HOST: str | None = "sandbox.smtp.mailtrap.io"
+    MAILTRAP_PORT: int | None = 587
+    MAILTRAP_USERNAME: str | None
+    MAILTRAP_PASSWORD: str | None
 
     SENTRY_DSN: str | None = None
 
