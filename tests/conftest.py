@@ -36,7 +36,7 @@ from tests.factories import (
 settings = get_settings()
 
 SYNC_DB_URL = (
-    f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PSSW}"
+    f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}"
     f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 
@@ -211,7 +211,7 @@ create_user_request = {
     "firstname": "New",
     "lastname": "User",
     "phone_number": "+992 111 111 101",
-    "username": "new_test_username",
+    "username": "test_username",
     "email": "new_test_email@gmail.com",
 }
 
@@ -227,6 +227,8 @@ def valid_student_payload():
 
 @pytest.fixture
 def valid_staff_payload():
+    create_user_request["email"] = "new_test_email@meridian.edu"
+
     return CreateStaff(
         **create_user_request,
         role=UserRole.TEACHER,
@@ -299,7 +301,7 @@ async def valid_existing_guardian_payload(
     return CreateGuardianWithExistingIdentity(
         type="existing_guardian",
         existing_identity_id=existing_identity.identity_id,
-        username="existing_guardian_user",
+        username="existing_guardian",
         email="existing.guardian@example.com",
     )
 

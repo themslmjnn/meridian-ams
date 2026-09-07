@@ -66,25 +66,26 @@ async def make_user(
     test_session.add(new_user_credentials)
     await test_session.flush()
 
-    is_pending = status == UserStatus.PENDING_ACTIVATION
+    # is_pending = status == UserStatus.PENDING_ACTIVATION
     _, hashed_activation_token = generate_token()
 
-    new_activation = UserActivation(
-        credentials_id=new_user_credentials.id,
-        activation_token_hash=hashed_activation_token if is_pending else None,
-        activation_token_expires_at=(
-            datetime.now(UTC)
-            + timedelta(hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS)
-            if is_pending
-            else None
-        ),
-    )
+    if status == UserStatus.PENDING_ACTIVATION:
+        new_activation = UserActivation(
+            credentials_id=new_user_credentials.id,
+            activation_token_hash=hashed_activation_token,
+            activation_token_expires_at=(
+                datetime.now(UTC)
+                + timedelta(hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS)
+            ),
+        )
+
+        test_session.add(new_activation)
+
     new_session = UserSession(credentials_id=new_user_credentials.id)
     new_login_lockout = UserLoginLockout(
         credentials_id=new_user_credentials.id,
     )
 
-    test_session.add(new_activation)
     test_session.add(new_session)
     test_session.add(new_login_lockout)
 
