@@ -1,10 +1,9 @@
 from datetime import date
 
-from sqlalchemy import Enum, Index, String, text
+from sqlalchemy import Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database.connection import MutableBase
-from src.users.utils.enums import UserRole
 
 
 class UserIdentity(MutableBase):
@@ -18,8 +17,6 @@ class UserIdentity(MutableBase):
     address: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     phone_number: Mapped[str] = mapped_column(String(25), nullable=False)
-
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=False)
 
     credentials: Mapped[list["UserCredentials"]] = relationship(  # type: ignore  # noqa: F821
         back_populates="identity", cascade="all, delete-orphan"
