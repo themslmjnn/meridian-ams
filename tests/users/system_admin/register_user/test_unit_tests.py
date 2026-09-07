@@ -17,6 +17,7 @@ from src.users.utils.exceptions import (
     MaxStudentsPerPhoneNumberError,
     UsernameAlreadyTakenError,
 )
+from tests.conftest import valid_new_guardian_payload, valid_staff_payload
 from tests.factories import make_guardian, make_student, make_teacher
 
 
@@ -285,3 +286,72 @@ class TestDuplicateFieldRejection:
             await UserService.register_user(
                 test_session, system_admin.id, valid_new_guardian_payload
             )
+
+
+class TestDBConstraints:
+    @pytest.mark.db_constraint
+    @pytest.mark.parametrize(
+        (
+            "factory",
+            "payload_fixture",
+            "existing_kwargs",
+            "override",
+            "expected_exception",
+        ),
+        [
+            (
+                make_teacher,
+                "valid_staff_payload",
+                {"phone_number": "+992555111444"},
+                {"phone_number": "+992555111444"},
+                DuplicatePhoneNumberError,
+            ),
+            (
+                make_teacher,
+                "valid_staff_payload",
+                {"email": "constraint.staff@example.com"},
+                {"email": "constraint.staff@example.com"},
+                DuplicateEmailError,
+            ),
+            (
+                make_guardian,
+                "valid_new_guardian_payload",
+                {"phone_number": "+992555111555"},
+                {"phone_number": "+992555111555"},
+                DuplicatePhoneNumberError,
+            ),
+            (
+                make_guardian,
+                "valid_new_guardian_payload",
+                {"email": "constraint.guardian@example.com"},
+                {"email": "constraint.guardian@example.com"},
+                DuplicateEmailError,
+            ),
+        ],
+        ids=[
+            "staff_phone",
+            "staff_email",
+            "guardian_phone",
+            "guardian_email",
+        ],
+    )
+    async def test_db_constraint_catches_bypassed_precheck(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        factory,
+        payload_fixture: str,
+        existing_kwargs: dict,
+        override: dict,
+        expected_exception: type[Exception],
+        request: pytest.FixtureRequest,
+        mock_users_check_contact_limit_system_admin,
+    ) -> None:
+        await factory(test_session, **existing_kwargs)
+
+        payload = request.getfixturevalue(payload_fixture)
+        for field, value in override.items():
+            setattr(payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(test_session, system_admin.id, payload)
