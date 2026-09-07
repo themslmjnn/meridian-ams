@@ -15,6 +15,7 @@ from src.users.utils.exceptions import (
     DuplicatePhoneNumberError,
     MaxStudentsPerEmailError,
     MaxStudentsPerPhoneNumberError,
+    UsernameAlreadyTakenError,
 )
 from tests.factories import make_guardian, make_student, make_teacher
 
@@ -156,3 +157,131 @@ class TestContactLimit:
 
         with pytest.raises(expected_exception):
             await UserService.register_user(test_session, system_admin.id, payload)
+
+
+class TestDuplicateFieldRejection:
+    @pytest.mark.parametrize(
+        ("existing_kwargs", "override", "expected_exception"),
+        [
+            (
+                {"username": "taken_username"},
+                {"username": "taken_username"},
+                UsernameAlreadyTakenError,
+            ),
+            (
+                {"phone_number": "+992555111222"},
+                {"phone_number": "+992555111222"},
+                DuplicatePhoneNumberError,
+            ),
+            (
+                {"email": "taken.staff@example.com"},
+                {"email": "taken.staff@example.com"},
+                DuplicateEmailError,
+            ),
+        ],
+    )
+    async def test_staff_duplicate_fields_rejected(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+        existing_kwargs: dict,
+        override: dict,
+        expected_exception: type[Exception],
+    ) -> None:
+        await make_teacher(test_session, **existing_kwargs)
+
+        for field, value in override.items():
+            setattr(valid_staff_payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(
+                test_session, system_admin.id, valid_staff_payload
+            )
+
+    @pytest.mark.parametrize(
+        ("existing_kwargs", "override", "expected_exception"),
+        [
+            (
+                {"username": "taken_username"},
+                {"username": "taken_username"},
+                UsernameAlreadyTakenError,
+            ),
+            (
+                {"phone_number": "+992555111333"},
+                {"phone_number": "+992555111333"},
+                MaxStudentsPerPhoneNumberError,
+            ),
+            (
+                {"email": "taken.student@example.com"},
+                {"email": "taken.student@example.com"},
+                MaxStudentsPerEmailError,
+            ),
+        ],
+    )
+    async def test_student_duplicate_fields_rejected(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_student_payload: CreateStudent,
+        existing_kwargs: dict,
+        override: dict,
+        expected_exception: type[Exception],
+    ) -> None:
+        count = 1 if "username" in existing_kwargs else 3
+
+        for i in range(count):
+            if count == 3:
+                existing_kwargs["username"] = f"existing_student_{i}"
+
+            await make_student(
+                test_session,
+                **existing_kwargs,
+            )
+
+        for field, value in override.items():
+            setattr(valid_student_payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(
+                test_session, system_admin.id, valid_student_payload
+            )
+
+    @pytest.mark.parametrize(
+        ("existing_kwargs", "override", "expected_exception"),
+        [
+            (
+                {"username": "taken_username"},
+                {"username": "taken_username"},
+                UsernameAlreadyTakenError,
+            ),
+            (
+                {"phone_number": "+992555111444"},
+                {"phone_number": "+992555111444"},
+                DuplicatePhoneNumberError,
+            ),
+            (
+                {"email": "taken.guardian@example.com"},
+                {"email": "taken.guardian@example.com"},
+                DuplicateEmailError,
+            ),
+        ],
+    )
+    async def test_guardian_duplicate_fields_rejected(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_new_guardian_payload: CreateGuardianWithNewIdentity,
+        existing_kwargs: dict,
+        override: dict,
+        expected_exception: type[Exception],
+    ) -> None:
+        await make_guardian(test_session, **existing_kwargs)
+
+        for field, value in override.items():
+            setattr(valid_new_guardian_payload, field, value)
+
+        with pytest.raises(expected_exception):
+            await UserService.register_user(
+                test_session, system_admin.id, valid_new_guardian_payload
+            )
