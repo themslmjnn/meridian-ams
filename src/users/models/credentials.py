@@ -23,15 +23,17 @@ class UserCredentials(MutableBase):
 
     password_hash: Mapped[str | None] = mapped_column(nullable=True)
 
+    role: Mapped[UserRole] = mapped_column(Enum(UserRole), nullable=True)
     account_type: Mapped[AccountType] = mapped_column(Enum(AccountType), nullable=False)
 
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus), nullable=False, default=UserStatus.PENDING_ACTIVATION
     )
+    pre_deletion_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
+
     deletion_scheduled_for: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
     )
-    pre_deletion_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
 
     identity: Mapped["UserIdentity"] = relationship(back_populates="credentials")  # type: ignore # noqa: F821
 
