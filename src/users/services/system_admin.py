@@ -51,19 +51,19 @@ class UserService:
         guardian_existing_identity = False
 
         match payload:
-            case schemas.CreateStudent():
+            case schemas.CreateStudent(type="student"):
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
-            case schemas.CreateStaff():
+            case schemas.CreateStaff(type="staff"):
                 resolved_role = payload.role
                 account_type = AccountType.WORK
 
-            case schemas.CreateGuardianWithNewIdentity():
+            case schemas.CreateGuardianWithNewIdentity(type="new_gurdian"):
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
 
-            case schemas.CreateGuardianWithExistingIdentity():
+            case schemas.CreateGuardianWithExistingIdentity(type="existing_guardian"):
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
                 guardian_existing_identity = True
@@ -118,7 +118,6 @@ class UserService:
                     lastname=payload.lastname,
                     middlename=payload.middlename,
                     phone_number=payload.phone_number,
-                    role=resolved_role,
                     date_of_birth=payload.date_of_birth if is_student else None,
                     address=payload.address if is_student else None,
                 )
@@ -132,6 +131,7 @@ class UserService:
                 identity_id=identity_id,
                 username=payload.username,
                 email=payload.email,
+                role=resolved_role,
                 account_type=account_type,
                 status=UserStatus.PENDING_ACTIVATION,
             )
@@ -139,30 +139,27 @@ class UserService:
             session.add(new_user_credentials)
             await session.flush()
 
-            new_user_activation = UserActivation(
-                credentials_id=new_user_credentials.id,
-                activation_token_hash=hashed_activation_token,
-                activation_token_expires_at=activation_token_expires_at,
-            )
-            new_user_login_lockout = UserLoginLockout(
-                credentials_id=new_user_credentials.id
-            )
-
             subject, html_body = emails.build_activation_email(
                 raw_activation_token, payload.username
             )
 
-            new_email = Email(
-                recipient_email=payload.email,
-                subject=subject,
-                body_html=html_body,
-                email_type=EmailType.ACTIVATION,
-                triggered_by=current_user_id,
+            session.add(
+                UserActivation(
+                    credentials_id=new_user_credentials.id,
+                    activation_token_hash=hashed_activation_token,
+                    activation_token_expires_at=activation_token_expires_at,
+                )
             )
-
-            session.add(new_user_activation)
-            session.add(new_user_login_lockout)
-            session.add(new_email)
+            session.add(UserLoginLockout(credentials_id=new_user_credentials.id))
+            session.add(
+                Email(
+                    recipient_email=payload.email,
+                    subject=subject,
+                    html_body=html_body,
+                    email_type=EmailType.ACTIVATION,
+                    triggered_by=current_user_id,
+                )
+            )
 
             await session.commit()
 

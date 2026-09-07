@@ -30,7 +30,7 @@ async def _process_email(session: AsyncSession, record: Email) -> None:
         await send_email(
             subject=record.subject,
             to_email=record.recipient_email,
-            html_body=record.body_html,
+            html_body=record.html_body,
         )
 
         await EmailRepository.mark_sent(record)

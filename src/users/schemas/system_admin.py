@@ -72,7 +72,7 @@ class CreateUserBase(BaseModel):
 
 
 class CreateStudent(CreateUserBase):
-    type: Literal["student"] = "student"
+    type: Literal["student"]
 
     date_of_birth: date
     address: str | None = Field(min_length=15, max_length=100, default=None)
@@ -84,9 +84,9 @@ class CreateStudent(CreateUserBase):
 
 
 class CreateStaff(CreateUserBase):
-    type: Literal["staff"] = "staff"
+    type: Literal["staff"]
 
-    role: Literal[UserRole.DIRECTOR, UserRole.TEACHER] = UserRole.TEACHER
+    role: Literal[UserRole.DIRECTOR, UserRole.TEACHER]
 
     @model_validator(mode="after")
     def _validate_work_email_domain(self) -> "CreateStaff":
@@ -96,11 +96,11 @@ class CreateStaff(CreateUserBase):
 
 
 class CreateGuardianWithNewIdentity(CreateUserBase):
-    type: Literal["new_guardian"] = "new_guardian"
+    type: Literal["new_guardian"]
 
 
 class CreateGuardianWithExistingIdentity(BaseModel):
-    type: Literal["existing_guardian"] = "existing_guardian"
+    type: Literal["existing_guardian"]
 
     existing_identity_id: int = Field(ge=1)
 

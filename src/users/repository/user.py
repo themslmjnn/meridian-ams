@@ -15,10 +15,19 @@ from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.schemas import LoadOptionsSchema
 
+_USER_MAPPED_COLUMNS = [
+    UserIdentity.firstname,
+    UserIdentity.lastname,
+    UserIdentity.middlename,
+    UserIdentity.phone_number,
+    UserCredentials.role,
+]
+
 _USER_MAPPED_COLUMNS_DETAILED = [
     UserCredentials.public_id,
     UserCredentials.username,
     UserCredentials.email,
+    UserCredentials.role,
     UserCredentials.account_type,
     UserCredentials.status,
     UserCredentials.deletion_scheduled_for,
@@ -28,14 +37,9 @@ _USER_MAPPED_COLUMNS_DETAILED = [
     UserIdentity.lastname,
     UserIdentity.middlename,
     UserIdentity.phone_number,
-    UserIdentity.role,
     UserIdentity.date_of_birth,
     UserIdentity.address,
 ]
-
-_BASE_JOIN = select(*_USER_MAPPED_COLUMNS_DETAILED).join(
-    UserIdentity, UserCredentials.identity_id == UserIdentity.id
-)
 
 
 class UserCredentialsRepository:
@@ -95,23 +99,16 @@ class UserCredentialsRepository:
         excluded_roles: frozenset[UserRole] | None = None,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
-        query = (
-            select(UserCredentials)
-            .join(
-                UserIdentity,
-                UserCredentials.identity_id == UserIdentity.id,
-            )
-            .where(UserCredentials.public_id == public_id)
-        )
+        query = select(UserCredentials).where(UserCredentials.public_id == public_id)
 
         if account_type:
             query = query.where(UserCredentials.account_type == account_type)
 
         if allowed_roles:
-            query = query.where(UserIdentity.role.in_(allowed_roles))
+            query = query.where(UserCredentials.role.in_(allowed_roles))
 
         if excluded_roles:
-            query = query.where(UserIdentity.role.not_in(excluded_roles))
+            query = query.where(UserCredentials.role.not_in(excluded_roles))
 
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
@@ -163,6 +160,24 @@ class UserCredentialsRepository:
         result = await session.execute(query)
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def count_credentials(session: AsyncSession, identity_id: int) -> int:
+        """
+        Count how many credentials rows reference this identity.
+        Used by the deletion worker to decide whether to also delete
+        the identity after deleting the guardian's credentials.
+        """
+
+        query = (
+            select(func.count())
+            .select_from(UserCredentials)
+            .where(UserCredentials.identity_id == identity_id)
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one()
 
     @staticmethod
     async def count_by_phone_and_account_type(
@@ -289,24 +304,6 @@ class UserIdentityRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def count_credentials(session: AsyncSession, identity_id: int) -> int:
-        """
-        Count how many credentials rows reference this identity.
-        Used by the deletion worker to decide whether to also delete
-        the identity after deleting the guardian's credentials.
-        """
-
-        query = (
-            select(func.count())
-            .select_from(UserCredentials)
-            .where(UserCredentials.identity_id == identity_id)
-        )
-
-        result = await session.execute(query)
-
-        return result.scalar_one()
-
-    @staticmethod
     async def count_identities(session: AsyncSession, identity_id: int) -> int:
         """
         Count how many credentials rows reference this identity.
@@ -364,26 +361,15 @@ class UserSessionRepository:
             await UserSessionRepository.invalidate_session(user_session)
 
 
-class UserResponseRepository:
-    """
-    Queries that return flat RowMapping results for direct serialisation
-    into response schemas. Kept separate from entity repositories to make
-    the distinction between 'load an ORM object for mutation' and
-    'fetch a flat read projection for a response' explicit.
-    """
-
-    @staticmethod
-    async def get_registered_user_response(
-        session: AsyncSession, public_id: uuid.UUID
-    ) -> RowMapping | None:
-        query = _BASE_JOIN.where(UserCredentials.public_id == public_id)
-
-        result = await session.execute(query)
-
-        return result.mappings().one_or_none()
-
-
 class UserRepositoryBase:
+    @staticmethod
+    def get_base_join(mapped_columns: list) -> Select:
+        query = select(*mapped_columns).join(
+            UserIdentity, UserCredentials.identity_id == UserIdentity.id
+        )
+
+        return query
+
     @staticmethod
     def _apply_filters(
         base_query: Select,
@@ -517,11 +503,12 @@ class UserRepositoryBase:
         Without it, all WORK accounts are returned (SYSTEM_ADMIN excluded —
         system admins are not visible to other admins in list views).
         """
+        base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS)
 
-        query = _BASE_JOIN.where(UserIdentity.role != UserRole.SYSTEM_ADMIN)
+        query = base_join.where(UserCredentials.role != UserRole.SYSTEM_ADMIN)
 
         if allowed_roles is not None:
-            query = query.where(UserIdentity.role.in_(allowed_roles))
+            query = query.where(UserCredentials.role.in_(allowed_roles))
 
         query = UserRepositoryBase._apply_filters(query, filters=filters)
 
@@ -539,13 +526,36 @@ class UserRepositoryBase:
         public_id: uuid.UUID,
         allowed_roles: frozenset[UserRole] | None = None,
     ) -> RowMapping | None:
-        query = _BASE_JOIN.where(
+        base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
+
+        query = base_join.where(
             UserIdentity.role != UserRole.SYSTEM_ADMIN,
             UserCredentials.public_id == public_id,
         )
 
         if allowed_roles is not None:
-            query = query.where(UserIdentity.role.in_(allowed_roles))
+            query = query.where(UserCredentials.role.in_(allowed_roles))
+
+        result = await session.execute(query)
+
+        return result.mappings().one_or_none()
+
+
+class UserResponseRepository:
+    """
+    Queries that return flat RowMapping results for direct serialisation
+    into response schemas. Kept separate from entity repositories to make
+    the distinction between 'load an ORM object for mutation' and
+    'fetch a flat read projection for a response' explicit.
+    """
+
+    @staticmethod
+    async def get_registered_user_response(
+        session: AsyncSession, public_id: uuid.UUID
+    ) -> RowMapping | None:
+        base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
+
+        query = base_join.where(UserCredentials.public_id == public_id)
 
         result = await session.execute(query)
 
