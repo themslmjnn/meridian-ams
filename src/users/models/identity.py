@@ -27,12 +27,6 @@ class UserIdentity(MutableBase):
 
     __table_args__ = (
         Index(
-            "uix_non_student_unique_phone",
-            "phone_number",
-            unique=True,
-            postgresql_where=text("role <> 'STUDENT'"),
-        ),
-        Index(
             "ix_gin_identity_firstname",
             "firstname",
             postgresql_using="gin",
