@@ -25,6 +25,7 @@ from src.users.schemas.system_admin import (
 )
 from src.users.services.system_admin import UserService
 from src.users.utils.enums import UserRole
+from src.users.utils.schemas import LoadOptionsSchema
 from tests.factories import (
     make_director,
     make_guardian,
@@ -255,7 +256,9 @@ async def registered_staff(
     )
 
     return await UserCredentialsRepository.get_by_public_id(
-        test_session, response["public_id"]
+        test_session,
+        response["public_id"],
+        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
     )
 
 
@@ -270,7 +273,9 @@ async def registered_student(
     )
 
     return await UserCredentialsRepository.get_by_public_id(
-        test_session, response["public_id"]
+        test_session,
+        response["public_id"],
+        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
     )
 
 
@@ -285,7 +290,9 @@ async def registered_new_guardian(
     )
 
     return await UserCredentialsRepository.get_by_public_id(
-        test_session, response["public_id"]
+        test_session,
+        response["public_id"],
+        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
     )
 
 
@@ -317,7 +324,9 @@ async def registered_existing_guardian(
     )
 
     return await UserCredentialsRepository.get_by_public_id(
-        test_session, response["public_id"]
+        test_session,
+        response["public_id"],
+        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
     )
 
 

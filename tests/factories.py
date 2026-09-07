@@ -47,7 +47,6 @@ async def make_user(
         if date_of_birth is not None
         else (date(2008, 1, 1) if role == UserRole.STUDENT else None),
         address=address,
-        role=role,
     )
 
     test_session.add(new_user_identity)
@@ -59,6 +58,7 @@ async def make_user(
         username=username or f"user_{n}",
         email=email or f"user_{n}@example.com",
         password_hash=await hash_password(password) if password else None,
+        role=role,
         account_type=account_type,
         status=status,
     )
@@ -66,7 +66,6 @@ async def make_user(
     test_session.add(new_user_credentials)
     await test_session.flush()
 
-    # is_pending = status == UserStatus.PENDING_ACTIVATION
     _, hashed_activation_token = generate_token()
 
     if status == UserStatus.PENDING_ACTIVATION:
@@ -81,13 +80,12 @@ async def make_user(
 
         test_session.add(new_activation)
 
-    new_session = UserSession(credentials_id=new_user_credentials.id)
-    new_login_lockout = UserLoginLockout(
-        credentials_id=new_user_credentials.id,
+    test_session.add(UserSession(credentials_id=new_user_credentials.id))
+    test_session.add(
+        UserLoginLockout(
+            credentials_id=new_user_credentials.id,
+        )
     )
-
-    test_session.add(new_session)
-    test_session.add(new_login_lockout)
 
     await test_session.commit()
     await test_session.refresh(new_user_credentials)
@@ -116,7 +114,9 @@ async def make_teacher(session: AsyncSession, **kwargs) -> UserCredentials:
 async def make_student(session: AsyncSession, **kwargs) -> UserCredentials:
     kwargs.setdefault("date_of_birth", date(2008, 1, 1))
 
-    return await make_user(session, role=UserRole.STUDENT, **kwargs)
+    return await make_user(
+        session, role=UserRole.STUDENT, account_type=AccountType.STUDENT, **kwargs
+    )
 
 
 async def make_guardian(session: AsyncSession, **kwargs) -> UserCredentials:
