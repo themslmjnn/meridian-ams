@@ -32,7 +32,7 @@ from src.users.repository.user import (
 )
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.helpers import check_contact_limit
-from src.users.utils.schemas import LoadOptionsSchema
+from src.users.utils.schemas import LoadOptionsSchema, UpdateUserCredentials
 from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
@@ -202,7 +202,7 @@ class UserService:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
@@ -212,18 +212,18 @@ class UserService:
         )
 
         match payload:
-            case schemas.UpdateStudentProfile():
+            case schemas.UpdateStudentProfile(type="student"):
                 resolved_role = UserRole.STUDENT
                 account_type = AccountType.STUDENT
 
-            case schemas.UpdateStaffOrGuardianProfile():
-                resolved_role = user_identity.role
+            case schemas.UpdateStaffOrGuardianProfile(type="staff_or_guardian"):
+                resolved_role = user_credentials.role
                 account_type = user_credentials.account_type
 
             case _:
                 assert_never(payload)
 
-        is_student = user_identity.role == UserRole.STUDENT
+        is_student = user_credentials.role == UserRole.STUDENT
         is_request_student_shaped = isinstance(payload, schemas.UpdateStudentProfile)
 
         if is_student != is_request_student_shaped:
@@ -248,7 +248,6 @@ class UserService:
             session,
             phone_number=phone_number,
             email=None,
-            is_student=is_student,
         )
 
         await check_contact_limit(
@@ -309,23 +308,22 @@ class UserService:
         redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
-        payload: schemas.UpdateUserCredentials,
+        payload: UpdateUserCredentials,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
                 load_activation=True,
                 load_email_change=True,
-                load_identity=True,
             ),
         )
         if user_credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        is_student = user_credentials.identity.role == UserRole.STUDENT
+        is_student = user_credentials.role == UserRole.STUDENT
         is_email_changing = (
             payload.email is not None and payload.email != user_credentials.email
         )
@@ -341,7 +339,6 @@ class UserService:
             session,
             phone_number=None,
             email=email,
-            is_student=is_student,
         )
 
         await check_contact_limit(
@@ -350,7 +347,7 @@ class UserService:
             username=user_credentials.username,
             phone_number=None,
             email=email,
-            resolved_role=user_credentials.identity.role,
+            resolved_role=user_credentials.role,
             account_type=account_type,
             exclude_credentials_id=user_credentials.id,
         )
@@ -394,15 +391,15 @@ class UserService:
                     raw_activation_token, user_credentials.username
                 )
 
-                new_pending_email = Email(
-                    recipient_email=user_credentials.email,
-                    subject=subject,
-                    body_html=html_body,
-                    email_type=EmailType.ACTIVATION,
-                    triggered_by=current_user_id,
+                session.add(
+                    Email(
+                        recipient_email=user_credentials.email,
+                        subject=subject,
+                        body_html=html_body,
+                        email_type=EmailType.ACTIVATION,
+                        triggered_by=current_user_id,
+                    )
                 )
-
-                session.add(new_pending_email)
 
             username_changed = old_username != user_credentials.username
             email_changed = old_email != user_credentials.email
@@ -416,7 +413,7 @@ class UserService:
                 notify_new_email = user_credentials.email if email_changed else None
 
                 subject, html_body = (
-                    emails.build__credentials_override_notification_email(
+                    emails.build_admin_credentials_override_notification_email(
                         notify_old_username,
                         notify_new_username,
                         notify_old_email,
@@ -424,15 +421,15 @@ class UserService:
                     )
                 )
 
-                new_email = Email(
-                    recipient_email=old_email,
-                    subject=subject,
-                    body_html=html_body,
-                    email_type=EmailType._CREDENTIALS_OVERRIDE,
-                    triggered_by=current_user_id,
+                session.add(
+                    Email(
+                        recipient_email=old_email,
+                        subject=subject,
+                        body_html=html_body,
+                        email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE_CREDENTIALS_OVERRIDE,
+                        triggered_by=current_user_id,
+                    )
                 )
-
-                session.add(new_email)
 
             session_ids = [s.id for s in user_credentials.sessions]
 
@@ -441,7 +438,7 @@ class UserService:
             await delete_cache(
                 redis,
                 *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
-                UserCacheKey.user_detail_key_(public_id),
+                UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
             )
@@ -479,7 +476,7 @@ class UserService:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if user_credentials is None:
@@ -515,8 +512,11 @@ class UserService:
 
         await delete_cache(
             redis,
-            *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
-            UserCacheKey.user_detail_key_(public_id),
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
+            UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
@@ -573,7 +573,7 @@ class UserService:
 
         await delete_cache(
             redis,
-            UserCacheKey.user_detail_key_(public_id),
+            UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_staff(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
@@ -624,15 +624,15 @@ class UserService:
 
         subject, html_body = emails.build_reset_password_email(raw_reset_token)
 
-        new_email = Email(
-            recipient_email=user_credentials.email,
-            subject=subject,
-            body_html=html_body,
-            email_type=EmailType.PASSWORD_RESET_,
-            triggered_by=current_user_id,
+        session.add(
+            Email(
+                recipient_email=user_credentials.email,
+                subject=subject,
+                body_html=html_body,
+                email_type=EmailType.PASSWORD_RESET_ADMIN,
+                triggered_by=current_user_id,
+            )
         )
-
-        session.add(new_email)
         await session.commit()
 
         logger.info(
@@ -689,15 +689,15 @@ class UserService:
             raw_activation_token, user_credentials.username
         )
 
-        new_email = Email(
-            recipient_email=user_credentials.email,
-            subject=subject,
-            body_html=html_body,
-            email_type=EmailType.ACTIVATION,
-            triggered_by=current_user_id,
+        session.add(
+            Email(
+                recipient_email=user_credentials.email,
+                subject=subject,
+                body_html=html_body,
+                email_type=EmailType.ACTIVATION,
+                triggered_by=current_user_id,
+            )
         )
-
-        session.add(new_email)
         await session.commit()
 
         logger.info(
@@ -747,9 +747,9 @@ class UserService:
         user_credentials.status = UserStatus.PENDING_DELETION
         user_credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        await UserSessionRepository.invalidate_all_sessions(
-            session, user_credentials.sessions
-        )
+        session_ids = [s.id for s in user_credentials.sessions]
+
+        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
 
         await session.commit()
 
@@ -762,8 +762,11 @@ class UserService:
 
         await delete_cache(
             redis,
-            SessionCacheKey.access_token_version_key(public_id),
-            UserCacheKey.user_detail_key_(public_id),
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
+            UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
 
@@ -791,7 +794,6 @@ class UserService:
         user_email = user_credentials.email
 
         if user_credentials.status != UserStatus.PENDING_DELETION:
-            print(user_credentials.status)
             raise exceptions.GuardianNotPendingDeletionError()
 
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
@@ -821,7 +823,7 @@ class UserService:
 
         await delete_cache(
             redis,
-            UserCacheKey.user_detail_key_(public_id),
+            UserCacheKey.user_detail_key_admin(public_id),
             UserCacheKey.user_detail_key_self(public_id),
         )
 
@@ -860,7 +862,7 @@ class UserService:
     async def get_staff_by_public_id(
         session: AsyncSession, redis: Redis, public_id: uuid.UUID
     ) -> schemas.UserResponseDetailed:
-        cache_key = UserCacheKey.user_detail_key_(public_id)
+        cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
         cached_data = await get_cache(redis, cache_key)
 
@@ -908,7 +910,7 @@ class UserService:
     async def get_guardian_by_public_id(
         session: AsyncSession, redis: Redis, public_id: uuid.UUID
     ) -> schemas.UserResponseDetailed:
-        cache_key = UserCacheKey.user_detail_key_(public_id)
+        cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
         cached_data = await get_cache(redis, cache_key)
 

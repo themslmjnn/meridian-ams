@@ -72,7 +72,7 @@ async def update_user_credentials(
     public_id: uuid.UUID,
     payload: UpdateUserCredentials,
 ):
-    await UserServiceAdmin.update_user_credentials(
+    await UserService.update_user_credentials(
         session, redis, current_user.credentials_id, public_id, payload
     )
 
@@ -86,7 +86,7 @@ async def deactivate_user(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.deactivate_user(
+    await UserService.deactivate_user(
         session, redis, current_user.credentials_id, public_id
     )
 
@@ -100,7 +100,7 @@ async def activate_user(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.activate_user(
+    await UserService.activate_user(
         session, redis, current_user.credentials_id, public_id
     )
 
@@ -113,7 +113,7 @@ async def create_reset_password_request(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.create_reset_password_request(
+    await UserService.create_reset_password_request(
         session, current_user.credentials_id, public_id
     )
 
@@ -129,7 +129,7 @@ async def resend_activation_invite(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.resend_activation_invite(
+    await UserService.resend_activation_invite(
         session, current_user.credentials_id, public_id
     )
 
@@ -146,7 +146,7 @@ async def create_guardian_deletion_request(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.create_guardian_deletion_request(
+    await UserService.create_guardian_deletion_request(
         session, redis, current_user.credentials_id, public_id
     )
 
@@ -163,7 +163,7 @@ async def cancel_guardian_deletion_request(
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    await UserServiceAdmin.cancel_guardian_deletion_request(
+    await UserService.cancel_guardian_deletion_request(
         session, redis, current_user.credentials_id, public_id
     )
 
@@ -173,6 +173,7 @@ async def cancel_guardian_deletion_request(
     response_model=CursorPage[UserResponseBase],
     status_code=status.HTTP_200_OK,
 )
+@user_limiter.limit("30/minute")
 async def get_staff(
     session: session_dependency,
     _current_user: require_system_admin,
@@ -181,7 +182,7 @@ async def get_staff(
     next_cursor: str | None = Query(default=None),
     prev_cursor: str | None = Query(default=None),
 ):
-    return await UserServiceAdmin.get_staff(
+    return await UserService.get_staff(
         session,
         filters=filters,
         limit=limit,
@@ -195,13 +196,14 @@ async def get_staff(
     response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
+@user_limiter.limit("30/minute")
 async def get_staff_by_public_id(
     session: session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_staff_by_public_id(session, redis, public_id)
+    return await UserService.get_staff_by_public_id(session, redis, public_id)
 
 
 @router.get(
@@ -209,6 +211,7 @@ async def get_staff_by_public_id(
     response_model=CursorPage[UserResponseBase],
     status_code=status.HTTP_200_OK,
 )
+@user_limiter.limit("30/minute")
 async def get_guardians(
     session: session_dependency,
     _current_user: require_system_admin,
@@ -217,7 +220,7 @@ async def get_guardians(
     next_cursor: str | None = Query(default=None),
     prev_cursor: str | None = Query(default=None),
 ):
-    return await UserServiceAdmin.get_guardians(
+    return await UserService.get_guardians(
         session,
         filters=filters,
         limit=limit,
@@ -231,10 +234,11 @@ async def get_guardians(
     response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
+@user_limiter.limit("30/minute")
 async def get_guardian_by_public_id(
     session: session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserServiceAdmin.get_guardian_by_public_id(session, redis, public_id)
+    return await UserService.get_guardian_by_public_id(session, redis, public_id)

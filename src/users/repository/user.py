@@ -80,7 +80,7 @@ class UserCredentialsRepository:
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.id == credentials_id)
 
-        if account_type:
+        if account_type is not None:
             query = query.where(UserCredentials.account_type == account_type)
 
         query = UserCredentialsRepository._build_load_options(query, load_options)
@@ -101,13 +101,13 @@ class UserCredentialsRepository:
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.public_id == public_id)
 
-        if account_type:
+        if account_type is not None:
             query = query.where(UserCredentials.account_type == account_type)
 
-        if allowed_roles:
+        if allowed_roles is not None:
             query = query.where(UserCredentials.role.in_(allowed_roles))
 
-        if excluded_roles:
+        if excluded_roles is not None:
             query = query.where(UserCredentials.role.not_in(excluded_roles))
 
         query = UserCredentialsRepository._build_load_options(query, load_options)

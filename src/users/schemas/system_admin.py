@@ -168,11 +168,11 @@ class UpdateProfileBase(BaseModel):
 
 
 class UpdateStaffOrGuardianProfile(UpdateProfileBase):
-    type: Literal["staff_or_guardian"] = "staff_or_guardian"
+    type: Literal["staff_or_guardian"]
 
 
 class UpdateStudentProfile(UpdateProfileBase):
-    type: Literal["student"] = "student"
+    type: Literal["student"]
 
     date_of_birth: date | None = None
     address: str | None = Field(min_length=15, max_length=100, default=None)
