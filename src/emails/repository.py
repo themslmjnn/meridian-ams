@@ -103,9 +103,11 @@ class EmailRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_by_triggered_by(session: AsyncSession, credentials_id: int) -> Email | None:
+    async def get_by_triggered_by(
+        session: AsyncSession, credentials_id: int
+    ) -> list[Email]:
         query = select(Email).where(Email.triggered_by == credentials_id)
 
         result = await session.execute(query)
 
-        return result.scalar_one_or_none()
+        return result.scalars().all()
