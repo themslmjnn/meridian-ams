@@ -443,3 +443,8 @@ def mock_send_account_info_self_updated_email(mocker):
     return mocker.patch(
         "src.users.services.guardian.emails.send_account_info_updated_email"
     )
+
+
+@pytest.fixture
+def credentials(request: pytest.FixtureRequest):
+    return request.getfixturevalue(request.param)

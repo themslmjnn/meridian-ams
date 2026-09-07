@@ -2,8 +2,10 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import AppException
+from src.emails.repository import EmailRepository
+from src.emails.utils.enums import EmailType
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserIdentityRepository
+from src.users.repository.user import UserCredentialsRepository, UserIdentityRepository
 from src.users.schemas.system_admin import (
     CreateGuardianWithExistingIdentity,
     CreateGuardianWithNewIdentity,
@@ -11,6 +13,7 @@ from src.users.schemas.system_admin import (
     CreateStudent,
 )
 from src.users.services.system_admin import UserService
+from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.exceptions import (
     DuplicateEmailError,
     DuplicatePhoneNumberError,
@@ -20,7 +23,6 @@ from src.users.utils.exceptions import (
     MaxStudentsPerPhoneNumberError,
     UsernameAlreadyTakenError,
 )
-from tests.conftest import valid_new_guardian_payload, valid_staff_payload
 from tests.factories import make_guardian, make_student, make_teacher
 
 
@@ -305,9 +307,9 @@ class TestDBConstraints:
             (
                 make_teacher,
                 "valid_staff_payload",
-                {"phone_number": "+992555111444"},
-                {"phone_number": "+992555111444"},
-                DuplicatePhoneNumberError,
+                {"username": "test_staff"},
+                {"username": "test_staff"},
+                UsernameAlreadyTakenError,
             ),
             (
                 make_teacher,
@@ -319,9 +321,9 @@ class TestDBConstraints:
             (
                 make_guardian,
                 "valid_new_guardian_payload",
-                {"phone_number": "+992555111555"},
-                {"phone_number": "+992555111555"},
-                DuplicatePhoneNumberError,
+                {"username": "test_guardian"},
+                {"username": "test_guardian"},
+                UsernameAlreadyTakenError,
             ),
             (
                 make_guardian,
@@ -387,7 +389,7 @@ class TestExistingIdentityGuardian:
         test_session: AsyncSession,
         registered_existing_guardian: UserCredentials,
     ) -> None:
-        credentials_rows = await UserIdentityRepository.count_credentials(
+        credentials_rows = await UserCredentialsRepository.count_credentials(
             test_session, registered_existing_guardian.identity_id
         )
 
@@ -430,3 +432,118 @@ class TestExistingIdentityGuardian:
             await UserService.register_user(
                 test_session, system_admin.id, second_payload
             )
+
+
+class TestActivationRow:
+    @pytest.mark.parametrize(
+        "credentials",
+        ["registered_staff", "registered_student", "registered_new_guardian"],
+        indirect=True,
+    )
+    async def test_activation_row_created(self, credentials: str) -> None:
+        user_activation = credentials.activation
+
+        assert user_activation is not None
+        assert user_activation.credentials_id == credentials.id
+        assert user_activation.activation_token_hash is not None
+        assert user_activation.activation_token_expires_at is not None
+
+
+class TestLoginLockoutRow:
+    @pytest.mark.parametrize(
+        "credentials",
+        ["registered_staff", "registered_student", "registered_new_guardian"],
+        indirect=True,
+    )
+    async def test_lockout_row_created(self, credentials: str) -> None:
+        user_login_lockout = credentials.login_lockout
+
+        assert user_login_lockout is not None
+        assert user_login_lockout.credentials_id == credentials.id
+        assert user_login_lockout.failed_attempts == 0
+        assert user_login_lockout.locked_until is None
+
+
+class TestEmailRow:
+    @pytest.mark.parametrize(
+        "credentials",
+        ["registered_staff", "registered_student", "registered_new_guardian"],
+        indirect=True,
+    )
+    async def test_activation_email_queued(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        credentials: str,
+    ) -> None:
+
+        emails = await EmailRepository.get_by_triggered_by(
+            test_session, system_admin.id
+        )
+
+        assert len(emails) == 1
+        assert emails[0].recipient_email == credentials.email
+        assert emails[0].email_type == EmailType.ACTIVATION
+        assert emails[0].triggered_by == system_admin.id
+
+
+class TestSuccessShape:
+    @pytest.mark.parametrize(
+        ("payload_fixture", "expected_role", "expected_account_type"),
+        [
+            ("valid_staff_payload", UserRole.TEACHER, AccountType.WORK),
+            ("valid_student_payload", UserRole.STUDENT, AccountType.STUDENT),
+            ("valid_new_guardian_payload", UserRole.GUARDIAN, AccountType.PERSONAL),
+        ],
+    )
+    async def test_response_shape(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        payload_fixture: str,
+        expected_role: UserRole,
+        expected_account_type: AccountType,
+        request: pytest.FixtureRequest,
+    ) -> None:
+        payload = request.getfixturevalue(payload_fixture)
+
+        response = await UserService.register_user(
+            test_session, system_admin.id, payload
+        )
+
+        assert response["public_id"] is not None
+        assert response["username"] == payload.username
+        assert response["email"] == payload.email
+        assert response["role"] == expected_role
+        assert response["account_type"] == expected_account_type
+        assert response["status"] == UserStatus.PENDING_ACTIVATION
+        assert response["firstname"] == payload.firstname
+        assert response["lastname"] == payload.lastname
+        assert response["deletion_scheduled_for"] is None
+        assert response["created_at"] is not None
+        assert response["updated_at"] is not None
+
+    async def test_existing_guardian_response_includes_identity_fields(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        existing_identity: UserCredentials,
+        valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
+    ) -> None:
+        response = await UserService.register_user(
+            test_session, system_admin.id, valid_existing_guardian_payload
+        )
+
+        user_identity = await UserIdentityRepository.get_by_id(
+            test_session, existing_identity.id
+        )
+
+        assert response["public_id"] is not None
+        assert response["username"] == valid_existing_guardian_payload.username
+        assert response["email"] == valid_existing_guardian_payload.email
+        assert response["role"] == UserRole.GUARDIAN
+        assert response["account_type"] == AccountType.PERSONAL
+        assert response["status"] == UserStatus.PENDING_ACTIVATION
+        assert response["firstname"] == user_identity.firstname
+        assert response["lastname"] == user_identity.lastname
+        assert response["phone_number"] == user_identity.phone_number

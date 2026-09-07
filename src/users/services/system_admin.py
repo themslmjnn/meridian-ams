@@ -59,7 +59,7 @@ class UserService:
                 resolved_role = payload.role
                 account_type = AccountType.WORK
 
-            case schemas.CreateGuardianWithNewIdentity(type="new_gurdian"):
+            case schemas.CreateGuardianWithNewIdentity(type="new_guardian"):
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
 
