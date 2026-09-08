@@ -18,7 +18,7 @@ from src.users.schemas.system_admin import (
     UserResponseDetailed,
 )
 from src.users.services.system_admin import UserService
-from src.users.utils.schemas import UpdateUserCredentials
+from src.users.utils.schemas import UpdateCredentials
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
@@ -64,15 +64,15 @@ async def update_profile(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 @user_limiter.limit("5/minute")
-async def update_user_credentials(
+async def update_credentials(
     request: Request,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
-    payload: UpdateUserCredentials,
+    payload: UpdateCredentials,
 ):
-    await UserService.update_user_credentials(
+    await UserService.update_credentials(
         session, redis, current_user.credentials_id, public_id, payload
     )
 
@@ -175,6 +175,7 @@ async def cancel_guardian_deletion_request(
 )
 @user_limiter.limit("30/minute")
 async def get_staff(
+    request: Request,
     session: session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
@@ -198,6 +199,7 @@ async def get_staff(
 )
 @user_limiter.limit("30/minute")
 async def get_staff_by_public_id(
+    request: Request,
     session: session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
@@ -213,6 +215,7 @@ async def get_staff_by_public_id(
 )
 @user_limiter.limit("30/minute")
 async def get_guardians(
+    request: Request,
     session: session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
@@ -236,6 +239,7 @@ async def get_guardians(
 )
 @user_limiter.limit("30/minute")
 async def get_guardian_by_public_id(
+    request: Request,
     session: session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,

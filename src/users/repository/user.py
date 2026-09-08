@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
 from src.core.pagination import CursorPage, decode_cursor, encode_cursor
+from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
+from src.users.models.email_change import UserEmailChange
 from src.users.models.identity import UserIdentity
 from src.users.models.session import UserSession
 from src.users.schemas.system_admin import SearchUserBase
@@ -320,6 +322,34 @@ class UserIdentityRepository:
         result = await session.execute(query)
 
         return result.scalar_one()
+
+
+class UserActivationRepository:
+    @staticmethod
+    async def get_by_id(
+        session: AsyncSession, credentials_id: int
+    ) -> UserIdentity | None:
+        query = select(UserActivation).where(
+            UserActivation.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+
+class UserEmailChangeRepository:
+    @staticmethod
+    async def get_by_id(
+        session: AsyncSession, credentials_id: int
+    ) -> UserIdentity | None:
+        query = select(UserEmailChange).where(
+            UserEmailChange.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
 
 
 class UserSessionRepository:

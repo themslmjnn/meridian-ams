@@ -32,7 +32,10 @@ from src.users.repository.user import (
 )
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.helpers import check_contact_limit
-from src.users.utils.schemas import LoadOptionsSchema, UpdateUserCredentials
+from src.users.utils.schemas import (
+    LoadOptionsSchema,
+    UpdateCredentials,
+)
 from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
@@ -308,7 +311,7 @@ class UserService:
         redis: Redis,
         current_user_id: int,
         public_id: uuid.UUID,
-        payload: UpdateUserCredentials,
+        payload: UpdateCredentials,
     ) -> None:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
@@ -392,7 +395,7 @@ class UserService:
                     Email(
                         recipient_email=user_credentials.email,
                         subject=subject,
-                        body_html=html_body,
+                        html_body=html_body,
                         email_type=EmailType.ACTIVATION,
                         triggered_by=current_user_id,
                     )
@@ -422,7 +425,7 @@ class UserService:
                     Email(
                         recipient_email=old_email,
                         subject=subject,
-                        body_html=html_body,
+                        html_body=html_body,
                         email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
                         triggered_by=current_user_id,
                     )

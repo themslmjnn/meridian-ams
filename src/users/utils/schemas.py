@@ -28,7 +28,7 @@ class UserResponseBase(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class UpdateUserCredentials(BaseModel):
+class UpdateCredentials(BaseModel):
     username: str | None = Field(min_length=6, max_length=20, default=None)
     email: str | None = None
 
@@ -49,7 +49,7 @@ class UpdateUserCredentials(BaseModel):
         return validators.validate_email(v)
 
     @model_validator(mode="after")
-    def _validate_at_least_one_field(self) -> "UpdateUserCredentials":
+    def _validate_at_least_one_field(self) -> "UpdateCredentials":
         if self.username is None and self.email is None:
             raise ValueError("At least one of username or email must be provided.")
 
