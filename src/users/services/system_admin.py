@@ -502,9 +502,9 @@ class UserService:
         user_credentials.pre_deletion_status = user_credentials.status
         user_credentials.status = UserStatus.DEACTIVATED
 
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
-
         session_ids = [s.id for s in user_credentials.sessions]
+
+        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
 
         await session.commit()
 
