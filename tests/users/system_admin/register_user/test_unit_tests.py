@@ -435,90 +435,179 @@ class TestExistingIdentityGuardian:
 
 
 class TestActivationRow:
-    @pytest.mark.parametrize(
-        "credentials",
-        ["registered_staff", "registered_student", "registered_new_guardian"],
-        indirect=True,
-    )
-    async def test_activation_row_created(self, credentials: str) -> None:
-        user_activation = credentials.activation
+    async def test_staff_activation_row_created(
+        self, registered_staff: UserCredentials
+    ) -> None:
+        activation = registered_staff.activation
 
-        assert user_activation is not None
-        assert user_activation.credentials_id == credentials.id
-        assert user_activation.activation_token_hash is not None
-        assert user_activation.activation_token_expires_at is not None
+        assert activation is not None
+        assert activation.credentials_id == registered_staff.id
+        assert activation.activation_token_hash is not None
+        assert activation.activation_token_expires_at is not None
+
+    async def test_student_activation_row_created(
+        self, registered_student: UserCredentials
+    ) -> None:
+        activation = registered_student.activation
+
+        assert activation is not None
+        assert activation.credentials_id == registered_student.id
+        assert activation.activation_token_hash is not None
+        assert activation.activation_token_expires_at is not None
+
+    async def test_new_guardian_activation_row_created(
+        self, registered_new_guardian: UserCredentials
+    ) -> None:
+        activation = registered_new_guardian.activation
+
+        assert activation is not None
+        assert activation.credentials_id == registered_new_guardian.id
+        assert activation.activation_token_hash is not None
+        assert activation.activation_token_expires_at is not None
 
 
 class TestLoginLockoutRow:
-    @pytest.mark.parametrize(
-        "credentials",
-        ["registered_staff", "registered_student", "registered_new_guardian"],
-        indirect=True,
-    )
-    async def test_lockout_row_created(self, credentials: str) -> None:
-        user_login_lockout = credentials.login_lockout
+    async def test_staff_lockout_row_created(
+        self, registered_staff: UserCredentials
+    ) -> None:
+        lockout = registered_staff.login_lockout
 
-        assert user_login_lockout is not None
-        assert user_login_lockout.credentials_id == credentials.id
-        assert user_login_lockout.failed_attempts == 0
-        assert user_login_lockout.locked_until is None
+        assert lockout is not None
+        assert lockout.credentials_id == registered_staff.id
+        assert lockout.failed_attempts == 0
+        assert lockout.locked_until is None
+
+    async def test_student_lockout_row_created(
+        self, registered_student: UserCredentials
+    ) -> None:
+        lockout = registered_student.login_lockout
+
+        assert lockout is not None
+        assert lockout.credentials_id == registered_student.id
+        assert lockout.failed_attempts == 0
+        assert lockout.locked_until is None
+
+    async def test_new_guardian_lockout_row_created(
+        self, registered_new_guardian: UserCredentials
+    ) -> None:
+        lockout = registered_new_guardian.login_lockout
+
+        assert lockout is not None
+        assert lockout.credentials_id == registered_new_guardian.id
+        assert lockout.failed_attempts == 0
+        assert lockout.locked_until is None
 
 
 class TestEmailRow:
-    @pytest.mark.parametrize(
-        "credentials",
-        ["registered_staff", "registered_student", "registered_new_guardian"],
-        indirect=True,
-    )
-    async def test_activation_email_queued(
+    async def test_staff_activation_email_queued(
         self,
         test_session: AsyncSession,
         system_admin: UserCredentials,
-        credentials: str,
+        registered_staff: UserCredentials,
     ) -> None:
-
         emails = await EmailRepository.get_by_triggered_by(
             test_session, system_admin.id
         )
 
         assert len(emails) == 1
-        assert emails[0].recipient_email == credentials.email
+        assert emails[0].recipient_email == registered_staff.email
+        assert emails[0].email_type == EmailType.ACTIVATION
+        assert emails[0].triggered_by == system_admin.id
+
+    async def test_student_activation_email_queued(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        registered_student: UserCredentials,
+    ) -> None:
+        emails = await EmailRepository.get_by_triggered_by(
+            test_session, system_admin.id
+        )
+
+        assert len(emails) == 1
+        assert emails[0].recipient_email == registered_student.email
+        assert emails[0].email_type == EmailType.ACTIVATION
+        assert emails[0].triggered_by == system_admin.id
+
+    async def test_new_guardian_activation_email_queued(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        registered_new_guardian: UserCredentials,
+    ) -> None:
+        emails = await EmailRepository.get_by_triggered_by(
+            test_session, system_admin.id
+        )
+
+        assert len(emails) == 1
+        assert emails[0].recipient_email == registered_new_guardian.email
         assert emails[0].email_type == EmailType.ACTIVATION
         assert emails[0].triggered_by == system_admin.id
 
 
 class TestSuccessShape:
-    @pytest.mark.parametrize(
-        ("payload_fixture", "expected_role", "expected_account_type"),
-        [
-            ("valid_staff_payload", UserRole.TEACHER, AccountType.WORK),
-            ("valid_student_payload", UserRole.STUDENT, AccountType.STUDENT),
-            ("valid_new_guardian_payload", UserRole.GUARDIAN, AccountType.PERSONAL),
-        ],
-    )
-    async def test_response_shape(
+    async def test_staff_response_shape(
         self,
         test_session: AsyncSession,
         system_admin: UserCredentials,
-        payload_fixture: str,
-        expected_role: UserRole,
-        expected_account_type: AccountType,
-        request: pytest.FixtureRequest,
+        valid_staff_payload: CreateStaff,
     ) -> None:
-        payload = request.getfixturevalue(payload_fixture)
-
         response = await UserService.register_user(
-            test_session, system_admin.id, payload
+            test_session, system_admin.id, valid_staff_payload
         )
 
         assert response["public_id"] is not None
-        assert response["username"] == payload.username
-        assert response["email"] == payload.email
-        assert response["role"] == expected_role
-        assert response["account_type"] == expected_account_type
+        assert response["username"] == valid_staff_payload.username
+        assert response["email"] == valid_staff_payload.email
+        assert response["role"] == UserRole.TEACHER
+        assert response["account_type"] == AccountType.WORK
         assert response["status"] == UserStatus.PENDING_ACTIVATION
-        assert response["firstname"] == payload.firstname
-        assert response["lastname"] == payload.lastname
+        assert response["firstname"] == valid_staff_payload.firstname
+        assert response["lastname"] == valid_staff_payload.lastname
+        assert response["deletion_scheduled_for"] is None
+        assert response["created_at"] is not None
+        assert response["updated_at"] is not None
+
+    async def test_student_response_shape(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_student_payload: CreateStudent,
+    ) -> None:
+        response = await UserService.register_user(
+            test_session, system_admin.id, valid_student_payload
+        )
+
+        assert response["public_id"] is not None
+        assert response["username"] == valid_student_payload.username
+        assert response["email"] == valid_student_payload.email
+        assert response["role"] == UserRole.STUDENT
+        assert response["account_type"] == AccountType.STUDENT
+        assert response["status"] == UserStatus.PENDING_ACTIVATION
+        assert response["firstname"] == valid_student_payload.firstname
+        assert response["lastname"] == valid_student_payload.lastname
+        assert response["deletion_scheduled_for"] is None
+        assert response["created_at"] is not None
+        assert response["updated_at"] is not None
+
+    async def test_new_guardian_response_shape(
+        self,
+        test_session: AsyncSession,
+        system_admin: UserCredentials,
+        valid_new_guardian_payload: CreateGuardianWithNewIdentity,
+    ) -> None:
+        response = await UserService.register_user(
+            test_session, system_admin.id, valid_new_guardian_payload
+        )
+
+        assert response["public_id"] is not None
+        assert response["username"] == valid_new_guardian_payload.username
+        assert response["email"] == valid_new_guardian_payload.email
+        assert response["role"] == UserRole.GUARDIAN
+        assert response["account_type"] == AccountType.PERSONAL
+        assert response["status"] == UserStatus.PENDING_ACTIVATION
+        assert response["firstname"] == valid_new_guardian_payload.firstname
+        assert response["lastname"] == valid_new_guardian_payload.lastname
         assert response["deletion_scheduled_for"] is None
         assert response["created_at"] is not None
         assert response["updated_at"] is not None
@@ -535,7 +624,7 @@ class TestSuccessShape:
         )
 
         user_identity = await UserIdentityRepository.get_by_id(
-            test_session, existing_identity.id
+            test_session, existing_identity.identity_id
         )
 
         assert response["public_id"] is not None
