@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock
 import pytest
 import pytest_asyncio
 import redis.asyncio as aioredis
-from fastapi import Request
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -164,7 +163,7 @@ def redis_health_mock(mocker):
 
 
 async def make_auth_header(
-    request: Request, session: AsyncSession, user_credentials: UserCredentials
+    session: AsyncSession, user_credentials: UserCredentials
 ) -> dict:
     user_session = await UserSessionRepository.get_by_credentials_id(
         session, user_credentials.id
@@ -172,11 +171,11 @@ async def make_auth_header(
 
     token = create_access_token(
         CreateAccessToken(
-            sub=user_credentials.public_id,
+            public_id=user_credentials.public_id,
             role=user_credentials.role,
             account_type=user_credentials.account_type,
-            session_id=user_credentials.id,
-            atv=user_session.access_token_version,
+            session_id=user_session.id,
+            access_token_version=user_session.access_token_version,
         )
     )
 
