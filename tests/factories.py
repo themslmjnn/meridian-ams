@@ -39,9 +39,9 @@ async def make_user(
     n = _next()
 
     new_user_identity = UserIdentity(
-        firstname=firstname or "testname",
-        lastname=lastname or "testsurname",
-        middlename=middlename,
+        firstname=firstname.capitalize() if firstname is not None else "Testname",
+        lastname=lastname.capitalize() if lastname is not None else "Testsurname",
+        middlename=middlename.capitalize() if middlename is not None else middlename,
         phone_number=phone_number or f"+992917{n:06d}",
         date_of_birth=date_of_birth
         if date_of_birth is not None

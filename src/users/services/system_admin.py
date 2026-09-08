@@ -230,7 +230,7 @@ class UserService:
             logger.warning(
                 "update_payload_mismatch",
                 public_id=public_id,
-                user_role=user_identity.role.value,
+                user_role=user_credentials.role.value,
                 submitted_type=payload.type,
                 actor_user_id=current_user_id,
             )
@@ -303,7 +303,7 @@ class UserService:
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
-    async def update_user_credentials(
+    async def update_credentials(
         session: AsyncSession,
         redis: Redis,
         current_user_id: int,
@@ -335,32 +335,29 @@ class UserService:
 
         email = payload.email if is_email_changing else None
 
-        await acquire_contact_locks(
-            session,
-            phone_number=None,
-            email=email,
-        )
+        if email:
+            await acquire_contact_locks(
+                session,
+                phone_number=None,
+                email=email,
+            )
 
-        await check_contact_limit(
-            session,
-            current_user_id,
-            username=user_credentials.username,
-            phone_number=None,
-            email=email,
-            resolved_role=user_credentials.role,
-            account_type=account_type,
-            exclude_credentials_id=user_credentials.id,
-        )
+            await check_contact_limit(
+                session,
+                current_user_id,
+                username=user_credentials.username,
+                phone_number=None,
+                email=email,
+                resolved_role=user_credentials.role,
+                account_type=account_type,
+                exclude_credentials_id=user_credentials.id,
+            )
 
         try:
             old_email = user_credentials.email
             old_username = user_credentials.username
 
             update_object(user_credentials, payload)
-
-            await UserSessionRepository.invalidate_all_sessions(
-                user_credentials.sessions
-            )
 
             if user_credentials.email_change is not None:
                 await session.delete(user_credentials.email_change)
@@ -426,12 +423,16 @@ class UserService:
                         recipient_email=old_email,
                         subject=subject,
                         body_html=html_body,
-                        email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE_CREDENTIALS_OVERRIDE,
+                        email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
                         triggered_by=current_user_id,
                     )
                 )
 
             session_ids = [s.id for s in user_credentials.sessions]
+
+            await UserSessionRepository.invalidate_all_sessions(
+                user_credentials.sessions
+            )
 
             await session.commit()
 
@@ -495,6 +496,7 @@ class UserService:
         if user_credentials.status != UserStatus.ACTIVE:
             raise exceptions.InvalidStatusTransitionError()
 
+        user_credentials.pre_deletion_status = user_credentials.status
         user_credentials.status = UserStatus.DEACTIVATED
 
         await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
@@ -537,7 +539,7 @@ class UserService:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_login_lockout=True),
         )
         if user_credentials is None:
@@ -556,7 +558,7 @@ class UserService:
         if user_credentials.status != UserStatus.DEACTIVATED:
             raise exceptions.InvalidStatusTransitionError()
 
-        user_credentials.status = UserStatus.ACTIVE
+        user_credentials.status = user_credentials.pre_deletion_status
 
         if user_credentials.login_lockout is not None:
             user_credentials.login_lockout.failed_attempts = 0
@@ -593,7 +595,7 @@ class UserService:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
         if user_credentials is None:
@@ -650,7 +652,7 @@ class UserService:
         user_credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
-            excluded_roles=constants.SYSTEM__ROLE,
+            excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_activation=True),
         )
         if user_credentials is None:
