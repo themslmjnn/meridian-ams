@@ -127,5 +127,17 @@ class IdempotencyConflict(AppException):
     error_code = "IDEMPOTENCY_CONFLICT"
 
 
+class IdempotencyRequestInProgress(AppException):
+    status_code = 409
+    detail = "A request with this key is currently being processed."
+    error_code = "IDEMPOTENCY_REQUEST_IN_PROGRESS"
+
+
+class IdempotencyPayloadMismatch(AppException):
+    status_code = 409
+    detail = "This idempotency key was previously used with a different payload."
+    error_code = "IDEMPOTENCY_PAYLOAD_MISMATCH"
+
+
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
     raise error

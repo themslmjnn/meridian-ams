@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 import sentry_sdk
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore[attr-defined]
 from prometheus_fastapi_instrumentator import Instrumentator
 from sentry_sdk.integrations.fastapi import FastApiIntegration
@@ -19,6 +19,7 @@ from src.auth.routers import router as auth_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
 from src.core.exceptions import AppException, register_exception_handlers
+from src.core.idempotency import _CachedResponseSignal, make_cached_response
 from src.core.limiter import limiter, rate_limit_exceeded_handler
 from src.core.logging import configure_logging
 from src.core.middleware import (
@@ -190,6 +191,10 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
 
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+    @app.exception_handler(_CachedResponseSignal)
+    async def cached_response_handler(request: Request, exc: _CachedResponseSignal):
+        return make_cached_response(exc)
 
     # Routers
     app.include_router(health_router)

@@ -27,8 +27,8 @@ class SessionCacheKey:
 
 class IdempotencyCacheKey:
     @staticmethod
-    def idempotency_key(key: str) -> str:
-        return f"idempotency:{key}"
+    def idempotency_key(operation: str, actor_id: int, key: str) -> str:
+        return f"idempotency:{operation}:{actor_id}:{key}"
 
 
 class UserCacheKey:

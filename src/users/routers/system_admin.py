@@ -8,6 +8,7 @@ from src.core.dependencies import (
     require_system_admin,
     session_dependency,
 )
+from src.core.idempotency import make_idempotency_dependency
 from src.core.limiter import user_limiter
 from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
@@ -18,7 +19,9 @@ from src.users.schemas.system_admin import (
     UserResponseDetailed,
 )
 from src.users.services.system_admin import UserService
+from src.users.use_cases.register_user import RegisterUserUseCase
 from src.users.utils.schemas import UpdateCredentials
+from src.utils.enums import IdempotencyOperation
 
 router = APIRouter(
     prefix="/api/v1/admin/users",
@@ -31,13 +34,20 @@ router = APIRouter(
 )
 @user_limiter.limit("7/minute")
 async def register_user(
-    request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     payload: CreateUserRequest,
+    idempotency_key: Annotated[
+        str, Depends(make_idempotency_dependency(IdempotencyOperation.USER_REGISTER))
+    ],
 ):
-    return await UserService.register_user(
-        session, current_user.credentials_id, payload
+    return await RegisterUserUseCase.execute(
+        session=session,
+        redis=redis,
+        current_user_id=current_user.credentials_id,
+        payload=payload,
+        idempotency_key=idempotency_key,
     )
 
 

@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = 15
     RESET_PASSWORD_EXPIRES_MINUTES: int = 60
 
+    IDEMPOTENCY_KEY_TTL: int = 60 * 60 * 24
+    IDEMPOTENCY_PROCESSING_TTL: int = 60 * 5
+
     WORK_EMAIL_DOMAIN: str
 
     GRADING_PERIOD_TYPE: Literal["semester", "quarter", "trimester"] = "semester"
