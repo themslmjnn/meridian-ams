@@ -1,6 +1,6 @@
 from enum import StrEnum
 
 
-class OrderBy(StrEnum):
-    ASC = "asc"
-    DESC = "desc"
+class IdempotencyStatus(StrEnum):
+    PROCESSING = "processing"
+    COMPLETE = "complete"

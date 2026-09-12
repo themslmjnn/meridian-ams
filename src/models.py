@@ -1,3 +1,4 @@
+from src.core.models import IdempotencyRecord
 from src.emails.models import Email
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
