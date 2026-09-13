@@ -37,4 +37,4 @@ async def update_me_profile(
     current_user: require_guardian,
     payload: UpdateProfileGuardian,
 ):
-    await UserServiceGuardian.update_profile(session, redis, current_user, payload)
+    await UserServiceGuardian.update_me_profile(session, redis, current_user, payload)

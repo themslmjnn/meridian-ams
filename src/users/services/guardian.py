@@ -61,8 +61,6 @@ class UserServiceGuardian:
         if user_credentials.status != UserStatus.ACTIVE:
             raise InvalidStatusTransitionError()
 
-        user_email = user_credentials.email
-        user_public_id = user_credentials.public_id
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
             days=DELETION_GRACE_PERIOD_DAYS
         )
@@ -71,22 +69,21 @@ class UserServiceGuardian:
         user_credentials.status = UserStatus.PENDING_DELETION
         user_credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        await UserSessionRepository.invalidate_all_sessions(
-            session, user_credentials.sessions
-        )
+        session_ids = [s.id for s in user_credentials.sessions]
+        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_deletion_email(user_email),
+                emails.send_account_deletion_email(user_credentials.email),
                 email_type=EmailType.ACCOUNT_DELETION,
             )
         )
 
         await delete_cache(
             redis,
-            SessionCacheKey.access_token_version_key(current_user_id),
+            *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
             UserCacheKey.user_detail_key_admin(current_user_id),
             UserCacheKey.user_detail_key_self(current_user_id),
         )
@@ -94,12 +91,12 @@ class UserServiceGuardian:
         logger.info(
             "guardian_self_deletion_scheduled",
             user_id=current_user_id,
-            public_id=user_public_id,
+            public_id=user_credentials.public_id,
             deletion_scheduled_for=deletion_scheduled_for.isoformat(),
         )
 
     @staticmethod
-    async def update_profile(
+    async def update_me_profile(
         session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
@@ -126,7 +123,6 @@ class UserServiceGuardian:
             session,
             phone_number=phone_number,
             email=None,
-            is_student=False,
         )
 
         await check_contact_limit(
