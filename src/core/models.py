@@ -23,7 +23,7 @@ class IdempotencyRecord(ImmutableBase):
 
     response_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), index=True, nullable=False
     )
 
     __table_args__ = (
