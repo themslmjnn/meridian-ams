@@ -422,6 +422,8 @@ class UserRepositoryBase:
                 base_query = base_query.where(
                     UserCredentials.email.ilike(f"%{filters.email}%")
                 )
+            if filters.status:
+                base_query = base_query.where(UserCredentials.status == filters.status)
 
         return base_query
 
