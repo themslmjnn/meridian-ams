@@ -348,7 +348,7 @@ class AuthService:
         access_token = create_access_token(
             CreateAccessToken(
                 public_id=user_credentials.public_id,
-                role=user_credentials.identity.role,
+                role=user_credentials.role,
                 account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
@@ -368,7 +368,7 @@ class AuthService:
         logger.info(
             "login_success",
             credentials_id=user_credentials.id,
-            role=user_credentials.identity.role,
+            role=user_credentials.role,
             session_id=user_session.id,
             device="existing" if existing_session else "new",
         )
@@ -539,7 +539,7 @@ class AuthService:
                 access_token = create_access_token(
                     CreateAccessToken(
                         public_id=user_credentials.public_id,
-                        role=user_credentials.identity.role,
+                        role=user_credentials.role,
                         account_type=user_credentials.account_type,
                         session_id=user_session.id,
                         access_token_version=user_session.access_token_version,
@@ -597,7 +597,7 @@ class AuthService:
         access_token = create_access_token(
             CreateAccessToken(
                 public_id=user_credentials.public_id,
-                role=user_credentials.identity.role,
+                role=user_credentials.role,
                 account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
