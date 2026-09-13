@@ -164,7 +164,7 @@ class UserService:
                 )
             )
 
-            await session.commit()
+            await session.flush()
 
             logger.info(
                 "user_registered",

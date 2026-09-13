@@ -363,6 +363,7 @@ class UserServiceSelf:
         session_ids = [s.id for s in user_credentials.sessions]
 
         await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+
         await session.commit()
 
         asyncio.create_task(

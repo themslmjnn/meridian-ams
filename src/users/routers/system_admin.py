@@ -34,13 +34,12 @@ router = APIRouter(
 )
 @user_limiter.limit("7/minute")
 async def register_user(
+    request: Request,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     payload: CreateUserRequest,
-    idempotency_key: Annotated[
-        str, Depends(make_idempotency_dependency(IdempotencyOperation.USER_REGISTER))
-    ],
+    idempotency_key: Annotated[str, Depends(make_idempotency_dependency())],
 ):
     return await RegisterUserUseCase.execute(
         session=session,
