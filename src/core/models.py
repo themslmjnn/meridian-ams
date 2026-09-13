@@ -26,4 +26,11 @@ class IdempotencyRecord(ImmutableBase):
         DateTime(timezone=True), nullable=False
     )
 
-    __table_args__ = (UniqueConstraint("key", name="uix_idempotency_key"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "operation",
+            "actor_id",
+            "key",
+            name="uix_idempotency_operation_actor_key",
+        ),
+    )
