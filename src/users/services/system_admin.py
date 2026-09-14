@@ -524,8 +524,8 @@ class UserService:
 
         logger.info(
             "user_deactivated",
-            public_id=public_id,
             deactivated_by=current_user_id,
+            public_id=public_id,
         )
 
     @staticmethod
@@ -557,7 +557,7 @@ class UserService:
         if credentials.status != UserStatus.DEACTIVATED:
             raise exceptions.InvalidStatusTransitionError()
 
-        credentials.status = credentials.pre_deletion_status
+        credentials.status = UserStatus.ACTIVE
 
         if credentials.login_lockout is not None:
             credentials.login_lockout.failed_attempts = 0
@@ -581,8 +581,8 @@ class UserService:
 
         logger.info(
             "user_activated",
-            public_id=public_id,
             activated_by=current_user_id,
+            public_id=public_id,
         )
 
     @staticmethod

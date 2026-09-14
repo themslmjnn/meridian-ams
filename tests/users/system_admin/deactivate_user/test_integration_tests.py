@@ -10,7 +10,7 @@ from tests.factories import make_teacher
 ENDPOINT = "/api/v1/admin/users"
 
 
-class TestDeactivateSuccess:
+class TestSuccessfulDeactivation:
     async def test_returns_204_on_success(
         self,
         test_session: AsyncSession,
