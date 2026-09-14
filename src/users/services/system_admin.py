@@ -47,10 +47,12 @@ logger = structlog.get_logger(__name__)
 class UserService:
     @staticmethod
     async def register_user(
+        session: AsyncSession,
         current_user_id: int,
         payload: schemas.CreateUserRequest,
-        session: AsyncSession,
     ) -> schemas.UserResponseDetailed:
+        is_existing_identity = False
+
         match payload:
             case schemas.CreateStudent(type="student"):
                 resolved_role = UserRole.STUDENT
@@ -67,12 +69,12 @@ class UserService:
             case schemas.CreateGuardianWithExistingIdentity(type="existing_guardian"):
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
+                is_existing_identity = True
 
             case _:
                 assert_never(payload)
 
         is_student = resolved_role == UserRole.STUDENT
-        is_existing_identity = payload.existing_identity_id is not None
 
         phone_number = None if is_existing_identity else payload.phone_number
 
