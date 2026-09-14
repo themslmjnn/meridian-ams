@@ -22,7 +22,7 @@ async def init_redis(app: "FastAPI") -> None:
     to fail fast on startup rather than discover it on the first request.
     """
 
-    client: Redis = aioredis.from_url(
+    client = aioredis.from_url(
         app.state.settings.REDIS_URL,
         encoding="utf-8",
         decode_responses=True,
@@ -54,20 +54,10 @@ def get_redis(request: Request) -> Redis:
     return request.app.state.redis  # type: ignore[no-any-return]
 
 
-# ---------------------------------------------------------------------------
 # Optional wrappers — cache operations
-# ---------------------------------------------------------------------------
 # These swallow RedisError and return None.
 # A cache miss is not an error; the app falls back to the DB.
-
-
 async def get_cache(redis: Redis, key: str) -> str | None:
-    """
-    Get a value from Redis. Returns None on cache miss OR Redis error.
-
-    Safe to use for non-critical cached data. Never raises.
-    """
-
     try:
         value = await redis.get(key)
         if value is None:
@@ -85,12 +75,6 @@ async def set_cache(
     value: str,
     ex: int | None = None,
 ) -> None:
-    """
-    Set a value in Redis with an optional TTL (seconds).
-
-    Swallows RedisError — cache write failure is non-fatal.
-    """
-
     try:
         await redis.set(key, json.dumps(value), ex=ex)
 
@@ -99,12 +83,6 @@ async def set_cache(
 
 
 async def delete_cache(redis: Redis, *keys: str) -> None:
-    """
-    Delete a key from Redis.
-
-    Swallows RedisError — cache eviction failure is non-fatal.
-    """
-
     try:
         await redis.delete(*keys)
 
@@ -112,21 +90,10 @@ async def delete_cache(redis: Redis, *keys: str) -> None:
         logger.warning("redis_cache_delete_failed", key=keys, error=str(exc))
 
 
-# ---------------------------------------------------------------------------
 # Critical wrappers — security-sensitive operations
-# ---------------------------------------------------------------------------
 # These propagate RedisError. Rate limiting and token version checks use these.
 # A silent failure here is a security failure.
-
-
 async def get_cache_critical(redis: Redis, key: str) -> Any:
-    """
-    Get a value from Redis. Propagates RedisError.
-
-    Use for rate limiting, token version checks, idempotency keys —
-    any operation where a silent failure would be a security or correctness issue.
-    """
-
     return await redis.get(key)
 
 
@@ -136,10 +103,4 @@ async def set_cache_critical(
     value: str,
     ex: int | None = None,
 ) -> None:
-    """
-    Set a value in Redis. Propagates RedisError.
-
-    Use for the same operations as critical_get.
-    """
-
     await redis.set(key, value, ex=ex)
