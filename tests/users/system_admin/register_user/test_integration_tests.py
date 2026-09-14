@@ -524,3 +524,90 @@ class TestValidation:
         response = await integration_client.post(ENDPOINT, json={}, headers=headers)
 
         assert response.status_code == 422
+
+
+class TestIdempotency:
+    async def test_duplicate_key_same_payload_returns_201(
+        self,
+        test_session: AsyncSession,
+        integration_client: AsyncClient,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+    ) -> None:
+        auth = await make_auth_header(test_session, system_admin)
+        headers = {**auth, "Idempotency-Key": str(uuid.uuid4())}
+
+        first = await integration_client.post(
+            ENDPOINT,
+            json=valid_staff_payload.model_dump(mode="json"),
+            headers=headers,
+        )
+        second = await integration_client.post(
+            ENDPOINT,
+            json=valid_staff_payload.model_dump(mode="json"),
+            headers=headers,
+        )
+
+        assert first.status_code == 201
+        assert second.status_code == 201
+        assert first.json()["public_id"] == second.json()["public_id"]
+
+    async def test_duplicate_key_different_payload_returns_409(
+        self,
+        test_session: AsyncSession,
+        integration_client: AsyncClient,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+        valid_student_payload: CreateStudent,
+    ) -> None:
+        auth = await make_auth_header(test_session, system_admin)
+        shared_key = str(uuid.uuid4())
+
+        await integration_client.post(
+            ENDPOINT,
+            json=valid_staff_payload.model_dump(mode="json"),
+            headers={**auth, "Idempotency-Key": shared_key},
+        )
+
+        response = await integration_client.post(
+            ENDPOINT,
+            json=valid_student_payload.model_dump(mode="json"),
+            headers={**auth, "Idempotency-Key": shared_key},
+        )
+
+        assert response.status_code == 409
+
+    async def test_missing_idempotency_key_returns_422(
+        self,
+        test_session: AsyncSession,
+        integration_client: AsyncClient,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+    ) -> None:
+        headers = await make_auth_header(test_session, system_admin)
+
+        response = await integration_client.post(
+            ENDPOINT,
+            json=valid_staff_payload.model_dump(mode="json"),
+            headers=headers,
+        )
+
+        assert response.status_code == 422
+
+    async def test_invalid_idempotency_key_format_returns_422(
+        self,
+        test_session: AsyncSession,
+        integration_client: AsyncClient,
+        system_admin: UserCredentials,
+        valid_staff_payload: CreateStaff,
+    ) -> None:
+        auth = await make_auth_header(test_session, system_admin)
+        headers = {**auth, "Idempotency-Key": "not-a-uuid"}
+
+        response = await integration_client.post(
+            ENDPOINT,
+            json=valid_staff_payload.model_dump(mode="json"),
+            headers=headers,
+        )
+
+        assert response.status_code == 422
