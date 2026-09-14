@@ -35,10 +35,12 @@ async def make_user(
     username: str | None = None,
     email: str | None = None,
     password: str | None = "TestPassword123!",
+    failed_attempts: int | None = None,
+    locked_until: datetime | None = None,
 ) -> UserCredentials:
     n = _next()
 
-    new_user_identity = UserIdentity(
+    identity = UserIdentity(
         firstname=firstname.capitalize() if firstname is not None else "Testname",
         lastname=lastname.capitalize() if lastname is not None else "Testsurname",
         middlename=middlename.capitalize() if middlename is not None else middlename,
@@ -49,11 +51,11 @@ async def make_user(
         address=address,
     )
 
-    test_session.add(new_user_identity)
+    test_session.add(identity)
     await test_session.flush()
 
-    new_user_credentials = UserCredentials(
-        identity_id=new_user_identity.id,
+    credentials = UserCredentials(
+        identity_id=identity.id,
         public_id=uuid.uuid4(),
         username=username or f"user_{n}",
         email=email or f"user_{n}@example.com",
@@ -63,14 +65,14 @@ async def make_user(
         status=status,
     )
 
-    test_session.add(new_user_credentials)
+    test_session.add(credentials)
     await test_session.flush()
 
     _, hashed_activation_token = generate_token()
 
     if status == UserStatus.PENDING_ACTIVATION:
         new_activation = UserActivation(
-            credentials_id=new_user_credentials.id,
+            credentials_id=credentials.id,
             activation_token_hash=hashed_activation_token,
             activation_token_expires_at=(
                 datetime.now(UTC)
@@ -80,46 +82,54 @@ async def make_user(
 
         test_session.add(new_activation)
 
-    test_session.add(UserSession(credentials_id=new_user_credentials.id))
+    test_session.add(UserSession(credentials_id=credentials.id))
     test_session.add(
         UserLoginLockout(
-            credentials_id=new_user_credentials.id,
+            credentials_id=credentials.id,
+            failed_attempts=failed_attempts,
+            locked_until=locked_until,
         )
     )
 
     await test_session.commit()
-    await test_session.refresh(new_user_credentials)
+    await test_session.refresh(credentials)
 
-    return new_user_credentials
+    return credentials
 
 
-async def make_system_admin(session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_system_admin(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        session, role=UserRole.SYSTEM_ADMIN, account_type=AccountType.WORK, **kwargs
+        test_session,
+        role=UserRole.SYSTEM_ADMIN,
+        account_type=AccountType.WORK,
+        **kwargs,
     )
 
 
-async def make_director(session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_director(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        session, role=UserRole.DIRECTOR, account_type=AccountType.WORK, **kwargs
+        test_session, role=UserRole.DIRECTOR, account_type=AccountType.WORK, **kwargs
     )
 
 
-async def make_teacher(session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_teacher(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        session, role=UserRole.TEACHER, account_type=AccountType.WORK, **kwargs
+        test_session, role=UserRole.TEACHER, account_type=AccountType.WORK, **kwargs
     )
 
 
-async def make_student(session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_student(test_session: AsyncSession, **kwargs) -> UserCredentials:
     kwargs.setdefault("date_of_birth", date(2008, 1, 1))
 
     return await make_user(
-        session, role=UserRole.STUDENT, account_type=AccountType.STUDENT, **kwargs
+        test_session, role=UserRole.STUDENT, account_type=AccountType.STUDENT, **kwargs
     )
 
 
-async def make_guardian(session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_guardian(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        session, role=UserRole.GUARDIAN, account_type=AccountType.PERSONAL, **kwargs
+        test_session,
+        role=UserRole.GUARDIAN,
+        account_type=AccountType.PERSONAL,
+        **kwargs,
     )
