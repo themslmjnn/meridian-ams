@@ -67,7 +67,6 @@ class RegisterUserUseCase:
 
         await complete_idempotency_record(
             session,
-            redis,
             operation=IdempotencyOperation.USER_REGISTER,
             actor_id=current_user_id,
             idempotency_key=idempotency_key,

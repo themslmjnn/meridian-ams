@@ -189,13 +189,18 @@ class UserCredentialsRepository:
         *,
         exclude_credentials_id: int | None = None,
     ) -> int:
+        account_type_condition = (
+            frozenset({AccountType.STUDENT}),
+            frozenset({AccountType.WORK, AccountType.PERSONAL}),
+        )[account_type != AccountType.STUDENT]
+
         query = (
             select(func.count())
             .select_from(UserCredentials)
             .join(UserIdentity, UserCredentials.identity_id == UserIdentity.id)
             .where(
                 UserIdentity.phone_number == phone_number,
-                UserCredentials.account_type == account_type,
+                UserCredentials.account_type.in_(account_type_condition),
             )
         )
 
