@@ -2,6 +2,7 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.emails.repository import EmailRepository
@@ -31,10 +32,10 @@ class TestAdvisoryLock:
     async def test_lock_acquired_when_email_changes(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         new_email = "new.teacher@school.com"
         payload = UpdateCredentials(email=new_email)
@@ -52,10 +53,10 @@ class TestAdvisoryLock:
     async def test_no_lock_when_email_unchanged(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(
             email=teacher.email,
@@ -71,10 +72,10 @@ class TestAdvisoryLock:
     async def test_no_lock_when_email_omitted(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(username="newusername2")
 
@@ -89,10 +90,10 @@ class TestContactLimit:
     async def test_staff_email_change_checked_with_exclusion(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_check_contact_limit_system_admin,
-        redis_client,
     ) -> None:
         new_email = "updated.teacher@meridian.edu"
         payload = UpdateCredentials(email=new_email)
@@ -115,10 +116,10 @@ class TestContactLimit:
     async def test_guardian_email_change_checked_with_exclusion(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         guardian: UserCredentials,
         mock_users_check_contact_limit_system_admin,
-        redis_client,
     ) -> None:
         new_email = "updated.guardian@example.com"
         payload = UpdateCredentials(email=new_email)
@@ -141,10 +142,10 @@ class TestContactLimit:
     async def test_student_email_change_checked_with_exclusion(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         student: UserCredentials,
         mock_users_check_contact_limit_system_admin,
-        redis_client,
     ) -> None:
         new_email = "updated.student@example.com"
         payload = UpdateCredentials(email=new_email)
@@ -167,10 +168,10 @@ class TestContactLimit:
     async def test_no_check_when_email_not_changing(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_check_contact_limit_system_admin,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(username="newusername3")
 
@@ -185,8 +186,8 @@ class TestNotFound:
     async def test_unknown_public_id_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(username="newusername4")
 
@@ -202,8 +203,8 @@ class TestNotFound:
     async def test_system_admin_public_id_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(username="newusername5")
 
@@ -221,9 +222,9 @@ class TestNoChanges:
     async def test_same_username_and_email_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(
             username=teacher.username,
@@ -244,17 +245,17 @@ class TestActivationTokenReissue:
     async def test_pending_user_email_change_reissues_activation_token(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         pending_teacher = await make_teacher(
             test_session, status=UserStatus.PENDING_ACTIVATION
         )
-        user_activation = await UserActivationRepository.get_by_id(
+        activation = await UserActivationRepository.get_by_id(
             test_session, pending_teacher.id
         )
-        old_token_hash = user_activation.activation_token_hash
+        old_token_hash = activation.activation_token_hash
         payload = UpdateCredentials(email="reissued.teacher@meridian.edu")
 
         await UserService.update_credentials(
@@ -265,19 +266,19 @@ class TestActivationTokenReissue:
             payload,
         )
 
-        new_user_activation = await UserActivationRepository.get_by_id(
+        new_activation = await UserActivationRepository.get_by_id(
             test_session, pending_teacher.id
         )
 
-        assert new_user_activation.activation_token_hash != old_token_hash
-        assert new_user_activation.activation_token_expires_at > datetime.now(UTC)
+        assert new_activation.activation_token_hash != old_token_hash
+        assert new_activation.activation_token_expires_at > datetime.now(UTC)
 
     async def test_pending_user_email_change_queues_activation_email(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         pending_teacher = await make_teacher(
             test_session, status=UserStatus.PENDING_ACTIVATION
@@ -303,10 +304,10 @@ class TestActivationTokenReissue:
     async def test_active_user_email_change_does_not_reissue_token(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(email="active.new@meridian.edu")
 
@@ -330,9 +331,9 @@ class TestNotificationEmail:
     async def test_username_change_queues_notification_to_old_email(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
-        redis_client,
     ) -> None:
         old_email = teacher.email
         payload = UpdateCredentials(username="brandnewuser1")
@@ -356,10 +357,10 @@ class TestNotificationEmail:
     async def test_email_change_queues_notification_to_old_email(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         old_email = teacher.email
         payload = UpdateCredentials(email="changed.teacher@meridian.edu")
@@ -383,10 +384,10 @@ class TestNotificationEmail:
     async def test_both_changed_queues_single_notification(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         old_email = teacher.email
         payload = UpdateCredentials(
@@ -415,9 +416,9 @@ class TestPendingEmailChangeCleared:
     async def test_email_change_row_deleted_on_credentials_update(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
         teacher = await make_teacher(test_session)
         email_change = UserEmailChange(
@@ -450,14 +451,14 @@ class TestSessionsInvalidated:
     async def test_all_sessions_invalidated_on_username_change(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
-        redis_client,
     ) -> None:
-        user_session = await UserSessionRepository.get_by_credentials_id(
+        session = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
-        old_atv = user_session.access_token_version
+        old_atv = session.access_token_version
 
         payload = UpdateCredentials(username="brandnewuser3")
 
@@ -469,26 +470,26 @@ class TestSessionsInvalidated:
             payload,
         )
 
-        user_session_after = await UserSessionRepository.get_by_credentials_id(
+        session_after = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
 
-        assert user_session_after.access_token_version == old_atv + 1
-        assert user_session_after.refresh_token_hash is None
-        assert user_session_after.refresh_token_family is None
+        assert session_after.access_token_version == old_atv + 1
+        assert session_after.refresh_token_hash is None
+        assert session_after.refresh_token_family is None
 
     async def test_all_sessions_invalidated_on_email_change(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
     ) -> None:
-        user_session = await UserSessionRepository.get_by_credentials_id(
+        session = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
-        old_atv = user_session.access_token_version
+        old_atv = session.access_token_version
 
         payload = UpdateCredentials(email="sessions.cleared@school.com")
 
@@ -500,21 +501,21 @@ class TestSessionsInvalidated:
             payload,
         )
 
-        user_session_after = await UserSessionRepository.get_by_credentials_id(
+        session_after = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
 
-        assert user_session_after.access_token_version == old_atv + 1
+        assert session_after.access_token_version == old_atv + 1
 
 
 class TestCacheInvalidated:
     async def test_cache_deleted_on_success(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
     ) -> None:
         payload = UpdateCredentials(username="brandnewuser4")
 
@@ -534,9 +535,9 @@ class TestDBConstraints:
     async def test_duplicate_username_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
-        redis_client,
         mock_users_check_contact_limit_system_admin,
     ) -> None:
         existing = await make_teacher(test_session, username="takenusername1")
@@ -556,10 +557,10 @@ class TestDBConstraints:
     async def test_non_student_duplicate_email_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_advisory_lock_system_admin,
-        redis_client,
         mock_users_check_contact_limit_system_admin,
     ) -> None:
         existing = await make_teacher(test_session)

@@ -313,7 +313,7 @@ class UserService:
         public_id: uuid.UUID,
         payload: UpdateCredentials,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
@@ -323,18 +323,17 @@ class UserService:
                 load_email_change=True,
             ),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        is_student = user_credentials.role == UserRole.STUDENT
+        is_student = credentials.role == UserRole.STUDENT
         is_email_changing = (
-            payload.email is not None and payload.email != user_credentials.email
+            payload.email is not None and payload.email != credentials.email
         )
         should_reissue_activation_token = (
-            is_email_changing
-            and user_credentials.status == UserStatus.PENDING_ACTIVATION
+            is_email_changing and credentials.status == UserStatus.PENDING_ACTIVATION
         )
-        account_type = user_credentials.account_type
+        account_type = credentials.account_type
 
         email = payload.email if is_email_changing else None
 
@@ -348,29 +347,29 @@ class UserService:
             await check_contact_limit(
                 session,
                 current_user_id,
-                username=user_credentials.username,
+                username=credentials.username,
                 phone_number=None,
                 email=email,
-                resolved_role=user_credentials.role,
+                resolved_role=credentials.role,
                 account_type=account_type,
-                exclude_credentials_id=user_credentials.id,
+                exclude_credentials_id=credentials.id,
             )
 
         try:
-            old_email = user_credentials.email
-            old_username = user_credentials.username
+            old_email = credentials.email
+            old_username = credentials.username
 
-            update_object(user_credentials, payload)
+            update_object(credentials, payload)
 
-            if user_credentials.email_change is not None:
-                await session.delete(user_credentials.email_change)
+            if credentials.email_change is not None:
+                await session.delete(credentials.email_change)
 
             if should_reissue_activation_token:
-                if user_credentials.activation is None:
+                if credentials.activation is None:
                     logger.error(
                         "activation_row_missing",
                         public_id=public_id,
-                        status=user_credentials.status,
+                        status=credentials.status,
                     )
 
                     raise exceptions.ActivationRowMissingError()
@@ -380,20 +379,18 @@ class UserService:
                     hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
                 )
 
-                user_credentials.activation.activation_token_hash = (
-                    hashed_activation_token
-                )
-                user_credentials.activation.activation_token_expires_at = (
+                credentials.activation.activation_token_hash = hashed_activation_token
+                credentials.activation.activation_token_expires_at = (
                     activation_token_expires_at
                 )
 
                 subject, html_body = emails.build_activation_email(
-                    raw_activation_token, user_credentials.username
+                    raw_activation_token, credentials.username
                 )
 
                 session.add(
                     Email(
-                        recipient_email=user_credentials.email,
+                        recipient_email=credentials.email,
                         subject=subject,
                         html_body=html_body,
                         email_type=EmailType.ACTIVATION,
@@ -401,16 +398,14 @@ class UserService:
                     )
                 )
 
-            username_changed = old_username != user_credentials.username
-            email_changed = old_email != user_credentials.email
+            username_changed = old_username != credentials.username
+            email_changed = old_email != credentials.email
 
             if username_changed or email_changed:
                 notify_old_username = old_username if username_changed else None
-                notify_new_username = (
-                    user_credentials.username if username_changed else None
-                )
+                notify_new_username = credentials.username if username_changed else None
                 notify_old_email = old_email if email_changed else None
-                notify_new_email = user_credentials.email if email_changed else None
+                notify_new_email = credentials.email if email_changed else None
 
                 subject, html_body = (
                     emails.build_admin_credentials_override_notification_email(
@@ -431,17 +426,18 @@ class UserService:
                     )
                 )
 
-            session_ids = [s.id for s in user_credentials.sessions]
+            session_ids = [session.id for session in credentials.sessions]
 
-            await UserSessionRepository.invalidate_all_sessions(
-                user_credentials.sessions
-            )
+            await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
             await session.commit()
 
             await delete_cache(
                 redis,
-                *[SessionCacheKey.access_token_version_key(sid) for sid in session_ids],
+                *[
+                    SessionCacheKey.access_token_version_key(session_id)
+                    for session_id in session_ids
+                ],
                 UserCacheKey.user_detail_key_admin(public_id),
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
@@ -451,18 +447,18 @@ class UserService:
                 "user_credentials_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
-                method="_credentials_override",
+                method="admin_credentials_override",
             )
 
         except IntegrityError as exc:
             await session.rollback()
 
             logger.error(
-                "user_credentials_update_failed",
+                "update_credentials_failed",
                 public_id=public_id,
                 requested_by=current_user_id,
                 reason=str(exc.orig),
-                method="_credentials_override",
+                method="admin_credentials_override",
             )
 
             exceptions.handle_username_integrity_error(exc)
