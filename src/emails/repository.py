@@ -14,15 +14,6 @@ class EmailRepository:
     async def get_pending_batch(
         session: AsyncSession, *, limit: int = 20
     ) -> list[Email]:
-        """
-        Fetch a batch of emails ready to send.
-        Conditions:
-          - status = PENDING
-          - scheduled_for <= now()
-          - retry_count < max_retries (skip permanently exhausted rows)
-        Ordered oldest-first so earlier queued emails go out first.
-        """
-
         result = await session.execute(
             select(Email)
             .where(

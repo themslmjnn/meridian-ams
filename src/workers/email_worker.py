@@ -44,8 +44,6 @@ async def _process_email(session: AsyncSession, record: Email) -> None:
         raise
 
     except Exception as exc:
-        await session.rollback()
-
         await EmailRepository.mark_failed_attempt(record, str(exc))
         await session.commit()
 
