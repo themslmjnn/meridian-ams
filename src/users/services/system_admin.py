@@ -202,16 +202,16 @@ class UserService:
         public_id: uuid.UUID,
         payload: schemas.UpdateUserRequest,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        user_identity = await UserIdentityRepository.get_by_id(
-            session, user_credentials.identity_id
+        identity = await UserIdentityRepository.get_by_id(
+            session, credentials.identity_id
         )
 
         match payload:
@@ -220,20 +220,20 @@ class UserService:
                 account_type = AccountType.STUDENT
 
             case schemas.UpdateStaffOrGuardianProfile(type="staff_or_guardian"):
-                resolved_role = user_credentials.role
-                account_type = user_credentials.account_type
+                resolved_role = credentials.role
+                account_type = credentials.account_type
 
             case _:
                 assert_never(payload)
 
-        is_student = user_credentials.role == UserRole.STUDENT
-        is_request_student_shaped = isinstance(payload, schemas.UpdateStudentProfile)
+        is_student = credentials.role == UserRole.STUDENT
+        is_payload_student_shaped = isinstance(payload, schemas.UpdateStudentProfile)
 
-        if is_student != is_request_student_shaped:
+        if is_student != is_payload_student_shaped:
             logger.warning(
                 "update_payload_mismatch",
                 public_id=public_id,
-                user_role=user_credentials.role.value,
+                user_role=credentials.role.value,
                 submitted_type=payload.type,
                 actor_user_id=current_user_id,
             )
@@ -242,7 +242,7 @@ class UserService:
 
         is_phone_number_changing = (
             payload.phone_number is not None
-            and payload.phone_number != user_identity.phone_number
+            and payload.phone_number != identity.phone_number
         )
 
         phone_number = payload.phone_number if is_phone_number_changing else None
@@ -256,22 +256,22 @@ class UserService:
         await check_contact_limit(
             session,
             current_user_id,
-            username=user_credentials.username,
+            username=credentials.username,
             phone_number=phone_number,
             email=None,
             resolved_role=resolved_role,
             account_type=account_type,
-            exclude_credentials_id=user_credentials.id,
+            exclude_credentials_id=credentials.id,
         )
 
         try:
-            update_object(user_identity, payload)
+            update_object(identity, payload)
 
             await session.commit()
 
             asyncio.create_task(
                 emails.send_email_safe(
-                    emails.send_account_info_updated_email(user_credentials.email),
+                    emails.send_account_info_updated_email(credentials.email),
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
@@ -287,18 +287,18 @@ class UserService:
                 "user_profile_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
-                method="_update",
+                method="admin_update",
             )
 
         except IntegrityError as exc:
             await session.rollback()
 
             logger.error(
-                "update_user_failed",
+                "update_profile_failed",
                 public_id=public_id,
                 requested_by=current_user_id,
                 reason=str(exc.orig),
-                method="_update",
+                method="admin_update",
             )
 
             if not is_student:

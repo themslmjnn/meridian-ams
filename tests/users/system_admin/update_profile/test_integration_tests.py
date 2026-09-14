@@ -27,7 +27,7 @@ STUDENT_UPDATE = UpdateStudentProfile(
 ENDPOINT = "/api/v1/admin/users"
 
 
-class TestSuccessUpdate:
+class TestSuccessfulUpdate:
     async def test_staff_update_returns_204(
         self,
         test_session: AsyncSession,
@@ -190,6 +190,8 @@ class TestAuth:
 
         assert response.status_code == 403
 
+
+class TestDuplicateFieldRejection:
     async def test_duplicate_phone_returns_409(
         self,
         test_session: AsyncSession,
