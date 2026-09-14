@@ -41,11 +41,7 @@ async def register_user(
     idempotency_key: Annotated[str, Depends(make_idempotency_key_dependency())],
 ):
     return await RegisterUserUseCase.execute(
-        session=session,
-        redis=redis,
-        current_user_id=current_user.credentials_id,
-        payload=payload,
-        idempotency_key=idempotency_key,
+        session, redis, current_user.credentials_id, payload, idempotency_key
     )
 
 

@@ -139,5 +139,12 @@ class IdempotencyPayloadMismatch(AppException):
     error_code = "IDEMPOTENCY_PAYLOAD_MISMATCH"
 
 
+# HTTP500
+class IdempotencyStateError(AppException):
+    status_code = 500
+    detail = "Idempotency record in unexpected state"
+    error_code = "IDEMPOTENCY_STATE_ERROR"
+
+
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
     raise error

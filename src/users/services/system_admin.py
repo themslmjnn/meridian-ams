@@ -47,12 +47,10 @@ logger = structlog.get_logger(__name__)
 class UserService:
     @staticmethod
     async def register_user(
-        session: AsyncSession,
         current_user_id: int,
         payload: schemas.CreateUserRequest,
+        session: AsyncSession,
     ) -> schemas.UserResponseDetailed:
-        guardian_existing_identity = False
-
         match payload:
             case schemas.CreateStudent(type="student"):
                 resolved_role = UserRole.STUDENT
@@ -69,14 +67,14 @@ class UserService:
             case schemas.CreateGuardianWithExistingIdentity(type="existing_guardian"):
                 resolved_role = UserRole.GUARDIAN
                 account_type = AccountType.PERSONAL
-                guardian_existing_identity = True
 
             case _:
                 assert_never(payload)
 
         is_student = resolved_role == UserRole.STUDENT
+        is_existing_identity = payload.existing_identity_id is not None
 
-        phone_number = None if guardian_existing_identity else payload.phone_number
+        phone_number = None if is_existing_identity else payload.phone_number
 
         await acquire_contact_locks(
             session,
@@ -101,22 +99,22 @@ class UserService:
         )
 
         try:
-            if guardian_existing_identity:
-                existing_identity = await UserIdentityRepository.get_by_id(
+            if is_existing_identity:
+                guardian_identity = await UserIdentityRepository.get_by_id(
                     session, payload.existing_identity_id
                 )
-                if existing_identity is None:
+                if guardian_identity is None:
                     raise exceptions.IdentityNotFoundError()
 
-                existing_personal = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
-                    session, existing_identity.id
+                guardian_credentials = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
+                    session, guardian_identity.id
                 )
-                if existing_personal is not None:
+                if guardian_credentials is not None:
                     raise exceptions.GuardianAccountAlreadyExistsError()
 
                 identity_id = payload.existing_identity_id
             else:
-                new_user_identity = UserIdentity(
+                identity = UserIdentity(
                     firstname=payload.firstname,
                     lastname=payload.lastname,
                     middlename=payload.middlename,
@@ -125,12 +123,12 @@ class UserService:
                     address=payload.address if is_student else None,
                 )
 
-                session.add(new_user_identity)
+                session.add(identity)
                 await session.flush()
 
-                identity_id = new_user_identity.id
+                identity_id = identity.id
 
-            new_user_credentials = UserCredentials(
+            credentials = UserCredentials(
                 identity_id=identity_id,
                 username=payload.username,
                 email=payload.email,
@@ -139,7 +137,7 @@ class UserService:
                 status=UserStatus.PENDING_ACTIVATION,
             )
 
-            session.add(new_user_credentials)
+            session.add(credentials)
             await session.flush()
 
             subject, html_body = emails.build_activation_email(
@@ -148,12 +146,12 @@ class UserService:
 
             session.add(
                 UserActivation(
-                    credentials_id=new_user_credentials.id,
+                    credentials_id=credentials.id,
                     activation_token_hash=hashed_activation_token,
                     activation_token_expires_at=activation_token_expires_at,
                 )
             )
-            session.add(UserLoginLockout(credentials_id=new_user_credentials.id))
+            session.add(UserLoginLockout(credentials_id=credentials.id))
             session.add(
                 Email(
                     recipient_email=payload.email,
@@ -169,14 +167,14 @@ class UserService:
             logger.info(
                 "user_registered",
                 identity_id=identity_id,
-                credentials_id=new_user_credentials.id,
-                public_id=str(new_user_credentials.public_id),
+                credentials_id=credentials.id,
+                public_id=str(credentials.public_id),
                 role=resolved_role,
                 created_by=current_user_id,
             )
 
             return await UserResponseRepository.get_registered_user_response(
-                session, new_user_credentials.public_id
+                session, credentials.public_id
             )
 
         except IntegrityError as exc:
