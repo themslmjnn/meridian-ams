@@ -444,7 +444,7 @@ class UserService:
             )
 
             logger.info(
-                "user_credentials_updated",
+                "credentials_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
                 method="admin_credentials_override",
@@ -473,16 +473,16 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        if user_credentials.status == UserStatus.DEACTIVATED:
+        if credentials.status == UserStatus.DEACTIVATED:
             logger.warning(
                 "user_deactivation_failed",
                 public_id=public_id,
@@ -492,21 +492,21 @@ class UserService:
 
             raise exceptions.UserAlreadyInactiveError()
 
-        if user_credentials.status != UserStatus.ACTIVE:
+        if credentials.status != UserStatus.ACTIVE:
             raise exceptions.InvalidStatusTransitionError()
 
-        user_credentials.pre_deletion_status = user_credentials.status
-        user_credentials.status = UserStatus.DEACTIVATED
+        credentials.pre_deletion_status = credentials.status
+        credentials.status = UserStatus.DEACTIVATED
 
-        session_ids = [s.id for s in user_credentials.sessions]
+        session_ids = [session.id for session in credentials.sessions]
 
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_deactivation_email(user_credentials.email),
+                emails.send_account_deactivation_email(credentials.email),
                 email_type=EmailType.ACCOUNT_DEACTIVATION,
             )
         )
@@ -535,16 +535,16 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_login_lockout=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        if user_credentials.status == UserStatus.ACTIVE:
+        if credentials.status == UserStatus.ACTIVE:
             logger.warning(
                 "user_activation_failed",
                 public_id=public_id,
@@ -554,20 +554,20 @@ class UserService:
 
             raise exceptions.UserAlreadyActiveError()
 
-        if user_credentials.status != UserStatus.DEACTIVATED:
+        if credentials.status != UserStatus.DEACTIVATED:
             raise exceptions.InvalidStatusTransitionError()
 
-        user_credentials.status = user_credentials.pre_deletion_status
+        credentials.status = credentials.pre_deletion_status
 
-        if user_credentials.login_lockout is not None:
-            user_credentials.login_lockout.failed_attempts = 0
-            user_credentials.login_lockout.locked_until = None
+        if credentials.login_lockout is not None:
+            credentials.login_lockout.failed_attempts = 0
+            credentials.login_lockout.locked_until = None
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_activation_email(user_credentials.email),
+                emails.send_account_activation_email(credentials.email),
                 email_type=EmailType.ACCOUNT_ACTIVATION,
             )
         )
@@ -591,23 +591,23 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        if user_credentials.status != UserStatus.ACTIVE:
+        if credentials.status != UserStatus.ACTIVE:
             raise exceptions.InvalidStatusTransitionError()
 
         raw_reset_token, hashed_reset_token = generate_token()
 
-        if user_credentials.password_reset is None:
+        if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
-                credentials_id=user_credentials.id,
+                credentials_id=credentials.id,
                 reset_password_token_hash=hashed_reset_token,
                 reset_password_token_expires_at=datetime.now(UTC)
                 + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
@@ -615,19 +615,16 @@ class UserService:
 
             session.add(new_password_reset)
         else:
-            user_credentials.password_reset.reset_password_token_hash = (
-                hashed_reset_token
-            )
-            user_credentials.password_reset.reset_password_token_expires_at = (
-                datetime.now(UTC)
-                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
-            )
+            credentials.password_reset.reset_password_token_hash = hashed_reset_token
+            credentials.password_reset.reset_password_token_expires_at = datetime.now(
+                UTC
+            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
 
         subject, html_body = emails.build_reset_password_email(raw_reset_token)
 
         session.add(
             Email(
-                recipient_email=user_credentials.email,
+                recipient_email=credentials.email,
                 subject=subject,
                 body_html=html_body,
                 email_type=EmailType.PASSWORD_RESET_ADMIN,
@@ -648,16 +645,16 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_activation=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        if user_credentials.status != UserStatus.PENDING_ACTIVATION:
+        if credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
                 "invite_resend_denied",
                 public_id=public_id,
@@ -667,11 +664,11 @@ class UserService:
 
             raise exceptions.UserNotPendingActivationError()
 
-        if user_credentials.activation is None:
+        if credentials.activation is None:
             logger.error(
                 "activation_row_missing",
                 public_id=public_id,
-                status=user_credentials.status,
+                status=credentials.status,
             )
 
             raise exceptions.ActivationRowMissingError()
@@ -681,18 +678,16 @@ class UserService:
             hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
         )
 
-        user_credentials.activation.activation_token_hash = hashed_activation_token
-        user_credentials.activation.activation_token_expires_at = (
-            activation_token_expires_at
-        )
+        credentials.activation.activation_token_hash = hashed_activation_token
+        credentials.activation.activation_token_expires_at = activation_token_expires_at
 
         subject, html_body = emails.build_activation_email(
-            raw_activation_token, user_credentials.username
+            raw_activation_token, credentials.username
         )
 
         session.add(
             Email(
-                recipient_email=user_credentials.email,
+                recipient_email=credentials.email,
                 subject=subject,
                 body_html=html_body,
                 email_type=EmailType.ACTIVATION,
@@ -714,15 +709,15 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        if user_credentials.status == UserStatus.PENDING_DELETION:
+        if credentials.status == UserStatus.PENDING_DELETION:
             logger.warning(
                 "guardian_deletion_denied",
                 actor_user_id=current_user_id,
@@ -732,25 +727,25 @@ class UserService:
 
             raise exceptions.GuardianAlreadyPendingDeletionError()
 
-        if user_credentials.status not in (
+        if credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.DEACTIVATED,
             UserStatus.PENDING_ACTIVATION,
         ):
             raise exceptions.InvalidStatusTransitionError()
 
-        user_email = user_credentials.email
+        user_email = credentials.email
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
             days=constants.DELETION_GRACE_PERIOD_DAYS
         )
 
-        user_credentials.pre_deletion_status = user_credentials.status
-        user_credentials.status = UserStatus.PENDING_DELETION
-        user_credentials.deletion_scheduled_for = deletion_scheduled_for
+        credentials.pre_deletion_status = credentials.status
+        credentials.status = UserStatus.PENDING_DELETION
+        credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        session_ids = [s.id for s in user_credentials.sessions]
+        session_ids = [s.id for s in credentials.sessions]
 
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
         await session.commit()
 
@@ -785,20 +780,20 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
         )
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        user_email = user_credentials.email
+        user_email = credentials.email
 
-        if user_credentials.status != UserStatus.PENDING_DELETION:
+        if credentials.status != UserStatus.PENDING_DELETION:
             raise exceptions.GuardianNotPendingDeletionError()
 
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
-            session, public_id, user_credentials.pre_deletion_status
+            session, public_id, credentials.pre_deletion_status
         )
 
         if not reactivated:

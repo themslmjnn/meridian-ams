@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
@@ -21,8 +22,8 @@ class TestNotFound:
     async def test_unknown_public_id_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         with pytest.raises(CredentialsNotFoundError):
             await UserService.deactivate_user(
@@ -32,8 +33,8 @@ class TestNotFound:
     async def test_system_admin_public_id_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         with pytest.raises(CredentialsNotFoundError):
             await UserService.deactivate_user(
@@ -48,8 +49,8 @@ class TestStatusValidation:
     async def test_already_deactivated_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         deactivated = await make_teacher(test_session, status=UserStatus.DEACTIVATED)
 
@@ -64,8 +65,8 @@ class TestStatusValidation:
     async def test_pending_activation_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         pending = await make_teacher(test_session, status=UserStatus.PENDING_ACTIVATION)
 
@@ -80,8 +81,8 @@ class TestStatusValidation:
     async def test_pending_deletion_raises(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
-        redis_client,
     ) -> None:
         pending_deletion = await make_teacher(
             test_session, status=UserStatus.PENDING_DELETION
@@ -96,14 +97,14 @@ class TestStatusValidation:
             )
 
 
-class TestSuccess:
+class TestSuccessfulDeactivation:
     async def test_status_set_to_deactivated(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
     ) -> None:
         pre_deletion_status = teacher.status
 
@@ -121,35 +122,35 @@ class TestSuccess:
     async def test_all_sessions_invalidated(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
     ) -> None:
-        user_session = await UserSessionRepository.get_by_credentials_id(
+        session = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
-        old_atv = user_session.access_token_version
+        old_atv = session.access_token_version
 
         await UserService.deactivate_user(
             test_session, redis_client, system_admin.id, teacher.public_id
         )
 
-        user_session_after = await UserSessionRepository.get_by_credentials_id(
+        session_after = await UserSessionRepository.get_by_credentials_id(
             test_session, teacher.id
         )
 
-        assert user_session_after.access_token_version == old_atv + 1
-        assert user_session_after.refresh_token_hash is None
-        assert user_session_after.refresh_token_family is None
+        assert session_after.access_token_version == old_atv + 1
+        assert session_after.refresh_token_hash is None
+        assert session_after.refresh_token_family is None
 
     async def test_cache_deleted(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
     ) -> None:
         await UserService.deactivate_user(
             test_session, redis_client, system_admin.id, teacher.public_id
@@ -160,10 +161,10 @@ class TestSuccess:
     async def test_deactivation_email_fired(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
         mock_send_account_deactivation_email,
     ) -> None:
         await UserService.deactivate_user(
@@ -175,10 +176,10 @@ class TestSuccess:
     async def test_student_deactivated_successfully(
         self,
         test_session: AsyncSession,
+        redis_client: Redis,
         system_admin: UserCredentials,
         student: UserCredentials,
         mock_users_delete_cache_system_admin,
-        redis_client,
     ) -> None:
         await UserService.deactivate_user(
             test_session, redis_client, system_admin.id, student.public_id
