@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
+from src.core.models import IdempotencyRecord
 from src.core.security import generate_token, hash_password
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
@@ -12,6 +13,7 @@ from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType, UserRole, UserStatus
+from src.utils.enums import IdempotencyStatus
 
 _counter = itertools.count(1)
 
@@ -133,3 +135,31 @@ async def make_guardian(test_session: AsyncSession, **kwargs) -> UserCredentials
         account_type=AccountType.PERSONAL,
         **kwargs,
     )
+
+
+async def make_idempotency_record(
+    test_session: AsyncSession,
+    *,
+    actor_id: int,
+    operation: str,
+    key: str,
+    status: IdempotencyStatus,
+    request_hash: str,
+    http_status: int | None = None,
+    response_body: dict | None = None,
+) -> IdempotencyRecord:
+    record = IdempotencyRecord(
+        key=key,
+        operation=operation,
+        actor_id=actor_id,
+        request_hash=request_hash,
+        status=status,
+        http_status=http_status,
+        response_body=response_body,
+        expires_at=datetime.now(UTC) + timedelta(hours=24),
+    )
+
+    test_session.add(record)
+    await test_session.flush()
+
+    return record
