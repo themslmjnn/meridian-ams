@@ -42,6 +42,7 @@ class EmailRepository:
     @staticmethod
     async def reset_for_retry(record: Email) -> None:
         """Reset a FAILED email back to PENDING for manual retry."""
+
         record.status = EmailStatus.PENDING
         record.retry_count = 0
         record.last_error = None

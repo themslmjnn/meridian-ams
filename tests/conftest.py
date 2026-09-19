@@ -36,7 +36,7 @@ from tests.factories import (
 settings = get_settings()
 
 SYNC_DB_URL = (
-    f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD}"
+    f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD.get_secret_value()}"
     f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
 )
 

@@ -2,7 +2,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import field_validator, model_validator
+from pydantic import SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV = os.getenv("ENVIRONMENT", "development")
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int = 5432
     DB_USER: str
-    DB_PASSWORD: str
+    DB_PASSWORD: SecretStr
     DB_NAME: str
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
@@ -43,20 +43,20 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str
     REDIS_PORT: int = 6379
-    REDIS_PASSWORD: str | None = None
+    REDIS_PASSWORD: SecretStr | None = None
     REDIS_DB: int
 
     # Computed in derive_computed_fields — do not set in .env
     REDIS_URL: str = ""
 
-    JWT_SECRET_KEY: str
-    JWT_SECRET_KEY_PREVIOUS: str | None = None
+    JWT_SECRET_KEY: SecretStr
+    JWT_SECRET_KEY_PREVIOUS: SecretStr | None = None
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 30
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = 30
-    CURSOR_SECRET_KEY: str
+    CURSOR_SECRET_KEY: SecretStr
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
     EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = 15
@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     MAILTRAP_HOST: str | None = "sandbox.smtp.mailtrap.io"
     MAILTRAP_PORT: int | None = 587
     MAILTRAP_USERNAME: str | None
-    MAILTRAP_PASSWORD: str | None
+    MAILTRAP_PASSWORD: SecretStr | None
 
     SENTRY_DSN: str | None = None
 
@@ -122,11 +122,13 @@ class Settings(BaseSettings):
     def validate_secrets_length(cls, v: str | None) -> str | None:
         if not v:  # catches both None and ""
             return None
+
         if len(v) < 32:
             raise ValueError(
                 "Secret must be at least 32 characters. "
                 "Generate with: openssl rand -hex 32"
             )
+
         return v
 
     @field_validator("ACCESS_TOKEN_EXPIRES_MINUTES")
@@ -134,9 +136,9 @@ class Settings(BaseSettings):
     def validate_access_token_expiry(cls, v: int) -> int:
         if v < 1:
             raise ValueError("ACCESS_TOKEN_EXPIRES_MINUTES must be at least 1")
-        if v > 60:
+        if v > 30:
             raise ValueError(
-                "ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 60 — "
+                "ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 30 — "
                 "use refresh tokens for long-lived sessions"
             )
 
@@ -147,8 +149,8 @@ class Settings(BaseSettings):
     def validate_refresh_token_expiry(cls, v: int) -> int:
         if v < 1:
             raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS must be at least 1")
-        if v > 90:
-            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS should not exceed 90")
+        if v > 30:
+            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS should not exceed 30")
 
         return v
 
@@ -188,13 +190,13 @@ class Settings(BaseSettings):
         """
 
         self.DATABASE_URL = (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
-        if self.REDIS_PASSWORD:
+        if self.REDIS_PASSWORD.get_secret_value():
             self.REDIS_URL = (
-                f"redis://:{self.REDIS_PASSWORD}"
+                f"redis://:{self.REDIS_PASSWORD.get_secret_value()}"
                 f"@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
         else:

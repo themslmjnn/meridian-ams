@@ -28,7 +28,7 @@ class CursorPage[T](BaseModel):
 
 def _sign(payload: str) -> str:
     return hmac.new(
-        settings.CURSOR_SECRET.encode(_ENCODING),
+        settings.CURSOR_SECRET_KEY.get_secret_value().encode(_ENCODING),
         payload.encode(_ENCODING),
         hashlib.sha256,
     ).hexdigest()
