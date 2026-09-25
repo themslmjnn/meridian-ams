@@ -9,6 +9,10 @@ logger = structlog.get_logger(__name__)
 
 # Base application exception
 class AppException(Exception):
+    status_code: int
+    detail: str
+    error_code: str
+
     """
     Base class for all expected application errors.
 
@@ -17,9 +21,20 @@ class AppException(Exception):
     JSON. They are NOT forwarded to Sentry — expected errors are noise there.
     """
 
-    status_code: int
-    detail: str
-    error_code: str
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        required = ("status_code", "error_code", "detail")
+
+        for attr in required:
+            if not isinstance(getattr(cls, attr, None), (int, str)):
+                raise TypeError(
+                    f"{cls.__name__} must define '{attr}' as a class attribute. "
+                    f"Example:\n"
+                    f"    class {cls.__name__}(AppException):\n"
+                    f"        status_code = 404\n"
+                    f"        error_code = 'RESOURCE_NOT_FOUND'\n"
+                    f"        detail = 'The requested resource was not found.'"
+                )
 
     def __init__(self, detail: str | None = None) -> None:
         self.detail = detail or getattr(self, "detail", "An error occurred.")
