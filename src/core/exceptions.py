@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -9,10 +13,6 @@ logger = structlog.get_logger(__name__)
 
 # Base application exception
 class AppException(Exception):
-    status_code: int
-    detail: str
-    error_code: str
-
     """
     Base class for all expected application errors.
 
@@ -20,6 +20,10 @@ class AppException(Exception):
     Instances are caught by app_exception_handler and returned as structured
     JSON. They are NOT forwarded to Sentry — expected errors are noise there.
     """
+
+    status_code: int
+    detail: str
+    error_code: str
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
@@ -112,15 +116,25 @@ async def redis_error_handler(
     )
 
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
+
 # Registration helper
-def register_exception_handlers(app: "object") -> None:
+def register_exception_handlers(app: FastAPI) -> None:
     """
     Register all global exception handlers on the FastAPI app.
 
     Import order matters: more specific exceptions must be registered before
     broader ones so FastAPI matches the most specific handler first.
     """
-    assert isinstance(app, FastAPI)
+    from fastapi import FastAPI as _FastAPI  # runtime import, local scope
+
+    if not isinstance(app, _FastAPI):
+        raise TypeError(
+            f"register_exception_handlers expects a FastAPI instance, "
+            f"got {type(app).__name__!r}"
+        )
 
     app.add_exception_handler(AppException, app_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
