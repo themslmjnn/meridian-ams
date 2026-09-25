@@ -41,6 +41,12 @@ class AppException(Exception):
                 )
 
     def __init__(self, detail: str | None = None) -> None:
+        if type(self) is AppException:
+            raise TypeError(
+                "AppException must not be raised directly. "
+                "Define a subclass with status_code, error_code, and detail."
+            )
+
         self.detail = detail or getattr(self, "detail", "An error occurred.")
         super().__init__(self.detail)
 
