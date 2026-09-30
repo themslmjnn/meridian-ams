@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.core.config import ALGORITHM, Settings
+from src.core.config import Settings
 
 
 def make_valid_settings(**overrides) -> Settings:
@@ -12,10 +12,11 @@ def make_valid_settings(**overrides) -> Settings:
 
     defaults = {
         "ENVIRONMENT": "test",
+        "ALGORITHM": "HS256",
         "DB_HOST": "localhost",
         "DB_PORT": 5432,
         "DB_USER": "meridian",
-        "DB_PSSW": "meridian",
+        "DB_PASSWORD": "meridian",
         "DB_NAME": "meridian_test",
         "REDIS_HOST": "localhost",
         "REDIS_PORT": 6379,
@@ -32,14 +33,14 @@ def make_valid_settings(**overrides) -> Settings:
 
 class TestAlgorithm:
     def test_algorithm_constant_is_hs256(self):
-        assert ALGORITHM == "HS256"
+        assert make_valid_settings().ALGORITHM == "HS256"
 
 
 class TestDerivedURLs:
     def test_database_url_computed_from_components(self):
         s = make_valid_settings(
             DB_USER="myuser",
-            DB_PSSW="mypass",
+            DB_PASSWORD="mypass",
             DB_HOST="db.example.com",
             DB_PORT=5433,
             DB_NAME="mydb",
@@ -109,11 +110,15 @@ class TestEnvironmentDerivedFlags:
 
 class TestFieldValidatorsPort:
     def test_invalid_db_port_zero_raises(self):
-        with pytest.raises(ValidationError, match="Port must be between"):
+        with pytest.raises(
+            ValidationError, match="Port must be between 1 and 65535, got 0"
+        ):
             make_valid_settings(DB_PORT=0)
 
     def test_invalid_db_port_too_high_raises(self):
-        with pytest.raises(ValidationError, match="Port must be between"):
+        with pytest.raises(
+            ValidationError, match="Port must be between 1 and 65535, got 65536"
+        ):
             make_valid_settings(DB_PORT=65536)
 
     def test_valid_db_port_boundary_low(self):
@@ -127,17 +132,19 @@ class TestFieldValidatorsPort:
         assert s.DB_PORT == 65535
 
     def test_invalid_redis_port_raises(self):
-        with pytest.raises(ValidationError, match="Port must be between"):
+        with pytest.raises(
+            ValidationError, match="Port must be between 1 and 65535, got 99999"
+        ):
             make_valid_settings(REDIS_PORT=99999)
 
 
 class TestFieldValidatorsHost:
     def test_empty_db_host_raises(self):
-        with pytest.raises(ValidationError, match="Host cannot be empty"):
+        with pytest.raises(ValidationError, match="Host cannot be empty or whitespace"):
             make_valid_settings(DB_HOST="   ")
 
     def test_empty_redis_host_raises(self):
-        with pytest.raises(ValidationError, match="Host cannot be empty"):
+        with pytest.raises(ValidationError, match="Host cannot be empty or whitespace"):
             make_valid_settings(REDIS_HOST="")
 
     def test_db_host_is_stripped(self):
@@ -148,21 +155,31 @@ class TestFieldValidatorsHost:
 
 class TestFieldValidatorsDBIdentifier:
     def test_empty_db_user_raises(self):
-        with pytest.raises(ValidationError, match="cannot be empty"):
+        with pytest.raises(
+            ValidationError,
+            match="Database user and name cannot be empty or whitespace",
+        ):
             make_valid_settings(DB_USER="  ")
 
     def test_empty_db_name_raises(self):
-        with pytest.raises(ValidationError, match="cannot be empty"):
+        with pytest.raises(
+            ValidationError,
+            match="Database user and name cannot be empty or whitespace",
+        ):
             make_valid_settings(DB_NAME="")
 
 
 class TestFieldValidatorsSecret:
     def test_jwt_secret_too_short_raises(self):
-        with pytest.raises(ValidationError, match="at least 32 characters"):
+        with pytest.raises(
+            ValidationError, match="Secret must be at least 32 characters"
+        ):
             make_valid_settings(JWT_SECRET_KEY="short")
 
     def test_cursor_secret_too_short_raises(self):
-        with pytest.raises(ValidationError, match="at least 32 characters"):
+        with pytest.raises(
+            ValidationError, match="Secret must be at least 32 characters"
+        ):
             make_valid_settings(CURSOR_SECRET_KEY="tooshort")
 
     def test_jwt_secret_exactly_32_chars_passes(self):
@@ -173,39 +190,57 @@ class TestFieldValidatorsSecret:
 
 class TestFieldValidatorsTokenExpiry:
     def test_access_token_expiry_below_minimum_raises(self):
-        with pytest.raises(ValidationError, match="at least 1"):
-            make_valid_settings(ACCESS_TOKEN_EXPIRE_MINUTES=0)
+        with pytest.raises(
+            ValidationError, match="ACCESS_TOKEN_EXPIRES_MINUTES must be at least 15"
+        ):
+            make_valid_settings(ACCESS_TOKEN_EXPIRES_MINUTES=14)
 
     def test_access_token_expiry_above_maximum_raises(self):
-        with pytest.raises(ValidationError, match="should not exceed 60"):
-            make_valid_settings(ACCESS_TOKEN_EXPIRE_MINUTES=61)
+        with pytest.raises(
+            ValidationError, match="ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 30"
+        ):
+            make_valid_settings(ACCESS_TOKEN_EXPIRES_MINUTES=31)
 
     def test_refresh_token_expiry_below_minimum_raises(self):
-        with pytest.raises(ValidationError, match="at least 1"):
-            make_valid_settings(REFRESH_TOKEN_EXPIRE_DAYS=0)
+        with pytest.raises(
+            ValidationError, match="REFRESH_TOKEN_EXPIRES_DAYS must be at least 7"
+        ):
+            make_valid_settings(REFRESH_TOKEN_EXPIRES_DAYS=0)
 
     def test_refresh_token_expiry_above_maximum_raises(self):
-        with pytest.raises(ValidationError, match="should not exceed 90"):
-            make_valid_settings(REFRESH_TOKEN_EXPIRE_DAYS=91)
+        with pytest.raises(
+            ValidationError, match="REFRESH_TOKEN_EXPIRES_DAYS should not exceed 30"
+        ):
+            make_valid_settings(REFRESH_TOKEN_EXPIRES_DAYS=31)
 
 
 class TestFieldValidatorsLoginAttempt:
     def test_max_login_attempts_below_minimum_raises(self):
-        with pytest.raises(ValidationError, match="at least 3"):
+        with pytest.raises(
+            ValidationError, match="MAX_LOGIN_ATTEMPTS must be at least 3"
+        ):
             make_valid_settings(MAX_LOGIN_ATTEMPTS=2)
 
     def test_max_login_attempts_above_maximum_raises(self):
-        with pytest.raises(ValidationError, match="should not exceed 20"):
-            make_valid_settings(MAX_LOGIN_ATTEMPTS=21)
+        with pytest.raises(
+            ValidationError, match="MAX_LOGIN_ATTEMPTS should not exceed 10"
+        ):
+            make_valid_settings(MAX_LOGIN_ATTEMPTS=11)
 
 
 class TestFieldValidatorsWorkEmailDomain:
     def test_work_email_domain_without_dot_raises(self):
-        with pytest.raises(ValidationError, match="valid domain"):
+        with pytest.raises(
+            ValidationError,
+            match="WORK_EMAIL_DOMAIN must be a valid domain, e.g. 'school.edu'",
+        ):
             make_valid_settings(WORK_EMAIL_DOMAIN="nodot")
 
     def test_work_email_domain_empty_raises(self):
-        with pytest.raises(ValidationError, match="valid domain"):
+        with pytest.raises(
+            ValidationError,
+            match="WORK_EMAIL_DOMAIN must be a valid domain, e.g. 'school.edu'",
+        ):
             make_valid_settings(WORK_EMAIL_DOMAIN="  ")
 
     def test_work_email_domain_normalised_to_lowercase(self):
