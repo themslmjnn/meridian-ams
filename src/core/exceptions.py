@@ -103,8 +103,7 @@ async def redis_error_handler(
 
     Critical Redis wrappers propagate RedisError — this handler converts them
     to 503 Service Unavailable. The error is logged but not sent to Sentry
-    as routine infrastructure blips; persistent failures will alert via
-    uptime monitoring.
+    as routine infrastructure blips; persistent failures will alert via uptime monitoring.
     """
 
     logger.error(
@@ -134,6 +133,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     Import order matters: more specific exceptions must be registered before
     broader ones so FastAPI matches the most specific handler first.
     """
+
     from fastapi import FastAPI as _FastAPI  # runtime import, local scope
 
     if not isinstance(app, _FastAPI):
