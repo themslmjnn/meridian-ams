@@ -79,7 +79,9 @@ async def get_current_user(
 
         except ValueError:
             logger.warning(
-                "atv_cache_malformed", session_id=session_id, cached=unpacked_cached_atv
+                "atv_cache_malformed",
+                session_id=session_id,
+                cached=unpacked_cached_atv,
             )
 
             unpacked_cached_atv = None
@@ -144,23 +146,6 @@ async def get_current_user(
 current_user_dependency = Annotated[CurrentUser, Depends(get_current_user)]
 
 
-def require_roles(*roles: UserRole):
-    def guard(current_user: current_user_dependency) -> CurrentUser:
-        if current_user.role not in roles:
-            raise exceptions.AccessDeniedError()
-
-        return current_user
-
-    return guard
-
-
-require_system_admin = Annotated[
-    CurrentUser, Depends(require_roles(UserRole.SYSTEM_ADMIN))
-]
-require_director = Annotated[CurrentUser, Depends(require_roles(UserRole.DIRECTOR))]
-require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIAN))]
-
-
 STATUS_EXCEPTION_MAP: dict[UserStatus, type[AppException]] = {
     UserStatus.PENDING_ACTIVATION: exceptions.AccountNotActivatedError,
     UserStatus.DEACTIVATED: exceptions.AccountInactiveError,
@@ -186,3 +171,20 @@ def _verify_status(credentials: UserCredentials) -> None:
         credentials.status,
         exceptions.AccessDeniedError,
     )()
+
+
+def require_roles(*roles: UserRole):
+    def guard(current_user: current_user_dependency) -> CurrentUser:
+        if current_user.role not in roles:
+            raise exceptions.AccessDeniedError()
+
+        return current_user
+
+    return guard
+
+
+require_system_admin = Annotated[
+    CurrentUser, Depends(require_roles(UserRole.SYSTEM_ADMIN))
+]
+require_director = Annotated[CurrentUser, Depends(require_roles(UserRole.DIRECTOR))]
+require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIAN))]
