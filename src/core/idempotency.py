@@ -108,6 +108,7 @@ async def acquire_idempotency_lock(
                     ),
                     ex=get_settings().IDEMPOTENCY_PROCESSING_TTL,
                 )
+
             except RedisError as exc:
                 logger.warning(
                     "idempotency_processing_cache_mirror_failed",

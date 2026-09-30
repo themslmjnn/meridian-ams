@@ -174,6 +174,7 @@ class TestAcquireIdempotencyLockDbFallback:
     ) -> None:
         key = _idempotency_key()
         cache_key = IdempotencyCacheKey.idempotency_key(OPERATION, ACTOR_ID, key)
+
         await make_idempotency_record(
             test_session,
             actor_id=ACTOR_ID,
@@ -195,6 +196,7 @@ class TestAcquireIdempotencyLockDbFallback:
 
         cached = await redis_client.get(cache_key)
         assert cached is not None
+
         data = json.loads(cached)
         assert data["status"] == "processing"
 
@@ -238,6 +240,7 @@ class TestAcquireIdempotencyLockDbFallback:
         key = _idempotency_key()
         cache_key = IdempotencyCacheKey.idempotency_key(OPERATION, ACTOR_ID, key)
         body = {"public_id": str(uuid.uuid4())}
+
         await make_idempotency_record(
             test_session,
             actor_id=ACTOR_ID,
@@ -261,6 +264,7 @@ class TestAcquireIdempotencyLockDbFallback:
 
         cached = await redis_client.get(cache_key)
         assert cached is not None
+
         data = json.loads(cached)
         assert data["status"] == "complete"
         assert data["body"] == body
@@ -343,7 +347,7 @@ class TestAcquireIdempotencyLockDbFallback:
         self,
         test_session: AsyncSession,
         redis_client,
-    ) -> None:
+    ):
         key = _idempotency_key()
 
         await acquire_idempotency_lock(
@@ -406,8 +410,7 @@ class TestCompleteIdempotencyRecord:
         assert record.response_body == body
 
     async def test_raises_when_no_matching_record(
-        self,
-        test_session: AsyncSession,
+        self, test_session: AsyncSession
     ) -> None:
         with pytest.raises(IdempotencyStateError):
             await complete_idempotency_record(
@@ -421,11 +424,11 @@ class TestCompleteIdempotencyRecord:
             )
 
     async def test_raises_when_record_already_complete(
-        self,
-        test_session: AsyncSession,
+        self, test_session: AsyncSession
     ) -> None:
         key = _idempotency_key()
         body = {"public_id": str(uuid.uuid4())}
+
         await make_idempotency_record(
             test_session,
             actor_id=ACTOR_ID,
@@ -450,11 +453,7 @@ class TestCompleteIdempotencyRecord:
 
 
 class TestMirrorCompleteToRedis:
-    async def test_writes_correct_shape_to_redis(
-        self,
-        test_session: AsyncSession,
-        redis_client,
-    ) -> None:
+    async def test_writes_correct_shape_to_redis(self, redis_client: Redis) -> None:
         key = _idempotency_key()
         cache_key = IdempotencyCacheKey.idempotency_key(OPERATION, ACTOR_ID, key)
         body = {"public_id": str(uuid.uuid4())}
@@ -471,17 +470,14 @@ class TestMirrorCompleteToRedis:
 
         cached = await redis_client.get(cache_key)
         assert cached is not None
+
         data = json.loads(cached)
         assert data["status"] == "complete"
         assert data["request_hash"] == PAYLOAD_HASH
         assert data["http_status"] == 201
         assert data["body"] == body
 
-    async def test_written_under_correct_cache_key(
-        self,
-        test_session: AsyncSession,
-        redis_client,
-    ) -> None:
+    async def test_written_under_correct_cache_key(self, redis_client: Redis) -> None:
         key = _idempotency_key()
         other_key = _idempotency_key()
         cache_key = IdempotencyCacheKey.idempotency_key(OPERATION, ACTOR_ID, key)
