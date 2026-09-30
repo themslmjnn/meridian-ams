@@ -65,10 +65,7 @@ class TestAppExceptionHandler:
 
         assert response.status_code == 403
         assert body["error_code"] == "ACCESS_DENIED"
-        assert "error_code" in body
         assert "detail" in body
-        # Must not contain any extra keys
-        assert set(body.keys()) == {"error_code", "detail"}
 
     async def test_app_exception_body_has_exactly_two_keys(
         self, exception_client: AsyncClient
@@ -179,6 +176,7 @@ class TestUnhandledExceptionHandler:
         response = await exception_client.get("/test/unhandled-shape")
 
         body = response.json()
+
         assert "error_code" in body
         assert "detail" in body
 
