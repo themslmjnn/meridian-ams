@@ -33,9 +33,10 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASSWORD: SecretStr
     DB_NAME: str
+
     DB_POOL_SIZE: int = 10
     DB_MAX_OVERFLOW: int = 20
-    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_TIMEOUT: int = 5
     DB_POOL_RECYCLE: int = 3600
 
     # Computed in derive_computed_fields — do not set in .env
@@ -51,11 +52,14 @@ class Settings(BaseSettings):
 
     JWT_SECRET_KEY: SecretStr
     JWT_SECRET_KEY_PREVIOUS: SecretStr | None = None
+
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 30
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
+
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = 30
+
     CURSOR_SECRET_KEY: SecretStr
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
@@ -79,8 +83,8 @@ class Settings(BaseSettings):
 
     MAILTRAP_HOST: str | None = "sandbox.smtp.mailtrap.io"
     MAILTRAP_PORT: int | None = 587
-    MAILTRAP_USERNAME: str | None
-    MAILTRAP_PASSWORD: SecretStr | None
+    MAILTRAP_USERNAME: str | None = None
+    MAILTRAP_PASSWORD: SecretStr | None = None
 
     SENTRY_DSN: str | None = None
 
@@ -112,43 +116,39 @@ class Settings(BaseSettings):
 
         return v.strip()
 
-    @field_validator(
-        "JWT_SECRET_KEY",
-        "JWT_SECRET_KEY_PREVIOUS",
-        "CURSOR_SECRET_KEY",
-        mode="before",
-    )
+    @field_validator("JWT_SECRET_KEY", "CURSOR_SECRET_KEY")
     @classmethod
-    def validate_secrets_length(cls, v: str | None) -> str | None:
-        if not v:  # catches both None and ""
-            return None
-
+    def validate_required_secrets(cls, v: str) -> str:
         if len(v) < 32:
-            raise ValueError(
-                "Secret must be at least 32 characters. "
-                "Generate with: openssl rand -hex 32"
-            )
+            raise ValueError("Secret must be at least 32 characters")
+
+        return v
+
+    @field_validator("JWT_SECRET_KEY_PREVIOUS", mode="before")
+    @classmethod
+    def validate_optional_secret(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        if len(v) < 32:
+            raise ValueError("Secret must be at least 32 characters")
 
         return v
 
     @field_validator("ACCESS_TOKEN_EXPIRES_MINUTES")
     @classmethod
     def validate_access_token_expiry(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("ACCESS_TOKEN_EXPIRES_MINUTES must be at least 1")
+        if v < 15:
+            raise ValueError("ACCESS_TOKEN_EXPIRES_MINUTES must be at least 15")
         if v > 30:
-            raise ValueError(
-                "ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 30 — "
-                "use refresh tokens for long-lived sessions"
-            )
+            raise ValueError("ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 30")
 
         return v
 
     @field_validator("REFRESH_TOKEN_EXPIRES_DAYS")
     @classmethod
     def validate_refresh_token_expiry(cls, v: int) -> int:
-        if v < 1:
-            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS must be at least 1")
+        if v < 7:
+            raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS must be at least 7")
         if v > 30:
             raise ValueError("REFRESH_TOKEN_EXPIRES_DAYS should not exceed 30")
 
@@ -159,8 +159,8 @@ class Settings(BaseSettings):
     def validate_max_login_attempts(cls, v: int) -> int:
         if v < 3:
             raise ValueError("MAX_LOGIN_ATTEMPTS must be at least 3")
-        if v > 20:
-            raise ValueError("MAX_LOGIN_ATTEMPTS should not exceed 20")
+        if v > 10:
+            raise ValueError("MAX_LOGIN_ATTEMPTS should not exceed 10")
 
         return v
 
