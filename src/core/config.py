@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY_PREVIOUS: SecretStr | None = None
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
-    REFRESH_TOKEN_EXPIRES_DAYS: int = 30
+    REFRESH_TOKEN_EXPIRES_DAYS: int = 7
     REFRESH_GRACE_WINDOW_SECONDS: int = 60
 
     MAX_LOGIN_ATTEMPTS: int = 5
@@ -194,7 +194,7 @@ class Settings(BaseSettings):
             f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
         )
 
-        if self.REDIS_PASSWORD.get_secret_value():
+        if self.REDIS_PASSWORD:
             self.REDIS_URL = (
                 f"redis://:{self.REDIS_PASSWORD.get_secret_value()}"
                 f"@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
