@@ -38,7 +38,7 @@ def create_access_token(payload: CreateAccessToken) -> str:
     )
 
 
-def _decode_token(token: str, secret: str) -> dict:
+def decode_access_token(token: str, secret: str) -> dict:
     try:
         payload = jwt.decode(token, secret, algorithms=[get_settings().ALGORITHM])
 
@@ -52,19 +52,6 @@ def _decode_token(token: str, secret: str) -> dict:
 
     except jwt.InvalidTokenError as exc:
         raise exceptions.InvalidAccessTokenError() from exc
-
-
-def decode_access_token(token: str) -> dict:
-    try:
-        return _decode_token(token, get_settings().JWT_SECRET_KEY.get_secret_value())
-
-    except ValueError:
-        if not get_settings().JWT_SECRET_KEY_PREVIOUS.get_secret_value():
-            raise
-
-        return _decode_token(
-            token, get_settings().JWT_SECRET_KEY_PREVIOUS.get_secret_value()
-        )
 
 
 def create_refresh_token(payload: CreateRefreshToken) -> tuple[str, str]:
