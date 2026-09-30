@@ -1,7 +1,7 @@
 class HTTP400:
     ACTIVATION_TOKEN_USED = "Account already activated or was never invited"
-    INVALID_ACTIVATION_TOKEN = "Invalid invite token"
-    EXPIRED_ACTIVATION_TOKEN = "Expired invite token"
+    INVALID_ACTIVATION_TOKEN = "Invalid activation token"
+    EXPIRED_ACTIVATION_TOKEN = "Expired activation token"
     INVALID_RESET_PASSWORD_TOKEN = "Invalid reset password token"
     EXPIRED_RESET_PASSWORD_TOKEN = "Expired reset password token"
     NO_CHANGES_DETECTED = "No changes detected"
