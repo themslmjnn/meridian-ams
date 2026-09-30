@@ -34,8 +34,33 @@ def make_redis(
 
 
 class TestGetCache:
+    async def test_set_cache_serializes_dict(self):
+        redis = make_redis()
+
+        await set_cache(
+            redis,
+            "my-key",
+            {"user_id": 123, "role": "teacher"},
+        )
+
+        redis.set.assert_called_once_with(
+            "my-key",
+            '{"user_id": 123, "role": "teacher"}',
+            ex=None,
+        )
+
+    async def test_get_cache_deserializes_dict(self):
+        redis = make_redis(get_return='{"user_id": 123, "role": "teacher"}')
+
+        result = await get_cache(redis, "my-key")
+
+        assert result == {
+            "user_id": 123,
+            "role": "teacher",
+        }
+
     async def test_get_cache_returns_value_on_hit(self):
-        redis = make_redis(get_return="cached_value")
+        redis = make_redis(get_return='"cached_value"')
         result = await get_cache(redis, "my-key")
 
         assert result == "cached_value"
@@ -78,13 +103,13 @@ class TestSetCache:
         redis = make_redis()
         await set_cache(redis, "my-key", "my-value")
 
-        redis.set.assert_called_once_with("my-key", "my-value", ex=None)
+        redis.set.assert_called_once_with("my-key", '"my-value"', ex=None)
 
     async def test_set_cache_passes_ttl(self):
         redis = make_redis()
         await set_cache(redis, "my-key", "my-value", ex=300)
 
-        redis.set.assert_called_once_with("my-key", "my-value", ex=300)
+        redis.set.assert_called_once_with("my-key", '"my-value"', ex=300)
 
     async def test_set_cache_swallows_redis_error(self):
         """Optional wrapper must not raise on RedisError."""
