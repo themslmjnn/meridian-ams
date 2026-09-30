@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
 
     # --- Startup ---
-    configure_logging(get_settings().ENVIRONMENT)
+    configure_logging(get_settings().IS_PRODUCTION_LIKE)
     app.state.settings = get_settings()
 
     logger.info("application_starting", environment=get_settings().ENVIRONMENT)

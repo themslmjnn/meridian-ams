@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
+    IS_PRODUCTION_LIKE: bool = False
     APP_NAME: str = "Meridian AMS"
     APP_URL: str = "http://localhost:8000"
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
@@ -204,9 +205,10 @@ class Settings(BaseSettings):
                 f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
             )
 
-        is_production_like = self.ENVIRONMENT in ("staging", "production")
-        self.COOKIE_SECURE = is_production_like
-        self.METRICS_ENABLED = is_production_like
+        self.IS_PRODUCTION_LIKE = self.ENVIRONMENT in ("staging", "production")
+
+        self.COOKIE_SECURE = self.IS_PRODUCTION_LIKE
+        self.METRICS_ENABLED = self.IS_PRODUCTION_LIKE
 
         return self
 

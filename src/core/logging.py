@@ -4,9 +4,7 @@ import sys
 import structlog
 
 
-def configure_logging(environment: str) -> None:
-    is_production_like = environment in ("staging", "production")
-
+def configure_logging(is_production_like: str) -> None:
     shared_processors: list[structlog.types.Processor] = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
