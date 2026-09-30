@@ -59,7 +59,7 @@ async def _send_via_mailtrap(
         hostname=get_settings().MAILTRAP_HOST,
         port=get_settings().MAILTRAP_PORT,
         username=get_settings().MAILTRAP_USERNAME,
-        password=get_settings().MAILTRAP_PASSWORD,
+        password=get_settings().MAILTRAP_PASSWORD.get_secret_value(),
         start_tls=True,
     )
 
