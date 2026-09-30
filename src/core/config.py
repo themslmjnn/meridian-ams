@@ -52,7 +52,6 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
 
     JWT_SECRET_KEY: SecretStr
-    JWT_SECRET_KEY_PREVIOUS: SecretStr | None = None
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 7
@@ -120,16 +119,6 @@ class Settings(BaseSettings):
     @field_validator("JWT_SECRET_KEY", "CURSOR_SECRET_KEY")
     @classmethod
     def validate_required_secrets(cls, v: str) -> str:
-        if len(v) < 32:
-            raise ValueError("Secret must be at least 32 characters")
-
-        return v
-
-    @field_validator("JWT_SECRET_KEY_PREVIOUS", mode="before")
-    @classmethod
-    def validate_optional_secret(cls, v: str | None) -> str | None:
-        if not v:
-            return None
         if len(v) < 32:
             raise ValueError("Secret must be at least 32 characters")
 
