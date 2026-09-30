@@ -646,10 +646,6 @@ class AuthService:
 
             raise exceptions.InvalidActivationCodeError()
 
-        user_identity = await UserIdentityRepository.get_by_id(
-            session, user_credentials.identity_id
-        )
-
         if datetime.now(UTC) > user_credentials.activation.activation_token_expires_at:
             logger.warning(
                 "activation_failed",
@@ -713,7 +709,7 @@ class AuthService:
         access_token = create_access_token(
             CreateAccessToken(
                 public_id=user_credentials.public_id,
-                role=user_identity.role,
+                role=user_credentials.role,
                 account_type=user_credentials.account_type,
                 session_id=user_session.id,
                 access_token_version=user_session.access_token_version,
@@ -725,7 +721,7 @@ class AuthService:
         logger.info(
             "account_activated",
             credentials_id=user_credentials.id,
-            role=user_identity.role,
+            role=user_credentials.role,
             session_id=user_session.id,
         )
 
