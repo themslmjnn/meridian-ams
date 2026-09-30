@@ -82,6 +82,7 @@ class AccessDeniedError(AppException):
 class AccountLockedError(AppException):
     status_code = 403
     error_code = "ACCOUNT_LOCKED"
+    detail = "Your account is locked"
 
 
 class AccountNotActivatedError(AppException):
