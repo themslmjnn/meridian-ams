@@ -24,6 +24,7 @@ async def _check_database() -> dict[str, Any]:
     Uses engine.connect() directly rather than a full ORM session to avoid
     unnecessary overhead in a health endpoint.
     """
+
     start = time.perf_counter()
 
     try:
@@ -67,6 +68,7 @@ async def liveness() -> JSONResponse:
     No DB or Redis checks. Used by Railway and Docker HEALTHCHECK to determine
     whether to restart the container.
     """
+
     return JSONResponse(status_code=200, content={"status": "ok"})
 
 
@@ -81,6 +83,7 @@ async def readiness(request: Request) -> JSONResponse:
     Both checks always run regardless of individual failures
     (asyncio.gather with return_exceptions=True).
     """
+
     db_result, redis_result = await asyncio.gather(
         _check_database(),
         _check_redis(request),

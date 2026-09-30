@@ -17,7 +17,9 @@ async def test_live_response_has_request_id(integration_client: AsyncClient):
 
 
 async def test_ready_returns_200_when_both_healthy(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     redis_health_mock.return_value = {"status": "ok", "duration_ms": 0.5}
 
@@ -32,7 +34,9 @@ async def test_ready_returns_200_when_both_healthy(
 
 
 async def test_ready_response_shape_has_duration_ms(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     """Each check result must include duration_ms."""
 
@@ -48,7 +52,9 @@ async def test_ready_response_shape_has_duration_ms(
 
 
 async def test_ready_returns_503_when_db_unreachable(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     database_health_mock.return_value = {
         "status": "error",
@@ -68,7 +74,9 @@ async def test_ready_returns_503_when_db_unreachable(
 
 
 async def test_ready_returns_503_when_redis_unreachable(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     redis_health_mock.return_value = {
         "status": "error",
@@ -87,7 +95,9 @@ async def test_ready_returns_503_when_redis_unreachable(
 
 
 async def test_ready_returns_503_when_both_unhealthy(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     database_health_mock.return_value = {"status": "error", "duration_ms": 5.0}
     redis_health_mock.return_value = {"status": "error", "duration_ms": 2.0}
@@ -99,7 +109,9 @@ async def test_ready_returns_503_when_both_unhealthy(
 
 
 async def test_ready_includes_both_check_keys_regardless_of_failure(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     """Both check keys must always be present in the response body."""
 
@@ -115,7 +127,9 @@ async def test_ready_includes_both_check_keys_regardless_of_failure(
 
 
 async def test_ready_both_checks_run_when_db_raises(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     """
     asyncio.gather(return_exceptions=True) ensures both checks always run.
@@ -132,7 +146,9 @@ async def test_ready_both_checks_run_when_db_raises(
 
 
 async def test_ready_both_checks_run_when_redis_raises(
-    integration_client: AsyncClient, database_health_mock, redis_health_mock
+    integration_client: AsyncClient,
+    database_health_mock,
+    redis_health_mock,
 ):
     """Both checks run even when Redis raises — DB check is not skipped."""
 
