@@ -77,11 +77,7 @@ class TestAdvisoryLock:
             test_session, redis_client, system_admin.id, teacher.public_id, payload
         )
 
-        mock_users_advisory_lock_system_admin.assert_called_once_with(
-            test_session,
-            phone_number=None,
-            email=None,
-        )
+        mock_users_advisory_lock_system_admin.assert_not_called()
 
     async def test_no_lock_when_phone_number_omitted(
         self,
@@ -100,11 +96,7 @@ class TestAdvisoryLock:
             test_session, redis_client, system_admin.id, teacher.public_id, payload
         )
 
-        mock_users_advisory_lock_system_admin.assert_called_once_with(
-            test_session,
-            phone_number=None,
-            email=None,
-        )
+        mock_users_advisory_lock_system_admin.assert_not_called()
 
 
 class TestContactLimit:
@@ -212,16 +204,7 @@ class TestContactLimit:
             test_session, redis_client, system_admin.id, teacher.public_id, payload
         )
 
-        mock_users_check_contact_limit_system_admin.assert_called_once_with(
-            test_session,
-            system_admin.id,
-            username=teacher.username,
-            phone_number=None,
-            email=None,
-            resolved_role=teacher.role,
-            account_type=teacher.account_type,
-            exclude_credentials_id=teacher.id,
-        )
+        mock_users_check_contact_limit_system_admin.assert_not_called()
 
 
 class TestPayloadMismatch:
