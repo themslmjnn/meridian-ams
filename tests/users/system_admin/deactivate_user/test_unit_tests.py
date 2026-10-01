@@ -106,7 +106,7 @@ class TestSuccessfulDeactivation:
         teacher: UserCredentials,
         mock_users_delete_cache_system_admin,
     ) -> None:
-        pre_deletion_status = teacher.status
+        pre_transition_status = teacher.status
 
         await UserService.deactivate_user(
             test_session, redis_client, system_admin.id, teacher.public_id
@@ -117,7 +117,7 @@ class TestSuccessfulDeactivation:
         )
 
         assert updated.status == UserStatus.DEACTIVATED
-        assert updated.pre_deletion_status == pre_deletion_status
+        assert updated.pre_transition_status == pre_transition_status
 
     async def test_all_sessions_invalidated(
         self,
