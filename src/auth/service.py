@@ -257,9 +257,9 @@ class AuthService:
 
                 raise exceptions.InvalidCredentialsError()
 
-            user_credentials.status = user_credentials.pre_deletion_status
+            user_credentials.status = user_credentials.pre_transition_status
             user_credentials.deletion_scheduled_for = None
-            user_credentials.pre_deletion_status = None
+            user_credentials.pre_transition_status = None
 
             logger.info(
                 "deletion_implicitly_cancelled", credentials_id=user_credentials.id
