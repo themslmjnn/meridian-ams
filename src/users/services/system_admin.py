@@ -334,13 +334,11 @@ class UserService:
         )
         account_type = credentials.account_type
 
-        email = payload.email if is_email_changing else None
-
-        if email:
+        if is_email_changing:
             await acquire_contact_locks(
                 session,
                 phone_number=None,
-                email=email,
+                email=payload.email,
             )
 
             await check_contact_limit(
@@ -348,7 +346,7 @@ class UserService:
                 current_user_id,
                 username=credentials.username,
                 phone_number=None,
-                email=email,
+                email=payload.email,
                 resolved_role=credentials.role,
                 account_type=account_type,
                 exclude_credentials_id=credentials.id,
