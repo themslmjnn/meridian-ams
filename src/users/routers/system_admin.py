@@ -100,7 +100,10 @@ async def deactivate_user(
     )
 
 
-@router.patch("/{public_id}/activation", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch(
+    "/{public_id}/activation",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 @user_limiter.limit("7/minute")
 async def activate_user(
     request: Request,
