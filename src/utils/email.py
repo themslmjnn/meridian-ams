@@ -40,7 +40,11 @@ async def _send_via_resend(
             f"Resend API error {response.status_code}: {response.text[:400]}"
         )
 
-    logger.info("email_dispatched_resend", to_email=to_email, subject=subject)
+    logger.info(
+        "email_dispatched_resend",
+        to_email=to_email,
+        subject=subject,
+    )
 
 
 async def _send_via_mailtrap(
@@ -63,7 +67,11 @@ async def _send_via_mailtrap(
         start_tls=True,
     )
 
-    logger.info("email_dispatched_mailtrap", to_email=to_email, subject=subject)
+    logger.info(
+        "email_dispatched_mailtrap",
+        to_email=to_email,
+        subject=subject,
+    )
 
 
 async def send_email(subject: str, to_email: str, html_body: str) -> None:
