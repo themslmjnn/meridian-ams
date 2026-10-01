@@ -594,6 +594,7 @@ class UserService:
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
+
         if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
