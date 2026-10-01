@@ -66,6 +66,7 @@ class CreateResetPasswordRequestUseCase:
                 operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
                 actor_id=current_user_id,
                 idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
                 http_status=status.HTTP_204_NO_CONTENT,
                 body=None,
             )
