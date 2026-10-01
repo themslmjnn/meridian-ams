@@ -19,6 +19,9 @@ from src.users.schemas.system_admin import (
     UserResponseDetailed,
 )
 from src.users.services.system_admin import UserService
+from src.users.use_cases.create_reset_password_request import (
+    CreateResetPasswordRequestUseCase,
+)
 from src.users.use_cases.register_user import RegisterUserUseCase
 from src.users.utils.schemas import UpdateCredentials
 
@@ -117,16 +120,25 @@ async def activate_user(
     )
 
 
-@router.post("/{public_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{public_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 @user_limiter.limit("5/minute")
 async def create_reset_password_request(
     request: Request,
     session: session_dependency,
+    redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
+    idempotency_key: Annotated[str, Depends(make_idempotency_key_dependency())],
 ):
-    await UserService.create_reset_password_request(
-        session, current_user.credentials_id, public_id
+    await CreateResetPasswordRequestUseCase.execute(
+        session=session,
+        redis=redis,
+        current_user_id=current_user.credentials_id,
+        public_id=public_id,
+        idempotency_key=idempotency_key,
     )
 
 
