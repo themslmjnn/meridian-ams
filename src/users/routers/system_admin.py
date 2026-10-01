@@ -29,7 +29,9 @@ router = APIRouter(
 
 
 @router.post(
-    "", response_model=UserResponseDetailed, status_code=status.HTTP_201_CREATED
+    "",
+    response_model=UserResponseDetailed,
+    status_code=status.HTTP_201_CREATED,
 )
 @user_limiter.limit("7/minute")
 async def register_user(

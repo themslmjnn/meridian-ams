@@ -245,24 +245,23 @@ class UserService:
             and payload.phone_number != identity.phone_number
         )
 
-        phone_number = payload.phone_number if is_phone_number_changing else None
+        if is_phone_number_changing:
+            await acquire_contact_locks(
+                session,
+                phone_number=payload.phone_number,
+                email=None,
+            )
 
-        await acquire_contact_locks(
-            session,
-            phone_number=phone_number,
-            email=None,
-        )
-
-        await check_contact_limit(
-            session,
-            current_user_id,
-            username=credentials.username,
-            phone_number=phone_number,
-            email=None,
-            resolved_role=resolved_role,
-            account_type=account_type,
-            exclude_credentials_id=credentials.id,
-        )
+            await check_contact_limit(
+                session,
+                current_user_id,
+                username=credentials.username,
+                phone_number=payload.phone_number,
+                email=None,
+                resolved_role=resolved_role,
+                account_type=account_type,
+                exclude_credentials_id=credentials.id,
+            )
 
         try:
             update_object(identity, payload)
