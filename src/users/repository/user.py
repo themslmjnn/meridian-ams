@@ -12,6 +12,7 @@ from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
 from src.users.models.email_change import UserEmailChange
 from src.users.models.identity import UserIdentity
+from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.enums import AccountType, UserRole, UserStatus
@@ -394,6 +395,20 @@ class UserSessionRepository:
     async def invalidate_all_sessions(user_sessions: list[UserSession]) -> None:
         for user_session in user_sessions:
             await UserSessionRepository.invalidate_session(user_session)
+
+
+class UserPasswordResetRepository:
+    @staticmethod
+    async def get_by_credentials_id(
+        session: AsyncSession, credentials_id: int
+    ) -> UserPasswordReset | None:
+        query = select(UserPasswordReset).where(
+            UserPasswordReset.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
 
 
 class UserRepositoryBase:
