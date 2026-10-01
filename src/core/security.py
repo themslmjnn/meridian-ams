@@ -40,7 +40,11 @@ def create_access_token(payload: CreateAccessToken) -> str:
 
 def decode_access_token(token: str) -> dict:
     try:
-        payload = jwt.decode(token, get_settings().JWT_SECRET_KEY.get_secret_value(), algorithms=[get_settings().ALGORITHM])
+        payload = jwt.decode(
+            token,
+            get_settings().JWT_SECRET_KEY.get_secret_value(),
+            algorithms=[get_settings().ALGORITHM],
+        )
 
         if payload.get("type") != "access":
             raise exceptions.InvalidTokenTypeError()
