@@ -628,7 +628,8 @@ class UserService:
                 triggered_by=current_user_id,
             )
         )
-        await session.commit()
+
+        await session.flush()
 
         logger.info(
             "reset_password_request_created",
