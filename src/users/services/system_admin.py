@@ -623,7 +623,7 @@ class UserService:
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
-                body_html=html_body,
+                html_body=html_body,
                 email_type=EmailType.PASSWORD_RESET_ADMIN,
                 triggered_by=current_user_id,
             )
