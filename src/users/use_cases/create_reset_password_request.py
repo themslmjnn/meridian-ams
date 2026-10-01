@@ -1,0 +1,79 @@
+import uuid
+
+import structlog
+from fastapi import status
+from redis import RedisError
+from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.core.idempotency import (
+    acquire_idempotency_lock,
+    complete_idempotency_record,
+    hash_payload,
+    mirror_complete_to_redis_after_commit,
+)
+from src.users.services.system_admin import UserService
+from src.utils.enums import IdempotencyOperation
+
+logger = structlog.get_logger(__name__)
+
+
+class CreateResetPasswordRequestUseCase:
+    @staticmethod
+    async def execute(
+        session: AsyncSession,
+        redis: Redis,
+        current_user_id: int,
+        public_id: uuid.UUID,
+        idempotency_key: str,
+    ) -> None:
+        payload_hash = hash_payload(
+            {
+                "public_id": str(public_id),
+            }
+        )
+
+        await acquire_idempotency_lock(
+            session,
+            redis,
+            operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
+            actor_id=current_user_id,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+        )
+
+        await UserService.create_reset_password_request(
+            session=session,
+            current_user_id=current_user_id,
+            public_id=public_id,
+        )
+
+        await complete_idempotency_record(
+            session,
+            operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
+            actor_id=current_user_id,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            http_status=status.HTTP_204_NO_CONTENT,
+            body=None,
+        )
+
+        await session.commit()
+
+        try:
+            await mirror_complete_to_redis_after_commit(
+                redis,
+                operation=CreateResetPasswordRequestUseCase.OPERATION,
+                actor_id=current_user_id,
+                idempotency_key=idempotency_key,
+                http_status=status.HTTP_204_NO_CONTENT,
+                body=None,
+            )
+
+        except RedisError as exc:
+            logger.warning(
+                "idempotency_redis_mirror_failed",
+                actor_id=current_user_id,
+                operation=IdempotencyOperation.USER_REGISTER,
+                error=str(exc),
+            )
