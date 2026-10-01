@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import Header
+from fastapi import Header, Response, status
 from fastapi.responses import JSONResponse
 from redis import RedisError
 from redis.asyncio import Redis
@@ -163,7 +163,7 @@ async def complete_idempotency_record(
     idempotency_key: str,
     payload_hash: str,
     http_status: int,
-    body: dict,
+    body: dict | list | str | None,
 ) -> None:
     """
     Update the idempotency record from PROCESSING to COMPLETE.
@@ -278,12 +278,15 @@ class _CachedResponseSignal(Exception):
     Registered as an exception handler in main.py.
     """
 
-    def __init__(self, status_code: int, body: dict) -> None:
+    def __init__(self, status_code: int, body: dict | list | str | None) -> None:
         self.status_code = status_code
         self.body = body
 
 
 def make_cached_response(signal: _CachedResponseSignal) -> JSONResponse:
     """Convert a _CachedResponseSignal into a JSONResponse."""
+
+    if signal.status_code == status.HTTP_204_NO_CONTENT:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     return JSONResponse(status_code=signal.status_code, content=signal.body)
