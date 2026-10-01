@@ -63,7 +63,7 @@ class CreateResetPasswordRequestUseCase:
         try:
             await mirror_complete_to_redis_after_commit(
                 redis,
-                operation=CreateResetPasswordRequestUseCase.OPERATION,
+                operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
                 actor_id=current_user_id,
                 idempotency_key=idempotency_key,
                 http_status=status.HTTP_204_NO_CONTENT,
@@ -74,6 +74,6 @@ class CreateResetPasswordRequestUseCase:
             logger.warning(
                 "idempotency_redis_mirror_failed",
                 actor_id=current_user_id,
-                operation=IdempotencyOperation.USER_REGISTER,
+                operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
                 error=str(exc),
             )
