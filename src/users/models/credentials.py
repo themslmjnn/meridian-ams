@@ -29,7 +29,7 @@ class UserCredentials(MutableBase):
     status: Mapped[UserStatus] = mapped_column(
         Enum(UserStatus), nullable=False, default=UserStatus.PENDING_ACTIVATION
     )
-    pre_deletion_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
+    pre_transition_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
 
     deletion_scheduled_for: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True)
