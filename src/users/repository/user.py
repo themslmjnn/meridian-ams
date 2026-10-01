@@ -237,7 +237,7 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def reactivate_pending_deletion_user(
-        session: AsyncSession, public_id: uuid.UUID, pre_deletion_status: UserRole
+        session: AsyncSession, public_id: uuid.UUID, pre_transition_status: UserRole
     ) -> bool:
         query = (
             update(UserCredentials)
@@ -247,7 +247,7 @@ class UserCredentialsRepository:
                 UserCredentials.status == UserStatus.PENDING_DELETION,
             )
             .values(
-                status=pre_deletion_status,
+                status=pre_transition_status,
                 deletion_scheduled_for=None,
             )
         )

@@ -492,7 +492,7 @@ class UserService:
         if credentials.status != UserStatus.ACTIVE:
             raise exceptions.InvalidStatusTransitionError()
 
-        credentials.pre_deletion_status = credentials.status
+        credentials.pre_transition_status = credentials.status
         credentials.status = UserStatus.DEACTIVATED
 
         session_ids = [session.id for session in credentials.sessions]
@@ -736,7 +736,7 @@ class UserService:
             days=constants.DELETION_GRACE_PERIOD_DAYS
         )
 
-        credentials.pre_deletion_status = credentials.status
+        credentials.pre_transition_status = credentials.status
         credentials.status = UserStatus.PENDING_DELETION
         credentials.deletion_scheduled_for = deletion_scheduled_for
 
@@ -790,7 +790,7 @@ class UserService:
             raise exceptions.GuardianNotPendingDeletionError()
 
         reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
-            session, public_id, credentials.pre_deletion_status
+            session, public_id, credentials.pre_transition_status
         )
 
         if not reactivated:

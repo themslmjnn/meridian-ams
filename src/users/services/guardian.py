@@ -65,7 +65,7 @@ class UserServiceGuardian:
             days=DELETION_GRACE_PERIOD_DAYS
         )
 
-        user_credentials.pre_deletion_status = user_credentials.status
+        user_credentials.pre_transition_status = user_credentials.status
         user_credentials.status = UserStatus.PENDING_DELETION
         user_credentials.deletion_scheduled_for = deletion_scheduled_for
 
