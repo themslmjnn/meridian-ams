@@ -467,6 +467,11 @@ class UserRepositoryBase:
         limit = max(1, min(limit, 100))
         fetch = limit + 1
 
+        query = query.add_columns(
+            UserCredentials.id.label("_cursor_id"),
+            UserCredentials.created_at.label("_cursor_created_at"),
+        )
+
         if next_cursor:
             created_at, record_id = decode_cursor(next_cursor)
 
@@ -521,18 +526,33 @@ class UserRepositoryBase:
         last = rows[-1]
 
         built_next = (
-            encode_cursor(last["created_at"], last["id"])
+            encode_cursor(
+                last["_cursor_created_at"],
+                last["_cursor_id"],
+            )
             if has_more or direction == "backward"
             else None
         )
         built_prev = (
-            encode_cursor(first["created_at"], first["id"])
+            encode_cursor(
+                first["_cursor_created_at"],
+                first["_cursor_id"],
+            )
             if next_cursor or (direction == "backward" and has_more)
             else None
         )
 
+        items = [
+            {
+                key: value
+                for key, value in row.items()
+                if key not in {"_cursor_id", "_cursor_created_at"}
+            }
+            for row in rows
+        ]
+
         return CursorPage(
-            items=rows,
+            items=items,
             next_cursor=built_next,
             prev_cursor=built_prev,
             limit=limit,
