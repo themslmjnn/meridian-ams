@@ -332,7 +332,7 @@ class UserIdentityRepository:
 
 class UserActivationRepository:
     @staticmethod
-    async def get_by_id(
+    async def get_by_credentials_id(
         session: AsyncSession, credentials_id: int
     ) -> UserIdentity | None:
         query = select(UserActivation).where(
