@@ -87,7 +87,7 @@ class TestPasswordResetRow:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         teacher: UserCredentials,
-    ) -> None:
+    ):
         await UserService.create_reset_password_request(
             test_session, system_admin.id, teacher.public_id
         )
