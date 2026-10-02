@@ -639,7 +639,7 @@ class UserService:
         )
 
     @staticmethod
-    async def resend_activation_invite(
+    async def resend_activation_token(
         session: AsyncSession,
         current_user_id: int,
         public_id: uuid.UUID,
@@ -655,7 +655,7 @@ class UserService:
 
         if credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
-                "invite_resend_denied",
+                "activation_token_resend_denied",
                 public_id=public_id,
                 actor_user_id=current_user_id,
                 denial_reason="user_not_pending_activation",
@@ -693,10 +693,11 @@ class UserService:
                 triggered_by=current_user_id,
             )
         )
-        await session.commit()
+
+        await session.flush()
 
         logger.info(
-            "invite_resent",
+            "activation_token_resent",
             public_id=public_id,
             actor_user_id=current_user_id,
         )
