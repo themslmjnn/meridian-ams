@@ -581,7 +581,7 @@ class UserRepositoryBase:
         base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
 
         query = base_join.where(
-            UserIdentity.role != UserRole.SYSTEM_ADMIN,
+            UserCredentials.role != UserRole.SYSTEM_ADMIN,
             UserCredentials.public_id == public_id,
         )
 
