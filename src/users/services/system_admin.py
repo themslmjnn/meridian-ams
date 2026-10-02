@@ -712,6 +712,7 @@ class UserService:
         credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
+            allowed_roles=constants.GUARDIAN_ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
         if credentials is None:
