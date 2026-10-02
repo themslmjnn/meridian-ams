@@ -18,7 +18,7 @@ from src.utils.enums import IdempotencyOperation
 logger = structlog.get_logger(__name__)
 
 
-class ResendActivationTokentUseCase:
+class ResendActivationTokenUseCase:
     @staticmethod
     async def execute(
         session: AsyncSession,

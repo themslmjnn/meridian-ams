@@ -23,7 +23,7 @@ from src.users.use_cases.create_reset_password_request import (
     CreateResetPasswordRequestUseCase,
 )
 from src.users.use_cases.register_user import RegisterUserUseCase
-from src.users.use_cases.resend_activation_token import ResendActivationTokentUseCase
+from src.users.use_cases.resend_activation_token import ResendActivationTokenUseCase
 from src.users.utils.schemas import UpdateCredentials
 
 router = APIRouter(
@@ -156,7 +156,7 @@ async def resend_activation_token(
     public_id: uuid.UUID,
     idempotency_key: Annotated[str, Depends(make_idempotency_key_dependency())],
 ):
-    await ResendActivationTokentUseCase.execute(
+    await ResendActivationTokenUseCase.execute(
         session=session,
         redis=redis,
         current_user_id=current_user.credentials_id,
