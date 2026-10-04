@@ -210,9 +210,9 @@ async def get_staff(
     session: session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
-    limit: int = Query(default=20, ge=1, le=100),
-    next_cursor: str | None = Query(default=None),
-    prev_cursor: str | None = Query(default=None),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    next_cursor: Annotated[str | None, Query()] = None,
+    prev_cursor: Annotated[str | None, Query()] = None,
 ):
     return await UserService.get_staff(
         session,
@@ -250,9 +250,9 @@ async def get_guardians(
     session: session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
-    limit: int = Query(default=20, ge=1, le=100),
-    next_cursor: str | None = Query(default=None),
-    prev_cursor: str | None = Query(default=None),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    next_cursor: Annotated[str | None, Query()] = None,
+    prev_cursor: Annotated[str | None, Query()] = None,
 ):
     return await UserService.get_guardians(
         session,
