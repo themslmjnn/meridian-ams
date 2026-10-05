@@ -29,6 +29,7 @@ from src.users.schemas.shared import (
     UpdateUserCredentials,
     UserResponseSelf,
 )
+from src.users.utils.constants import STUDENT_ROLE
 from src.users.utils.enums import AccountType
 from src.users.utils.exceptions import (
     CredentialsNotFoundError,
@@ -54,7 +55,7 @@ logger = structlog.get_logger(__name__)
 class UserServiceSelf:
     @staticmethod
     async def get_my_profile(
-        session: AsyncSession, redis: Redis, current_user: CurrentUser
+        session: AsyncSession, redis: Redis, current_user: CurrentUser,
     ) -> UserResponseSelf:
         cache_key = UserCacheKey.user_detail_key_self(current_user.public_id)
         cached_data = await get_cache(redis, cache_key)
@@ -65,6 +66,7 @@ class UserServiceSelf:
         user = await UserRepositoryBase.get_user_by_public_id(
             session,
             current_user.public_id,
+            excluded_roles=STUDENT_ROLE,
         )
         if user is None:
             raise UserNotFoundError()

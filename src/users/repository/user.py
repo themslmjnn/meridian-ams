@@ -597,16 +597,18 @@ class UserRepositoryBase:
         session: AsyncSession,
         public_id: uuid.UUID,
         allowed_roles: frozenset[UserRole] | None = None,
+        excluded_roles: frozenset[UserRole] | None = None,
     ) -> RowMapping | None:
         base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
 
         query = base_join.where(
-            UserCredentials.role != UserRole.SYSTEM_ADMIN,
-            UserCredentials.public_id == public_id,
+            UserCredentials.public_id == public_id
         )
 
         if allowed_roles is not None:
             query = query.where(UserCredentials.role.in_(allowed_roles))
+        if excluded_roles is not None:
+                    query = query.where(UserCredentials.role.not_in(excluded_roles))
 
         result = await session.execute(query)
 
