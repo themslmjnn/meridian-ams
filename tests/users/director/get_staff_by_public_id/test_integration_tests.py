@@ -4,11 +4,11 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
-from src.users.utils.enums import AccountType, UserRole, UserStatus
+from src.users.utils.enums import UserRole, UserStatus
 from tests.conftest import make_auth_header
 from tests.factories import make_student, make_teacher
 
-ENDPOINT = "/api/v1/admin/users/staff"
+ENDPOINT = "/api/v1/director/users/staff"
 
 
 class TestAuth:
@@ -17,13 +17,13 @@ class TestAuth:
 
         assert response.status_code == 401
 
-    async def test_director_returns_403(
+    async def test_system_admin_returns_403(
         self,
         test_session: AsyncSession,
         integration_client: AsyncClient,
-        director: UserCredentials,
+        system_admin: UserCredentials,
     ):
-        headers = await make_auth_header(test_session, director)
+        headers = await make_auth_header(test_session, system_admin)
 
         response = await integration_client.get(
             f"{ENDPOINT}/{uuid.uuid4()}", headers=headers
@@ -79,9 +79,9 @@ class TestNotFound:
         self,
         test_session: AsyncSession,
         integration_client: AsyncClient,
-        system_admin: UserCredentials,
+        director: UserCredentials,
     ):
-        headers = await make_auth_header(test_session, system_admin)
+        headers = await make_auth_header(test_session, director)
 
         response = await integration_client.get(
             f"{ENDPOINT}/{uuid.uuid4()}", headers=headers
@@ -93,10 +93,10 @@ class TestNotFound:
         self,
         test_session: AsyncSession,
         integration_client: AsyncClient,
-        system_admin: UserCredentials,
+        director: UserCredentials,
     ):
         student = await make_student(test_session)
-        headers = await make_auth_header(test_session, system_admin)
+        headers = await make_auth_header(test_session, director)
 
         response = await integration_client.get(
             f"{ENDPOINT}/{student.public_id}", headers=headers
@@ -110,10 +110,10 @@ class TestSuccess:
         self,
         test_session: AsyncSession,
         integration_client: AsyncClient,
-        system_admin: UserCredentials,
+        director: UserCredentials,
     ):
         teacher = await make_teacher(test_session)
-        headers = await make_auth_header(test_session, system_admin)
+        headers = await make_auth_header(test_session, director)
 
         response = await integration_client.get(
             f"{ENDPOINT}/{teacher.public_id}", headers=headers
@@ -125,26 +125,22 @@ class TestSuccess:
         self,
         test_session: AsyncSession,
         integration_client: AsyncClient,
-        system_admin: UserCredentials,
+        director: UserCredentials,
     ):
         teacher = await make_teacher(test_session)
-        headers = await make_auth_header(test_session, system_admin)
+        headers = await make_auth_header(test_session, director)
 
         response = await integration_client.get(
             f"{ENDPOINT}/{teacher.public_id}", headers=headers
         )
         data = response.json()
 
-        assert data["public_id"] == str(teacher.public_id)
         assert data["username"] == teacher.username
         assert data["email"] == teacher.email
         assert data["role"] == UserRole.TEACHER.value
-        assert data["account_type"] == AccountType.WORK.value
         assert data["status"] == UserStatus.ACTIVE.value
         assert "firstname" in data
         assert "lastname" in data
         assert "date_of_birth" in data
         assert "address" in data
-        assert "deletion_scheduled_for" in data
         assert "created_at" in data
-        assert "updated_at" in data
