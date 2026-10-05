@@ -41,42 +41,42 @@ class UserServiceGuardian:
         redis: Redis,
         current_user_id: int,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_id(
+        credentials = await UserCredentialsRepository.get_by_id(
             session,
             current_user_id,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise CredentialsNotFoundError()
 
-        if user_credentials.status == UserStatus.PENDING_DELETION:
+        if credentials.status == UserStatus.PENDING_DELETION:
             logger.warning(
                 "guardian_self_deletion_request_denied",
-                guardian_id=current_user_id,
+                actor_id=current_user_id,
                 denial_reason="guardian_is_already_pending_deletion",
             )
 
             raise GuardianAlreadyPendingDeletionError()
 
-        if user_credentials.status != UserStatus.ACTIVE:
+        if credentials.status != UserStatus.ACTIVE:
             raise InvalidStatusTransitionError()
 
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
             days=DELETION_GRACE_PERIOD_DAYS
         )
 
-        user_credentials.pre_transition_status = user_credentials.status
-        user_credentials.status = UserStatus.PENDING_DELETION
-        user_credentials.deletion_scheduled_for = deletion_scheduled_for
+        credentials.pre_transition_status = credentials.status
+        credentials.status = UserStatus.PENDING_DELETION
+        credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        session_ids = [s.id for s in user_credentials.sessions]
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+        session_ids = [s.id for s in credentials.sessions]
+        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_account_deletion_email(user_credentials.email),
+                emails.send_account_deletion_email(credentials.email),
                 email_type=EmailType.ACCOUNT_DELETION,
             )
         )
@@ -91,7 +91,7 @@ class UserServiceGuardian:
         logger.info(
             "guardian_self_deletion_scheduled",
             user_id=current_user_id,
-            public_id=user_credentials.public_id,
+            public_id=credentials.public_id,
             deletion_scheduled_for=deletion_scheduled_for.isoformat(),
         )
 
@@ -102,48 +102,47 @@ class UserServiceGuardian:
         current_user: CurrentUser,
         payload: UpdateProfileGuardian,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session, current_user.public_id
         )
-        if user_credentials is None:
+        if credentials is None:
             raise CredentialsNotFoundError()
 
-        user_identity = await UserIdentityRepository.get_by_id(
-            session, user_credentials.identity_id
+        identity = await UserIdentityRepository.get_by_id(
+            session, credentials.identity_id
         )
 
         is_phone_number_changing = (
             payload.phone_number is not None
-            and payload.phone_number != user_identity.phone_number
+            and payload.phone_number != identity.phone_number
         )
 
-        phone_number = payload.phone_number if is_phone_number_changing else None
+        if is_phone_number_changing:
+            await acquire_contact_locks(
+                session,
+                phone_number=payload.phone_number,
+                email=None,
+            )
 
-        await acquire_contact_locks(
-            session,
-            phone_number=phone_number,
-            email=None,
-        )
-
-        await check_contact_limit(
-            session,
-            current_user.credentials_id,
-            username=user_credentials.username,
-            phone_number=phone_number,
-            email=None,
-            resolved_role=UserRole.GUARDIAN,
-            account_type=AccountType.PERSONAL,
-            exclude_credentials_id=user_credentials.id,
-        )
+            await check_contact_limit(
+                session,
+                current_user.credentials_id,
+                username=credentials.username,
+                phone_number=payload.phone_number,
+                email=None,
+                resolved_role=UserRole.GUARDIAN,
+                account_type=AccountType.PERSONAL,
+                exclude_credentials_id=credentials.id,
+            )
 
         try:
-            update_object(user_identity, payload)
+            update_object(identity, payload)
 
             await session.commit()
 
             asyncio.create_task(
                 emails.send_email_safe(
-                    emails.send_account_info_updated_email(user_credentials.email),
+                    emails.send_account_info_updated_email(credentials.email),
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )
