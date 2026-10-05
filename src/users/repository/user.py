@@ -601,14 +601,12 @@ class UserRepositoryBase:
     ) -> RowMapping | None:
         base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
 
-        query = base_join.where(
-            UserCredentials.public_id == public_id
-        )
+        query = base_join.where(UserCredentials.public_id == public_id)
 
         if allowed_roles is not None:
             query = query.where(UserCredentials.role.in_(allowed_roles))
         if excluded_roles is not None:
-                    query = query.where(UserCredentials.role.not_in(excluded_roles))
+            query = query.where(UserCredentials.role.not_in(excluded_roles))
 
         result = await session.execute(query)
 

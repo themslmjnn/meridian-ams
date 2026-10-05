@@ -55,7 +55,9 @@ logger = structlog.get_logger(__name__)
 class UserServiceSelf:
     @staticmethod
     async def get_my_profile(
-        session: AsyncSession, redis: Redis, current_user: CurrentUser,
+        session: AsyncSession,
+        redis: Redis,
+        current_user: CurrentUser,
     ) -> UserResponseSelf:
         cache_key = UserCacheKey.user_detail_key_self(current_user.public_id)
         cached_data = await get_cache(redis, cache_key)
