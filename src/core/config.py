@@ -1,8 +1,10 @@
 import os
+import re
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import quote
 
-from pydantic import SecretStr, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV = os.getenv("ENVIRONMENT", "development")
@@ -11,6 +13,10 @@ _ENV_FILE_MAP = {
 }
 _ENV_FILE = _ENV_FILE_MAP.get(_ENV, ".env")
 
+_DOMAIN_RE = re.compile(
+    r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+"
+)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -18,9 +24,10 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
+        env_ignore_empty=True,
     )
 
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
     IS_PRODUCTION_LIKE: bool = False
@@ -35,47 +42,41 @@ class Settings(BaseSettings):
     DB_PASSWORD: SecretStr
     DB_NAME: str
 
-    DB_POOL_SIZE: int = 10
-    DB_MAX_OVERFLOW: int = 20
-    DB_POOL_TIMEOUT: int = 5
-    DB_POOL_RECYCLE: int = 3600
-
-    # Computed in derive_computed_fields — do not set in .env
-    DATABASE_URL: str = ""
+    DB_POOL_SIZE: int = Field(10, ge=1, le=100)
+    DB_MAX_OVERFLOW: int = Field(20, ge=0, le=200)
+    DB_POOL_TIMEOUT: int = Field(5, ge=1, le=120)
+    DB_POOL_RECYCLE: int = Field(3600, ge=60)
 
     REDIS_HOST: str
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: SecretStr | None = None
-    REDIS_DB: int
-
-    # Computed in derive_computed_fields — do not set in .env
-    REDIS_URL: str = ""
+    REDIS_DB: int = Field(ge=0)
 
     JWT_SECRET_KEY: SecretStr
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 7
-    REFRESH_GRACE_WINDOW_SECONDS: int = 60
+    REFRESH_GRACE_WINDOW_SECONDS: int = Field(60, ge=0, le=120)
 
     MAX_LOGIN_ATTEMPTS: int = 5
-    LOCKOUT_DURATION_MINUTES: int = 30
+    LOCKOUT_DURATION_MINUTES: int = Field(30, ge=1)
 
     CURSOR_SECRET_KEY: SecretStr
 
-    ACTIVATION_TOKEN_EXPIRES_HOURS: int = 48
-    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = 15
-    RESET_PASSWORD_EXPIRES_MINUTES: int = 60
+    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(48, ge=1, le=168)
+    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(15, ge=1, le=60)
+    RESET_PASSWORD_EXPIRES_MINUTES: int = Field(60, ge=1, le=120)
 
-    IDEMPOTENCY_KEY_TTL: int = 60 * 60 * 24
-    IDEMPOTENCY_PROCESSING_TTL: int = 60 * 5
+    IDEMPOTENCY_KEY_TTL: int = Field(60 * 60 * 24, ge=1)
+    IDEMPOTENCY_PROCESSING_TTL: int = Field(60 * 5, ge=1)
 
     WORK_EMAIL_DOMAIN: str
 
     GRADING_PERIOD_TYPE: Literal["semester", "quarter", "trimester"] = "semester"
 
-    EMAIL_WORKER_INTERVAL: int = 60
-    EMAIL_WORKER_BATCH_SIZE: int = 10
-    DELETION_WORKER_INTERVAL: int = 3600
+    EMAIL_WORKER_INTERVAL: int = Field(60, ge=1)
+    EMAIL_WORKER_BATCH_SIZE: int = Field(10, ge=1, le=100)
+    DELETION_WORKER_INTERVAL: int = Field(3600, ge=60)
 
     EMAIL_API_KEY: str | None = None
     MAIL_FROM: str | None = None
@@ -91,6 +92,37 @@ class Settings(BaseSettings):
     # Derived fields — computed by model_validator, never set directly in .env
     COOKIE_SECURE: bool = False
     METRICS_ENABLED: bool = False
+
+    @property
+    def DATABASE_URL(self) -> str:
+        """Async SQLAlchemy URL. Computed on access; credentials are percent-encoded."""
+
+        return (
+            f"postgresql+asyncpg://{quote(self.DB_USER, safe='')}"
+            f":{quote(self.DB_PASSWORD.get_secret_value(), safe='')}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{quote(self.DB_NAME, safe='')}"
+        )
+
+    @property
+    def REDIS_URL(self) -> str:
+        """Redis URL. Computed on access; password is percent-encoded."""
+
+        if self.REDIS_PASSWORD:
+            password = quote(self.REDIS_PASSWORD.get_secret_value(), safe="")
+
+            return f"redis://:{password}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+    @field_validator("CORS_ORIGINS")
+    @classmethod
+    def validate_cors_origins(cls, v: list[str]) -> list[str]:
+        if "*" in v:
+            raise ValueError(
+                "CORS_ORIGINS must not contain '*' (credentials are enabled)"
+            )
+
+        return v
 
     @field_validator("DB_PORT", "REDIS_PORT")
     @classmethod
@@ -118,8 +150,8 @@ class Settings(BaseSettings):
 
     @field_validator("JWT_SECRET_KEY", "CURSOR_SECRET_KEY")
     @classmethod
-    def validate_required_secrets(cls, v: str) -> str:
-        if len(v) < 32:
+    def validate_required_secrets(cls, v: SecretStr) -> SecretStr:
+        if len(v.get_secret_value()) < 32:
             raise ValueError("Secret must be at least 32 characters")
 
         return v
@@ -157,42 +189,68 @@ class Settings(BaseSettings):
     @field_validator("WORK_EMAIL_DOMAIN")
     @classmethod
     def validate_work_email_domain(cls, v: str) -> str:
-        v = v.strip().lower()
-        if not v or "." not in v:
+        v = v.strip().lower().lstrip("@")
+
+        if not _DOMAIN_RE.fullmatch(v):
             raise ValueError(
-                "WORK_EMAIL_DOMAIN must be a valid domain, e.g. 'school.edu'"
+                "WORK_EMAIL_DOMAIN must be a bare domain, e.g. 'school.edu'"
             )
 
         return v
 
     @model_validator(mode="after")
+    def validate_production_requirements(self) -> "Settings":
+        """Reject placeholder, reused, or missing config in staging/production."""
+
+        if self.ENVIRONMENT not in ("staging", "production"):
+            return self
+
+        errors: list[str] = []
+
+        sensitive = {
+            "JWT_SECRET_KEY": self.JWT_SECRET_KEY.get_secret_value(),
+            "CURSOR_SECRET_KEY": self.CURSOR_SECRET_KEY.get_secret_value(),
+            "DB_PASSWORD": self.DB_PASSWORD.get_secret_value(),
+        }
+        if self.EMAIL_API_KEY:
+            sensitive["EMAIL_API_KEY"] = self.EMAIL_API_KEY
+
+        if sensitive["JWT_SECRET_KEY"] == sensitive["CURSOR_SECRET_KEY"]:
+            errors.append("JWT_SECRET_KEY and CURSOR_SECRET_KEY must differ")
+
+        missing = [
+            name
+            for name in ("ALLOWED_HOSTS", "CORS_ORIGINS", "APP_URL")
+            if name not in self.model_fields_set
+        ]
+        if missing:
+            errors.append(f"{', '.join(missing)} must be set explicitly")
+
+        if not self.APP_URL.startswith("https://"):
+            errors.append("APP_URL must use https")
+
+        if "*" in self.ALLOWED_HOSTS:
+            errors.append("ALLOWED_HOSTS must not contain '*'")
+
+        if not self.EMAIL_API_KEY or not self.MAIL_FROM:
+            errors.append("EMAIL_API_KEY and MAIL_FROM are required")
+
+        if errors:
+            raise ValueError(
+                f"Invalid {self.ENVIRONMENT} configuration: " + "; ".join(errors)
+            )
+
+        return self
+
+    @model_validator(mode="after")
     def derive_computed_fields(self) -> "Settings":
         """
-        Compute all derived fields from their raw components.
-
-        DATABASE_URL and REDIS_URL are built here so the rest of the app
-        reads .DATABASE_URL / .REDIS_URL without knowing how they were
-        constructed — Railway injects individual vars, not full DSNs.
+        Derive environment-dependent flags.
 
         COOKIE_SECURE and METRICS_ENABLED are derived from ENVIRONMENT so
         they cannot be accidentally misconfigured — staging always behaves
         like production for all security concerns.
         """
-
-        self.DATABASE_URL = (
-            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD.get_secret_value()}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        )
-
-        if self.REDIS_PASSWORD:
-            self.REDIS_URL = (
-                f"redis://:{self.REDIS_PASSWORD.get_secret_value()}"
-                f"@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-            )
-        else:
-            self.REDIS_URL = (
-                f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
-            )
 
         self.IS_PRODUCTION_LIKE = self.ENVIRONMENT in ("staging", "production")
 
