@@ -47,6 +47,10 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = Field(5, ge=1, le=120)
     DB_POOL_RECYCLE: int = Field(3600, ge=60)
 
+    DB_CONNECT_TIMEOUT: int = Field(10, ge=1, le=60)
+    DB_STATEMENT_TIMEOUT_MS: int = Field(30_000, ge=1_000)
+    DB_IDLE_IN_TX_TIMEOUT_MS: int = Field(60_000, ge=1_000)
+
     REDIS_HOST: str
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: SecretStr | None = None
