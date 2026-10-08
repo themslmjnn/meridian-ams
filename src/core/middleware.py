@@ -68,11 +68,11 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
     """
-    Catches unhandled exceptions before they escape the middleware stack.
+    Convert unhandled exceptions into the standard JSON 500.
 
-    BaseHTTPMiddleware with call_next re-raises exceptions instead of routing
-    them to FastAPI exception handlers. This middleware catches them first
-    and returns the correct 500 response.
+    Exceptions with a registered handler never reach this point. It sits inside
+    the correlation, logging, security and CORS middleware so the 500 response
+    still carries request_id, security headers and CORS headers.
     """
 
     async def dispatch(
@@ -86,7 +86,6 @@ class ExceptionHandlerMiddleware(BaseHTTPMiddleware):
                 "unhandled_exception",
                 path=request.url.path,
                 method=request.method,
-                exc_info=exc,
             )
 
             sentry_sdk.capture_exception(exc)
