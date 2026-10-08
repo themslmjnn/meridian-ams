@@ -13,6 +13,9 @@ logger = structlog.get_logger(__name__)
 
 settings = get_settings()
 
+# Bound blocking Redis I/O: slowapi's storage is synchronous.
+_STORAGE_OPTIONS = {"socket_connect_timeout": 1, "socket_timeout": 1}
+
 
 def get_user_identifier(request: Request) -> str:
     """
@@ -50,13 +53,18 @@ def get_user_identifier(request: Request) -> str:
 ip_limiter = Limiter(
     key_func=get_remote_address,
     storage_uri=settings.REDIS_URL,
-    default_limits=["60/minute"],
+    storage_options=_STORAGE_OPTIONS,
+    default_limits=[settings.RATE_LIMIT_DEFAULT_IP],
+    headers_enabled=True,
 )
 
+# Applies only to routes decorated with @user_limiter.limit(...);
+# SlowAPIMiddleware uses app.state.limiter (ip_limiter) for default limits.
 user_limiter = Limiter(
     key_func=get_user_identifier,
     storage_uri=settings.REDIS_URL,
-    default_limits=["120/minute"],
+    storage_options=_STORAGE_OPTIONS,
+    headers_enabled=True,
 )
 
 limiter = ip_limiter
@@ -67,29 +75,25 @@ async def rate_limit_exceeded_handler(
     request: Request,
     exc: RateLimitExceeded,
 ) -> JSONResponse:
-    """
-    Return 429 with a Retry-After header when the rate limit is exceeded.
+    """Return 429 with Retry-After (and X-RateLimit-*) headers."""
 
-    The Retry-After value is extracted from the exception when available.
-    """
-    retry_after = getattr(exc, "retry_after", None)
-
-    logger.warning(
-        "rate_limit_exceeded",
-        path=request.url.path,
-        method=request.method,
-        retry_after=retry_after,
-    )
-
-    headers = {}
-    if retry_after is not None:
-        headers["Retry-After"] = str(retry_after)
-
-    return JSONResponse(
+    response = JSONResponse(
         status_code=429,
         content={
             "error_code": "RATE_LIMIT_EXCEEDED",
             "detail": "Too many requests",
         },
-        headers=headers,
     )
+
+    view_limit = getattr(request.state, "view_rate_limit", None)
+    if view_limit is not None:
+        response = request.app.state.limiter._inject_headers(response, view_limit)
+
+    logger.warning(
+        "rate_limit_exceeded",
+        path=request.url.path,
+        method=request.method,
+        retry_after=response.headers.get("Retry-After"),
+    )
+
+    return response
