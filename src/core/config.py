@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     MAILTRAP_USERNAME: str | None = None
     MAILTRAP_PASSWORD: SecretStr | None = None
 
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     SENTRY_DSN: str | None = None
 
     # Derived fields — computed by model_validator, never set directly in .env
