@@ -4,6 +4,7 @@ from functools import lru_cache
 from typing import Literal
 from urllib.parse import quote
 
+from limits import parse_many
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -67,6 +68,8 @@ class Settings(BaseSettings):
     LOCKOUT_DURATION_MINUTES: int = Field(30, ge=1)
 
     CURSOR_SECRET_KEY: SecretStr
+
+    RATE_LIMIT_DEFAULT_IP: str = "60/minute"
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(48, ge=1, le=168)
     EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(15, ge=1, le=60)
@@ -189,6 +192,16 @@ class Settings(BaseSettings):
             raise ValueError("MAX_LOGIN_ATTEMPTS must be at least 3")
         if v > 10:
             raise ValueError("MAX_LOGIN_ATTEMPTS should not exceed 10")
+
+        return v
+
+    @field_validator("RATE_LIMIT_DEFAULT_IP")
+    @classmethod
+    def validate_rate_limit(cls, v: str) -> str:
+        try:
+            parse_many(v)
+        except ValueError as exc:
+            raise ValueError(f"Invalid rate limit string {v!r}") from exc
 
         return v
 
