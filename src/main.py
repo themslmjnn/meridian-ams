@@ -46,70 +46,89 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Manage startup and shutdown of shared resources.
 
     Startup order:
-    1. Configure logging (must be first — all subsequent startup logs use it)
-    2. Attach settings to app.state (middleware and health checks read from here)
-    3. Initialise Redis and verify connectivity
-    4. Initialise Sentry (if DSN configured)
-    5. Initialise Prometheus (if enabled)
-    6. Workers are started in Phase 13 — stubs only until then
+    1. Configure logging (first — all subsequent startup logs use it)
+    2. Attach settings to app.state
+    3. Initialise Sentry (before anything that can fail)
+    4. Initialise Redis and verify connectivity
+    5. Start email and deletion worker tasks
 
-    Shutdown order (reverse of startup):
+    Prometheus is initialised in create_app(), because it adds middleware
+    and that is not allowed once the app has started.
+
+    Shutdown (always runs, even after a partial startup failure):
     1. Cancel and await worker tasks
-    2. Close Redis connection
-    3. Dispose SQLAlchemy engine connection pool
+    2. Close email client, Redis, and the DB engine (each step guarded)
     """
 
     # --- Startup ---
-    configure_logging(get_settings().IS_PRODUCTION_LIKE)
-    app.state.settings = get_settings()
+    settings = get_settings()
 
-    logger.info("application_starting", environment=get_settings().ENVIRONMENT)
+    configure_logging(
+        settings.IS_PRODUCTION_LIKE, settings.ENVIRONMENT, settings.LOG_LEVEL
+    )
+    app.state.settings = settings
 
-    await init_redis(app)
-    _init_sentry()
-    _init_prometheus(app)
+    _init_sentry()  # before anything that can fail, so startup errors are captured
 
-    logger.info("application_ready")
+    logger.info("application_starting", environment=settings.ENVIRONMENT)
 
-    email_task = asyncio.create_task(run_email_worker())
-    deletion_task = asyncio.create_task(run_deletion_worker())
+    tasks: list[asyncio.Task[None]] = []
 
-    logger.info("email_task_started")
-    logger.info("deletion_task_started")
+    try:
+        await init_redis(app)
 
-    yield
+        tasks.append(asyncio.create_task(run_email_worker(), name="email_worker"))
+        tasks.append(asyncio.create_task(run_deletion_worker(), name="deletion_worker"))
+        logger.info("workers_started")
 
-    # --- Shutdown ---
-    logger.info("application_shutting_down")
+        logger.info("application_ready")
 
-    email_task.cancel()
-    deletion_task.cancel()
+        yield
 
-    results = await asyncio.gather(email_task, deletion_task, return_exceptions=True)
+    finally:
+        # --- Shutdown ---
 
-    for result in results:
-        if isinstance(result, BaseException) and not isinstance(
-            result, asyncio.CancelledError
+        logger.info("application_shutting_down")
+
+        for task in tasks:
+            task.cancel()
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for task, result in zip(tasks, results, strict=True):
+            if isinstance(result, BaseException) and not isinstance(
+                result, asyncio.CancelledError
+            ):
+                logger.error(
+                    "worker_shutdown_error",
+                    worker=task.get_name(),
+                    error=str(result),
+                    error_type=type(result).__name__,
+                )
+
+        # Each step is guarded so one failure doesn't skip the rest.
+        for step, close in (
+            ("email_client", close_email_client),
+            ("redis", lambda: close_redis(app)),
+            ("db_engine", dispose_engine),
         ):
-            logger.error(
-                "worker_shutdown_error",
-                error=str(result),
-                error_type=type(result).__name__,
-            )
+            try:
+                await close()
 
-    await close_email_client()
-    await close_redis(app)
-    await dispose_engine()
+            except Exception:
+                logger.exception("shutdown_step_failed", step=step)
 
-    logger.info("application_stopped")
+        logger.info("application_stopped")
 
 
 def _init_sentry() -> None:
-    if not get_settings().SENTRY_DSN:
+    settings = get_settings()
+    if not settings.SENTRY_DSN:
         return
 
     sentry_sdk.init(
-        dsn=get_settings().SENTRY_DSN,
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
         integrations=[
             StarletteIntegration(),
             FastApiIntegration(),
@@ -128,6 +147,7 @@ def _sentry_before_send(
     hint: dict,  # type: ignore[type-arg]
 ) -> dict | None:  # type: ignore[type-arg]
     """Filter additional noise before events reach Sentry."""
+
     return event
 
 
@@ -141,14 +161,14 @@ def _init_prometheus(app: FastAPI) -> None:
 
 
 def create_app() -> FastAPI:
-    is_production_like = get_settings().ENVIRONMENT in ("staging", "production")
+    settings = get_settings()
 
     app = FastAPI(
-        title=get_settings().APP_NAME,
+        title=settings.APP_NAME,
         version="0.1.0",
-        docs_url=None if is_production_like else "/docs",
-        redoc_url=None if is_production_like else "/redoc",
-        openapi_url=None if is_production_like else "/openapi.json",
+        docs_url=None if settings.IS_PRODUCTION_LIKE else "/docs",
+        redoc_url=None if settings.IS_PRODUCTION_LIKE else "/redoc",
+        openapi_url=None if settings.IS_PRODUCTION_LIKE else "/openapi.json",
         lifespan=lifespan,
     )
 
@@ -159,33 +179,36 @@ def create_app() -> FastAPI:
     # Starlette applies middleware bottom-up (last added = outermost wrapper).
     #
     # Execution order (first to last):
-    #   1. CorrelationIDMiddleware   — sets request_id, clears contextvars
-    #   2. RequestLoggingMiddleware  — logs method/path/status/duration
-    #   3. SecurityHeadersMiddleware — appends security headers
-    #   4. TrustedHostMiddleware     — validates Host header (prod/staging only)
-    #   5. CORSMiddleware            — handles preflight and CORS headers
-    #   6. SlowAPIMiddleware         — rate limiting
+    #   1. ExceptionHandlerMiddleware — catches anything unhandled below
+    #   2. CorrelationIDMiddleware    — sets request_id, clears contextvars
+    #   3. RequestLoggingMiddleware   — logs method/path/status/duration
+    #   4. SecurityHeadersMiddleware  — appends security headers
+    #   5. TrustedHostMiddleware      — validates Host header (prod/staging only)
+    #   6. CORSMiddleware             — handles preflight and CORS headers
+    #   7. SlowAPIMiddleware          — rate limiting
     # -------------------------------------------------------------------------
 
     app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=get_settings().CORS_ORIGINS,
+        allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    if is_production_like:
+    if settings.IS_PRODUCTION_LIKE:
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=get_settings().ALLOWED_HOSTS,
+            allowed_hosts=settings.ALLOWED_HOSTS,
         )
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
     app.add_middleware(ExceptionHandlerMiddleware)
+
+    _init_prometheus(app)
 
     # Exception handlers
     register_exception_handlers(app)
