@@ -5,39 +5,24 @@ import pytest_asyncio
 import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from src.auth.schemas import CreateAccessToken
 from src.core.caching import get_redis, get_settings
 from src.core.dependencies import get_session
-from src.core.security import create_access_token
 from src.database.connection import ImmutableBase
 from src.main import app
-from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
-from src.users.schemas.system_admin import (
-    CreateGuardianWithExistingIdentity,
-    CreateGuardianWithNewIdentity,
-    CreateStaff,
-    CreateStudent,
-)
-from src.users.services.system_admin import UserService
-from src.users.utils.enums import UserRole
-from src.users.utils.schemas import LoadOptionsSchema
-from tests.factories import (
-    make_director,
-    make_guardian,
-    make_student,
-    make_system_admin,
-    make_teacher,
-)
 
 settings = get_settings()
 
-SYNC_DB_URL = (
-    f"postgresql+psycopg2://{settings.DB_USER}:{settings.DB_PASSWORD.get_secret_value()}"
-    f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}"
+SYNC_DB_URL = URL.create(
+    "postgresql+psycopg2",
+    username=settings.DB_USER,
+    password=settings.DB_PASSWORD.get_secret_value(),
+    host=settings.DB_HOST,
+    port=settings.DB_PORT,
+    database=settings.DB_NAME,
 )
 
 test_engine = create_async_engine(url=settings.DATABASE_URL, poolclass=NullPool)
@@ -45,18 +30,25 @@ test_engine = create_async_engine(url=settings.DATABASE_URL, poolclass=NullPool)
 
 @pytest.fixture(scope="session", autouse=True)
 def _guard_test_environment():
+    problems = []
+
     if settings.ENVIRONMENT != "test":
-        pytest.exit(
-            f"Refusing to run tests: ENVIRONMENT is '{settings.ENVIRONMENT}', "
-            "expected 'test'. This guard exists because the test suite "
-            "creates and drops the full schema — running it against a "
-            "non-test database would destroy real data."
+        problems.append(f"ENVIRONMENT is '{settings.ENVIRONMENT}', expected 'test'")
+    if "test" not in settings.DB_NAME.lower():
+        problems.append(
+            f"DB_NAME '{settings.DB_NAME}' does not look like a test database"
         )
+    if settings.REDIS_DB != 1:
+        problems.append(f"REDIS_DB is {settings.REDIS_DB}, expected 1 for tests")
+
+    if problems:
+        pytest.exit("Refusing to run tests: " + "; ".join(problems))
 
 
 @pytest.fixture(scope="session", autouse=True)
 def clear_settings_cache(_guard_test_environment) -> None:  # type: ignore[misc]
     """Clear the lru_cache on get_settings before and after the test session."""
+
     get_settings.cache_clear()
 
     yield  # type: ignore[misc]
@@ -64,7 +56,7 @@ def clear_settings_cache(_guard_test_environment) -> None:  # type: ignore[misc]
     get_settings.cache_clear()
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="session")  # no autouse: only DB-backed tests pay for it
 def create_tables(_guard_test_environment):
     sync_engine = create_engine(SYNC_DB_URL)
 
@@ -72,6 +64,7 @@ def create_tables(_guard_test_environment):
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
         conn.commit()
 
+    ImmutableBase.metadata.drop_all(sync_engine)  # clear leftovers from a crashed run
     ImmutableBase.metadata.create_all(sync_engine)
 
     yield
@@ -81,11 +74,16 @@ def create_tables(_guard_test_environment):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def test_session():
+async def test_session(create_tables):
     async with test_engine.connect() as conn:
         await conn.begin()
 
-        session = AsyncSession(bind=conn, expire_on_commit=False)
+        session = AsyncSession(
+            bind=conn,
+            expire_on_commit=False,
+            autoflush=False,
+            join_transaction_mode="create_savepoint",
+        )
 
         async def override_get_session():
             yield session
@@ -108,7 +106,7 @@ async def test_session():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def integration_client(test_session):
+async def integration_client(test_session, override_redis):
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -132,7 +130,7 @@ async def redis_client():
     await client.aclose()
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
+@pytest_asyncio.fixture(scope="function")
 async def override_redis(redis_client):
     async def get_test_redis():
         return redis_client
@@ -160,290 +158,3 @@ def redis_health_mock(mocker):
         new_callable=AsyncMock,
         return_value={"status": "ok", "duration_ms": 1.0},
     )
-
-
-async def make_auth_header(
-    session: AsyncSession, user_credentials: UserCredentials
-) -> dict:
-    user_session = await UserSessionRepository.get_by_credentials_id(
-        session, user_credentials.id
-    )
-
-    token = create_access_token(
-        CreateAccessToken(
-            public_id=user_credentials.public_id,
-            role=user_credentials.role,
-            account_type=user_credentials.account_type,
-            session_id=user_session.id,
-            access_token_version=user_session.access_token_version,
-        )
-    )
-
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest_asyncio.fixture
-async def system_admin(test_session):
-    return await make_system_admin(test_session)
-
-
-@pytest_asyncio.fixture
-async def director(test_session):
-    return await make_director(test_session)
-
-
-@pytest_asyncio.fixture
-async def teacher(test_session):
-    return await make_teacher(test_session)
-
-
-@pytest_asyncio.fixture
-async def student(test_session):
-    return await make_student(test_session)
-
-
-@pytest_asyncio.fixture
-async def guardian(test_session):
-    return await make_guardian(test_session)
-
-
-create_user_request = {
-    "firstname": "New",
-    "lastname": "User",
-    "phone_number": "+992 111 111 101",
-    "username": "test_username",
-    "email": "new_test_email@gmail.com",
-}
-
-
-@pytest.fixture
-def valid_student_payload():
-    return CreateStudent(
-        **create_user_request,
-        type="student",
-        date_of_birth="2008-05-01",
-    )
-
-
-@pytest.fixture
-def valid_staff_payload():
-    create_user_request["email"] = "new_test_email@meridian.edu"
-
-    return CreateStaff(
-        **create_user_request,
-        role=UserRole.TEACHER,
-        type="staff",
-    )
-
-
-@pytest.fixture
-def valid_new_guardian_payload():
-    return CreateGuardianWithNewIdentity(
-        **create_user_request,
-        type="new_guardian",
-    )
-
-
-@pytest_asyncio.fixture
-async def registered_staff(
-    test_session: AsyncSession,
-    system_admin: UserCredentials,
-    valid_staff_payload: CreateStaff,
-) -> UserCredentials:
-    response = await UserService.register_user(
-        test_session, system_admin.id, valid_staff_payload
-    )
-
-    return await UserCredentialsRepository.get_by_public_id(
-        test_session,
-        response["public_id"],
-        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
-    )
-
-
-@pytest_asyncio.fixture
-async def registered_student(
-    test_session: AsyncSession,
-    system_admin: UserCredentials,
-    valid_student_payload: CreateStudent,
-) -> UserCredentials:
-    response = await UserService.register_user(
-        test_session, system_admin.id, valid_student_payload
-    )
-
-    return await UserCredentialsRepository.get_by_public_id(
-        test_session,
-        response["public_id"],
-        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
-    )
-
-
-@pytest_asyncio.fixture
-async def registered_new_guardian(
-    test_session: AsyncSession,
-    system_admin: UserCredentials,
-    valid_new_guardian_payload: CreateGuardianWithNewIdentity,
-) -> UserCredentials:
-    response = await UserService.register_user(
-        test_session, system_admin.id, valid_new_guardian_payload
-    )
-
-    return await UserCredentialsRepository.get_by_public_id(
-        test_session,
-        response["public_id"],
-        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
-    )
-
-
-@pytest_asyncio.fixture
-async def existing_identity(test_session: AsyncSession) -> UserCredentials:
-    return await make_teacher(test_session)
-
-
-@pytest_asyncio.fixture
-async def valid_existing_guardian_payload(
-    existing_identity: UserCredentials,
-) -> CreateGuardianWithExistingIdentity:
-    return CreateGuardianWithExistingIdentity(
-        type="existing_guardian",
-        existing_identity_id=existing_identity.identity_id,
-        username="existing_guardian",
-        email="existing.guardian@example.com",
-    )
-
-
-@pytest_asyncio.fixture
-async def registered_existing_guardian(
-    test_session: AsyncSession,
-    system_admin: UserCredentials,
-    valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
-) -> UserCredentials:
-    response = await UserService.register_user(
-        test_session, system_admin.id, valid_existing_guardian_payload
-    )
-
-    return await UserCredentialsRepository.get_by_public_id(
-        test_session,
-        response["public_id"],
-        load_options=LoadOptionsSchema(load_activation=True, load_login_lockout=True),
-    )
-
-
-@pytest.fixture
-def mock_users_delete_cache_system_admin(mocker):
-    return mocker.patch("src.users.services.system_admin.delete_cache")
-
-
-@pytest.fixture
-def mock_users_set_cache_system_admin(mocker):
-    return mocker.patch("src.users.services.system_admin.set_cache")
-
-
-@pytest.fixture
-def mock_users_set_cache_director(mocker):
-    return mocker.patch("src.users.services.director.set_cache")
-
-
-@pytest.fixture
-def mock_users_delete_cache_shared(mocker):
-    return mocker.patch("src.users.services.shared.delete_cache")
-
-
-@pytest.fixture
-def mock_users_set_cache_shared(mocker):
-    return mocker.patch("src.users.services.shared.set_cache")
-
-
-@pytest.fixture
-def mock_users_advisory_lock_system_admin(mocker):
-    return mocker.patch("src.users.services.system_admin.acquire_contact_locks")
-
-
-@pytest.fixture
-def mock_users_advisory_lock_shared(mocker):
-    return mocker.patch("src.users.services.shared.acquire_contact_locks")
-
-
-@pytest.fixture
-def mock_users_check_contact_limit_system_admin(mocker):
-    return mocker.patch("src.users.services.system_admin.check_contact_limit")
-
-
-@pytest.fixture
-def mock_users_check_contact_limit_shared(mocker):
-    return mocker.patch("src.users.services.shared.check_contact_limit")
-
-
-@pytest.fixture
-def mock_send_account_info_updated_email(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.emails.send_account_info_updated_email"
-    )
-
-
-@pytest.fixture
-def mock_send_account_deactivation_email(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.emails.send_account_deactivation_email"
-    )
-
-
-@pytest.fixture
-def mock_send_account_activation_email(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.emails.send_account_activation_email"
-    )
-
-
-@pytest.fixture
-def mock_send_account_deletion_email(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.emails.send_account_deletion_email"
-    )
-
-
-@pytest.fixture
-def mock_send_account_deletion_canceled_email(mocker):
-    return mocker.patch(
-        "src.users.services.system_admin.emails.send_account_deletion_canceled_email"
-    )
-
-
-@pytest.fixture
-def mock_send_email_change_verification(mocker):
-    return mocker.patch(
-        "src.users.services.shared.emails.send_email_change_verification"
-    )
-
-
-@pytest.fixture
-def mock_send_email_changed_notification(mocker):
-    return mocker.patch(
-        "src.users.services.shared.emails.send_email_changed_notification"
-    )
-
-
-@pytest.fixture
-def mock_send_password_changed_notification(mocker):
-    return mocker.patch(
-        "src.users.services.shared.emails.send_password_changed_notification"
-    )
-
-
-@pytest.fixture
-def mock_send_account_self_deletion_email(mocker):
-    return mocker.patch(
-        "src.users.services.guardian.emails.send_account_deletion_email"
-    )
-
-
-@pytest.fixture
-def mock_send_account_info_self_updated_email(mocker):
-    return mocker.patch(
-        "src.users.services.guardian.emails.send_account_info_updated_email"
-    )
-
-
-@pytest.fixture
-def credentials(request: pytest.FixtureRequest):
-    return request.getfixturevalue(request.param)
