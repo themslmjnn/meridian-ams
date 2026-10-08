@@ -204,7 +204,7 @@ def create_app() -> FastAPI:
             allowed_hosts=settings.ALLOWED_HOSTS,
         )
 
-    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.IS_PRODUCTION_LIKE)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
 
