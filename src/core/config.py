@@ -239,6 +239,11 @@ class Settings(BaseSettings):
         if not self.EMAIL_API_KEY or not self.MAIL_FROM:
             errors.append("EMAIL_API_KEY and MAIL_FROM are required")
 
+        if self.DB_IDLE_IN_TX_TIMEOUT_MS <= self.DB_STATEMENT_TIMEOUT_MS:
+            errors.append(
+                "DB_IDLE_IN_TX_TIMEOUT_MS must be greater than DB_STATEMENT_TIMEOUT_MS"
+            )
+
         if errors:
             raise ValueError(
                 f"Invalid {self.ENVIRONMENT} configuration: " + "; ".join(errors)
