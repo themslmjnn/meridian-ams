@@ -9,8 +9,8 @@ from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from src.core.caching import get_redis, get_settings
-from src.core.config import Settings
+from src.core.caching import get_redis
+from src.core.config import Settings, get_settings
 from src.core.dependencies import get_session
 from src.database.connection import ImmutableBase
 from src.main import app
