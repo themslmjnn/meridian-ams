@@ -177,18 +177,19 @@ def create_app() -> FastAPI:
     # -------------------------------------------------------------------------
     # Middleware — registration order is REVERSE of execution order.
     # Starlette applies middleware bottom-up (last added = outermost wrapper).
-    #
+
     # Execution order (first to last):
-    #   1. ExceptionHandlerMiddleware — catches anything unhandled below
-    #   2. CorrelationIDMiddleware    — sets request_id, clears contextvars
-    #   3. RequestLoggingMiddleware   — logs method/path/status/duration
-    #   4. SecurityHeadersMiddleware  — appends security headers
-    #   5. TrustedHostMiddleware      — validates Host header (prod/staging only)
-    #   6. CORSMiddleware             — handles preflight and CORS headers
+    #   1. CorrelationIDMiddleware    — sets request_id, clears contextvars
+    #   2. RequestLoggingMiddleware   — logs method/path/status/duration
+    #   3. SecurityHeadersMiddleware  — appends security headers
+    #   4. TrustedHostMiddleware      — validates Host header (prod/staging only)
+    #   5. CORSMiddleware             — handles preflight and CORS headers
+    #   6. ExceptionHandlerMiddleware — turns unhandled errors into a JSON 500
     #   7. SlowAPIMiddleware          — rate limiting
     # -------------------------------------------------------------------------
 
     app.add_middleware(SlowAPIMiddleware)
+    app.add_middleware(ExceptionHandlerMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
@@ -206,7 +207,6 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
-    app.add_middleware(ExceptionHandlerMiddleware)
 
     _init_prometheus(app)
 
