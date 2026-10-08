@@ -18,7 +18,13 @@ from src.database.connection import ImmutableBase
 from src.main import app
 from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserSessionRepository
-from tests.factories import make_system_admin, make_teacher
+from tests.factories import (
+    make_director,
+    make_guardian,
+    make_student,
+    make_system_admin,
+    make_teacher,
+)
 
 settings = get_settings()
 
@@ -229,5 +235,20 @@ async def system_admin(test_session):
 
 
 @pytest_asyncio.fixture
+async def director(test_session):
+    return await make_director(test_session)
+
+
+@pytest_asyncio.fixture
 async def teacher(test_session):
     return await make_teacher(test_session)
+
+
+@pytest_asyncio.fixture
+async def student(test_session):
+    return await make_student(test_session)
+
+
+@pytest_asyncio.fixture
+async def guardian(test_session):
+    return await make_guardian(test_session)
