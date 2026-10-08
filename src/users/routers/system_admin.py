@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from src.core.dependencies import (
     redis_dependency,
@@ -207,6 +207,7 @@ async def cancel_guardian_deletion_request(
 @user_limiter.limit("30/minute")
 async def get_staff(
     request: Request,
+    response: Response,
     session: session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
