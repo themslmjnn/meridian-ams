@@ -186,7 +186,9 @@ class TestFieldValidatorsWorkEmailDomain:
     def test_invalid_domain_raises(self, make_settings: Settings, value):
         with pytest.raises(
             ValidationError,
-            match=re.escape("WORK_EMAIL_DOMAIN must be a bare domain, e.g. 'school.edu'"),
+            match=re.escape(
+                "WORK_EMAIL_DOMAIN must be a bare domain, e.g. 'school.edu'"
+            ),
         ):
             make_settings(WORK_EMAIL_DOMAIN=value)
 
