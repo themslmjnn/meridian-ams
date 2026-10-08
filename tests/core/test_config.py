@@ -1,44 +1,25 @@
+import re
+
 import pytest
 from pydantic import ValidationError
 
 from src.core.config import Settings
 
-
-def make_valid_settings(**overrides) -> Settings:
-    """
-    Return a valid Settings instance with all required fields populated.
-    Pass keyword overrides to test specific field behaviour.
-    """
-
-    defaults = {
-        "ENVIRONMENT": "test",
-        "ALGORITHM": "HS256",
-        "DB_HOST": "localhost",
-        "DB_PORT": 5432,
-        "DB_USER": "meridian",
-        "DB_PASSWORD": "meridian",
-        "DB_NAME": "meridian_test",
-        "REDIS_HOST": "localhost",
-        "REDIS_PORT": 6379,
-        "REDIS_DB": 0,
-        "JWT_SECRET_KEY": "a" * 64,
-        "CURSOR_SECRET_KEY": "b" * 32,
-        "WORK_EMAIL_DOMAIN": "school.edu",
-    }
-
-    defaults.update(overrides)
-
-    return Settings.model_validate(defaults)
+PROD_ENVS = ("staging", "production")
 
 
 class TestAlgorithm:
-    def test_algorithm_constant_is_hs256(self):
-        assert make_valid_settings().ALGORITHM == "HS256"
+    def test_default_is_hs256(self, make_settings: Settings):
+        assert make_settings().ALGORITHM == "HS256"
+
+    def test_non_hmac_algorithm_rejected(self, make_settings: Settings):
+        with pytest.raises(ValidationError):
+            make_settings(ALGORITHM="RS256")
 
 
 class TestDerivedURLs:
-    def test_database_url_computed_from_components(self):
-        s = make_valid_settings(
+    def test_database_url_computed_from_components(self, make_settings: Settings):
+        s = make_settings(
             DB_USER="myuser",
             DB_PASSWORD="mypass",
             DB_HOST="db.example.com",
@@ -50,8 +31,15 @@ class TestDerivedURLs:
             "postgresql+asyncpg://myuser:mypass@db.example.com:5433/mydb"
         )
 
-    def test_redis_url_computed_without_password(self):
-        s = make_valid_settings(
+    def test_database_url_percent_encodes_credentials(self, make_settings: Settings):
+        s = make_settings(DB_USER="user", DB_PASSWORD="p@ss/w:rd#1")
+
+        assert s.DATABASE_URL == (
+            "postgresql+asyncpg://user:p%40ss%2Fw%3Ard%231@localhost:5432/meridian_test"
+        )
+
+    def test_redis_url_without_password(self, make_settings: Settings):
+        s = make_settings(
             REDIS_HOST="redis.example.com",
             REDIS_PORT=6380,
             REDIS_DB=2,
@@ -60,8 +48,8 @@ class TestDerivedURLs:
 
         assert s.REDIS_URL == "redis://redis.example.com:6380/2"
 
-    def test_redis_url_computed_with_password(self):
-        s = make_valid_settings(
+    def test_redis_url_with_password(self, make_settings: Settings):
+        s = make_settings(
             REDIS_HOST="redis.example.com",
             REDIS_PORT=6379,
             REDIS_DB=0,
@@ -70,192 +58,275 @@ class TestDerivedURLs:
 
         assert s.REDIS_URL == "redis://:secret@redis.example.com:6379/0"
 
+    def test_redis_url_percent_encodes_password(self, make_settings: Settings):
+        s = make_settings(REDIS_PASSWORD="p@ss")
+
+        assert s.REDIS_URL == "redis://:p%40ss@localhost:6379/1"
+
+    def test_passwords_not_exposed_in_repr(self, make_settings: Settings):
+        s = make_settings(DB_PASSWORD="p@ss-unique", REDIS_PASSWORD="r@ss-unique")
+        text = repr(s)
+
+        for leaked in ("p@ss-unique", "p%40ss-unique", "r@ss-unique", "r%40ss-unique"):
+            assert leaked not in text
+
 
 class TestEnvironmentDerivedFlags:
-    def test_cookie_secure_false_in_development(self):
-        s = make_valid_settings(ENVIRONMENT="development")
+    @pytest.mark.parametrize("env", ["development", "test"])
+    def test_flags_off_outside_production_like(self, make_settings: Settings, env):
+        s = make_settings(ENVIRONMENT=env)
 
+        assert s.IS_PRODUCTION_LIKE is False
         assert s.COOKIE_SECURE is False
-
-    def test_cookie_secure_false_in_test(self):
-        s = make_valid_settings(ENVIRONMENT="test")
-
-        assert s.COOKIE_SECURE is False
-
-    def test_cookie_secure_true_in_staging(self):
-        s = make_valid_settings(ENVIRONMENT="staging")
-
-        assert s.COOKIE_SECURE is True
-
-    def test_cookie_secure_true_in_production(self):
-        s = make_valid_settings(ENVIRONMENT="production")
-
-        assert s.COOKIE_SECURE is True
-
-    def test_metrics_enabled_false_in_development(self):
-        s = make_valid_settings(ENVIRONMENT="development")
-
         assert s.METRICS_ENABLED is False
 
-    def test_metrics_enabled_true_in_staging(self):
-        s = make_valid_settings(ENVIRONMENT="staging")
+    @pytest.mark.parametrize("env", PROD_ENVS)
+    def test_flags_on_in_production_like(self, make_settings: Settings, env):
+        s = make_settings(ENVIRONMENT=env)
 
-        assert s.METRICS_ENABLED is True
-
-    def test_metrics_enabled_true_in_production(self):
-        s = make_valid_settings(ENVIRONMENT="production")
-
+        assert s.IS_PRODUCTION_LIKE is True
+        assert s.COOKIE_SECURE is True
         assert s.METRICS_ENABLED is True
 
 
 class TestFieldValidatorsPort:
-    def test_invalid_db_port_zero_raises(self):
+    @pytest.mark.parametrize("field", ["DB_PORT", "REDIS_PORT"])
+    @pytest.mark.parametrize("port", [0, 65536, 99999])
+    def test_invalid_port_raises(self, make_settings: Settings, field, port):
         with pytest.raises(
-            ValidationError, match="Port must be between 1 and 65535, got 0"
+            ValidationError, match=f"Port must be between 1 and 65535, got {port}"
         ):
-            make_valid_settings(DB_PORT=0)
+            make_settings(**{field: port})
 
-    def test_invalid_db_port_too_high_raises(self):
-        with pytest.raises(
-            ValidationError, match="Port must be between 1 and 65535, got 65536"
-        ):
-            make_valid_settings(DB_PORT=65536)
-
-    def test_valid_db_port_boundary_low(self):
-        s = make_valid_settings(DB_PORT=1)
-
-        assert s.DB_PORT == 1
-
-    def test_valid_db_port_boundary_high(self):
-        s = make_valid_settings(DB_PORT=65535)
-
-        assert s.DB_PORT == 65535
-
-    def test_invalid_redis_port_raises(self):
-        with pytest.raises(
-            ValidationError, match="Port must be between 1 and 65535, got 99999"
-        ):
-            make_valid_settings(REDIS_PORT=99999)
+    @pytest.mark.parametrize("port", [1, 65535])
+    def test_port_boundaries_accepted(self, make_settings: Settings, port):
+        assert port == make_settings(DB_PORT=port).DB_PORT
 
 
 class TestFieldValidatorsHost:
-    def test_empty_db_host_raises(self):
+    @pytest.mark.parametrize("field", ["DB_HOST", "REDIS_HOST"])
+    @pytest.mark.parametrize("value", ["", "   "])
+    def test_empty_host_raises(self, make_settings: Settings, field, value):
         with pytest.raises(ValidationError, match="Host cannot be empty or whitespace"):
-            make_valid_settings(DB_HOST="   ")
+            make_settings(**{field: value})
 
-    def test_empty_redis_host_raises(self):
-        with pytest.raises(ValidationError, match="Host cannot be empty or whitespace"):
-            make_valid_settings(REDIS_HOST="")
-
-    def test_db_host_is_stripped(self):
-        s = make_valid_settings(DB_HOST="  localhost  ")
-
-        assert s.DB_HOST == "localhost"
+    def test_db_host_is_stripped(self, make_settings: Settings):
+        assert make_settings(DB_HOST="  localhost  ").DB_HOST == "localhost"
 
 
 class TestFieldValidatorsDBIdentifier:
-    def test_empty_db_user_raises(self):
+    @pytest.mark.parametrize("field", ["DB_USER", "DB_NAME"])
+    @pytest.mark.parametrize("value", ["", "  "])
+    def test_empty_identifier_raises(self, make_settings: Settings, field, value):
         with pytest.raises(
             ValidationError,
             match="Database user and name cannot be empty or whitespace",
         ):
-            make_valid_settings(DB_USER="  ")
-
-    def test_empty_db_name_raises(self):
-        with pytest.raises(
-            ValidationError,
-            match="Database user and name cannot be empty or whitespace",
-        ):
-            make_valid_settings(DB_NAME="")
+            make_settings(**{field: value})
 
 
 class TestFieldValidatorsSecret:
-    def test_jwt_secret_too_short_raises(self):
+    @pytest.mark.parametrize("field", ["JWT_SECRET_KEY", "CURSOR_SECRET_KEY"])
+    def test_secret_too_short_raises(self, make_settings: Settings, field):
         with pytest.raises(
             ValidationError, match="Secret must be at least 32 characters"
         ):
-            make_valid_settings(JWT_SECRET_KEY="short")
+            make_settings(**{field: "short"})
 
-    def test_cursor_secret_too_short_raises(self):
-        with pytest.raises(
-            ValidationError, match="Secret must be at least 32 characters"
-        ):
-            make_valid_settings(CURSOR_SECRET_KEY="tooshort")
+    def test_secret_exactly_32_chars_passes(self, make_settings: Settings):
+        s = make_settings(JWT_SECRET_KEY="a" * 32)
 
-    def test_jwt_secret_exactly_32_chars_passes(self):
-        s = make_valid_settings(JWT_SECRET_KEY="a" * 32)
-
-        assert len(s.JWT_SECRET_KEY) == 32
+        assert s.JWT_SECRET_KEY.get_secret_value() == "a" * 32
 
 
 class TestFieldValidatorsTokenExpiry:
-    def test_access_token_expiry_below_minimum_raises(self):
+    def test_access_token_expiry_below_minimum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="ACCESS_TOKEN_EXPIRES_MINUTES must be at least 15"
         ):
-            make_valid_settings(ACCESS_TOKEN_EXPIRES_MINUTES=14)
+            make_settings(ACCESS_TOKEN_EXPIRES_MINUTES=14)
 
-    def test_access_token_expiry_above_maximum_raises(self):
+    def test_access_token_expiry_above_maximum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="ACCESS_TOKEN_EXPIRES_MINUTES should not exceed 30"
         ):
-            make_valid_settings(ACCESS_TOKEN_EXPIRES_MINUTES=31)
+            make_settings(ACCESS_TOKEN_EXPIRES_MINUTES=31)
 
-    def test_refresh_token_expiry_below_minimum_raises(self):
+    def test_refresh_token_expiry_below_minimum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="REFRESH_TOKEN_EXPIRES_DAYS must be at least 7"
         ):
-            make_valid_settings(REFRESH_TOKEN_EXPIRES_DAYS=0)
+            make_settings(REFRESH_TOKEN_EXPIRES_DAYS=0)
 
-    def test_refresh_token_expiry_above_maximum_raises(self):
+    def test_refresh_token_expiry_above_maximum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="REFRESH_TOKEN_EXPIRES_DAYS should not exceed 30"
         ):
-            make_valid_settings(REFRESH_TOKEN_EXPIRES_DAYS=31)
+            make_settings(REFRESH_TOKEN_EXPIRES_DAYS=31)
 
 
 class TestFieldValidatorsLoginAttempt:
-    def test_max_login_attempts_below_minimum_raises(self):
+    def test_below_minimum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="MAX_LOGIN_ATTEMPTS must be at least 3"
         ):
-            make_valid_settings(MAX_LOGIN_ATTEMPTS=2)
+            make_settings(MAX_LOGIN_ATTEMPTS=2)
 
-    def test_max_login_attempts_above_maximum_raises(self):
+    def test_above_maximum_raises(self, make_settings: Settings):
         with pytest.raises(
             ValidationError, match="MAX_LOGIN_ATTEMPTS should not exceed 10"
         ):
-            make_valid_settings(MAX_LOGIN_ATTEMPTS=11)
+            make_settings(MAX_LOGIN_ATTEMPTS=11)
 
 
 class TestFieldValidatorsWorkEmailDomain:
-    def test_work_email_domain_without_dot_raises(self):
+    @pytest.mark.parametrize(
+        "value", ["nodot", "", "  ", "school..edu", "a b.edu", "-school.edu"]
+    )
+    def test_invalid_domain_raises(self, make_settings: Settings, value):
         with pytest.raises(
             ValidationError,
-            match="WORK_EMAIL_DOMAIN must be a valid domain, e.g. 'school.edu'",
+            match=re.escape("WORK_EMAIL_DOMAIN must be a bare domain, e.g. 'school.edu'"),
         ):
-            make_valid_settings(WORK_EMAIL_DOMAIN="nodot")
+            make_settings(WORK_EMAIL_DOMAIN=value)
 
-    def test_work_email_domain_empty_raises(self):
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("School.EDU", "school.edu"),
+            ("@school.edu", "school.edu"),
+            ("  mail.school.edu ", "mail.school.edu"),
+        ],
+    )
+    def test_domain_normalised(self, make_settings: Settings, value, expected):
+        assert expected == make_settings(WORK_EMAIL_DOMAIN=value).WORK_EMAIL_DOMAIN
+
+
+class TestNumericBounds:
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("DB_POOL_SIZE", 0),
+            ("LOCKOUT_DURATION_MINUTES", 0),
+            ("EMAIL_WORKER_INTERVAL", 0),
+            ("EMAIL_WORKER_BATCH_SIZE", 0),
+            ("REFRESH_GRACE_WINDOW_SECONDS", 121),
+        ],
+    )
+    def test_out_of_range_raises(self, make_settings: Settings, field, value):
+        with pytest.raises(ValidationError):
+            make_settings(**{field: value})
+
+
+class TestLogLevel:
+    def test_default_is_info(self, make_settings: Settings):
+        assert make_settings().LOG_LEVEL == "INFO"
+
+    def test_invalid_level_raises(self, make_settings: Settings):
+        with pytest.raises(ValidationError):
+            make_settings(LOG_LEVEL="TRACE")
+
+
+class TestCorsOrigins:
+    @pytest.mark.parametrize("env", ["development", *PROD_ENVS])
+    def test_wildcard_rejected(self, make_settings: Settings, env):
         with pytest.raises(
             ValidationError,
-            match="WORK_EMAIL_DOMAIN must be a valid domain, e.g. 'school.edu'",
+            match=re.escape(
+                "CORS_ORIGINS must not contain '*' (credentials are enabled)"
+            ),
         ):
-            make_valid_settings(WORK_EMAIL_DOMAIN="  ")
+            make_settings(ENVIRONMENT=env, CORS_ORIGINS=["*"])
 
-    def test_work_email_domain_normalised_to_lowercase(self):
-        s = make_valid_settings(WORK_EMAIL_DOMAIN="School.EDU")
 
-        assert s.WORK_EMAIL_DOMAIN == "school.edu"
+class TestProductionRequirements:
+    @pytest.mark.parametrize("env", PROD_ENVS)
+    def test_valid_config_accepted(self, make_settings: Settings, env):
+        assert env == make_settings(ENVIRONMENT=env).ENVIRONMENT
+
+    @pytest.mark.parametrize("env", PROD_ENVS)
+    def test_placeholder_secret_rejected(self, make_settings: Settings, env):
+        with pytest.raises(ValidationError, match="JWT_SECRET_KEY still contains"):
+            make_settings(ENVIRONMENT=env, JWT_SECRET_KEY="your_" + "x" * 40)
+
+    def test_identical_secrets_rejected(self, make_settings: Settings):
+        with pytest.raises(ValidationError, match="must differ"):
+            make_settings(
+                ENVIRONMENT="production",
+                JWT_SECRET_KEY="c" * 64,
+                CURSOR_SECRET_KEY="c" * 64,
+            )
+
+    @pytest.mark.parametrize("name", ["APP_URL", "ALLOWED_HOSTS", "CORS_ORIGINS"])
+    def test_unset_explicit_config_rejected(self, make_settings: Settings, name):
+        with pytest.raises(ValidationError, match="must be set explicitly"):
+            make_settings(ENVIRONMENT="production", _drop=(name,))
+
+    def test_non_https_app_url_rejected(self, make_settings: Settings):
+        with pytest.raises(ValidationError, match="APP_URL must use https"):
+            make_settings(ENVIRONMENT="production", APP_URL="http://api.meridian.edu")
+
+    def test_wildcard_allowed_hosts_rejected(self, make_settings: Settings):
+        with pytest.raises(
+            ValidationError, match=re.escape("ALLOWED_HOSTS must not contain '*'")
+        ):
+            make_settings(ENVIRONMENT="production", ALLOWED_HOSTS=["*"])
+
+    @pytest.mark.parametrize("name", ["EMAIL_API_KEY", "MAIL_FROM"])
+    def test_missing_email_config_rejected(self, make_settings: Settings, name):
+        with pytest.raises(
+            ValidationError, match="EMAIL_API_KEY and MAIL_FROM are required"
+        ):
+            make_settings(ENVIRONMENT="production", _drop=(name,))
+
+    def test_all_problems_reported_together(self, make_settings: Settings):
+        with pytest.raises(ValidationError) as exc:
+            make_settings(ENVIRONMENT="production", _drop=("APP_URL", "EMAIL_API_KEY"))
+
+        message = str(exc.value)
+
+        assert "must be set explicitly" in message
+        assert "EMAIL_API_KEY and MAIL_FROM are required" in message
+
+    @pytest.mark.parametrize("env", ["development", "test"])
+    def test_rules_not_enforced_outside_production_like(
+        self, make_settings: Settings, env
+    ):
+        s = make_settings(
+            ENVIRONMENT=env,
+            JWT_SECRET_KEY="your_" + "x" * 40,
+            _drop=("APP_URL", "EMAIL_API_KEY", "MAIL_FROM"),
+        )
+
+        assert env == s.ENVIRONMENT
 
 
 class TestEnvironmentValidation:
-    def test_invalid_environment_raises(self):
+    def test_invalid_environment_raises(self, make_settings: Settings):
         with pytest.raises(ValidationError):
-            make_valid_settings(ENVIRONMENT="local")
+            make_settings(ENVIRONMENT="local")
 
-    def test_valid_environments_all_accepted(self):
-        for env in ("development", "test", "staging", "production"):
-            s = make_valid_settings(ENVIRONMENT=env)
+    @pytest.mark.parametrize("env", ["development", "test", *PROD_ENVS])
+    def test_valid_environment_accepted(self, make_settings: Settings, env):
+        assert env == make_settings(ENVIRONMENT=env).ENVIRONMENT
 
-            assert env == s.ENVIRONMENT
+
+class TestRequiredFields:
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "ENVIRONMENT",
+            "DB_HOST",
+            "DB_USER",
+            "DB_PASSWORD",
+            "DB_NAME",
+            "REDIS_HOST",
+            "REDIS_DB",
+            "JWT_SECRET_KEY",
+            "CURSOR_SECRET_KEY",
+            "WORK_EMAIL_DOMAIN",
+        ],
+    )
+    def test_missing_required_field_raises(self, make_settings: Settings, name):
+        with pytest.raises(ValidationError):
+            make_settings(_drop=(name,))
