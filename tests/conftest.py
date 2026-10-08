@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from src.core.caching import get_redis, get_settings
+from src.core.config import Settings
 from src.core.dependencies import get_session
 from src.database.connection import ImmutableBase
 from src.main import app
@@ -158,3 +159,40 @@ def redis_health_mock(mocker):
         new_callable=AsyncMock,
         return_value={"status": "ok", "duration_ms": 1.0},
     )
+
+
+_BASE: dict[str, object] = {
+    "ENVIRONMENT": "test",
+    "DB_HOST": "localhost",
+    "DB_USER": "u",
+    "DB_PASSWORD": "p",
+    "DB_NAME": "meridian_test",
+    "REDIS_HOST": "localhost",
+    "REDIS_DB": 1,
+    "JWT_SECRET_KEY": "a" * 64,
+    "CURSOR_SECRET_KEY": "b" * 64,
+    "WORK_EMAIL_DOMAIN": "meridian.edu",
+    # valid for staging/production too:
+    "APP_URL": "https://api.meridian.edu",
+    "ALLOWED_HOSTS": ["api.meridian.edu"],
+    "CORS_ORIGINS": ["https://app.meridian.edu"],
+    "EMAIL_API_KEY": "re_live_key",
+    "MAIL_FROM": "noreply@meridian.edu",
+}
+
+
+@pytest.fixture
+def make_settings(monkeypatch):
+    """Build Settings from explicit values only; ignores env vars and .env files."""
+
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name, raising=False)
+
+    def _make(_drop: tuple[str, ...] = (), **overrides: object) -> Settings:
+        values = {**_BASE, **overrides}
+        for key in _drop:
+            values.pop(key, None)
+
+        return Settings(_env_file=None, **values)
+
+    return _make
