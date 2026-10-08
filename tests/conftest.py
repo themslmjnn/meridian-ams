@@ -9,11 +9,16 @@ from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from src.auth.schemas import CreateAccessToken
 from src.core.caching import get_redis
 from src.core.config import Settings, get_settings
 from src.core.dependencies import get_session
+from src.core.security import create_access_token
 from src.database.connection import ImmutableBase
 from src.main import app
+from src.users.models.credentials import UserCredentials
+from src.users.repository.user import UserSessionRepository
+from tests.factories import make_system_admin, make_teacher
 
 settings = get_settings()
 
@@ -196,3 +201,33 @@ def make_settings(monkeypatch):
         return Settings(_env_file=None, **values)
 
     return _make
+
+
+async def make_auth_header(
+    session: AsyncSession, user_credentials: UserCredentials
+) -> dict:
+    user_session = await UserSessionRepository.get_by_credentials_id(
+        session, user_credentials.id
+    )
+
+    token = create_access_token(
+        CreateAccessToken(
+            public_id=user_credentials.public_id,
+            role=user_credentials.role,
+            account_type=user_credentials.account_type,
+            session_id=user_session.id,
+            access_token_version=user_session.access_token_version,
+        )
+    )
+
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture
+async def system_admin(test_session):
+    return await make_system_admin(test_session)
+
+
+@pytest_asyncio.fixture
+async def teacher(test_session):
+    return await make_teacher(test_session)
