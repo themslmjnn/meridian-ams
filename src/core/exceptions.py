@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -9,6 +7,8 @@ from fastapi.responses import JSONResponse
 from redis.exceptions import RedisError
 
 logger = structlog.get_logger(__name__)
+
+_FIELDS = ("status_code", "error_code", "detail")
 
 
 # Base application exception
@@ -27,18 +27,38 @@ class AppException(Exception):
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)
-        required = ("status_code", "error_code", "detail")
 
-        for attr in required:
-            if not isinstance(getattr(cls, attr, None), (int, str)):
+        status_code = getattr(cls, "status_code", None)
+        if (
+            not isinstance(status_code, int)
+            or isinstance(status_code, bool)
+            or not 400 <= status_code <= 599
+        ):
+            raise TypeError(f"{cls.__name__}.status_code must be an int in 400-599")
+
+        for attr in ("error_code", "detail"):
+            value = getattr(cls, attr, None)
+            if not isinstance(value, str) or not value:
                 raise TypeError(
-                    f"{cls.__name__} must define '{attr}' as a class attribute. "
+                    f"{cls.__name__}.{attr} must be a non-empty str class attribute. "
                     f"Example:\n"
                     f"    class {cls.__name__}(AppException):\n"
                     f"        status_code = 404\n"
                     f"        error_code = 'RESOURCE_NOT_FOUND'\n"
                     f"        detail = 'The requested resource was not found.'"
                 )
+
+        extra = [
+            name
+            for name, value in vars(cls).items()
+            if not name.startswith("_") and name not in _FIELDS and not callable(value)
+        ]
+
+        if extra:
+            raise TypeError(
+                f"{cls.__name__} defines unsupported attributes {extra}; "
+                f"only {list(_FIELDS)} are allowed."
+            )
 
     def __init__(self, detail: str | None = None) -> None:
         if type(self) is AppException:
@@ -47,7 +67,7 @@ class AppException(Exception):
                 "Define a subclass with status_code, error_code, and detail."
             )
 
-        self.detail = detail or getattr(self, "detail", "An error occurred.")
+        self.detail = detail if detail is not None else type(self).detail
         super().__init__(self.detail)
 
 
@@ -78,7 +98,7 @@ async def validation_exception_handler(
     errors = [
         {
             "field": " -> ".join(str(loc) for loc in err["loc"]),
-            "message": err["msg"],
+            "message": err["msg"].removeprefix("Value error, "),
             "type": err["type"],
         }
         for err in exc.errors()
@@ -121,26 +141,9 @@ async def redis_error_handler(
     )
 
 
-if TYPE_CHECKING:
-    from fastapi import FastAPI
-
-
 # Registration helper
 def register_exception_handlers(app: FastAPI) -> None:
-    """
-    Register all global exception handlers on the FastAPI app.
-
-    Import order matters: more specific exceptions must be registered before
-    broader ones so FastAPI matches the most specific handler first.
-    """
-
-    from fastapi import FastAPI as _FastAPI  # runtime import, local scope
-
-    if not isinstance(app, _FastAPI):
-        raise TypeError(
-            f"register_exception_handlers expects a FastAPI instance, "
-            f"got {type(app).__name__!r}"
-        )
+    """Register all global exception handlers on the FastAPI app."""
 
     app.add_exception_handler(AppException, app_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
