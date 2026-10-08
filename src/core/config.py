@@ -16,6 +16,7 @@ _ENV_FILE = _ENV_FILE_MAP.get(_ENV, ".env")
 _DOMAIN_RE = re.compile(
     r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+"
 )
+_PLACEHOLDER_MARKERS = ("your_", "changeme", "change_me")
 
 
 class Settings(BaseSettings):
@@ -217,8 +218,13 @@ class Settings(BaseSettings):
             "CURSOR_SECRET_KEY": self.CURSOR_SECRET_KEY.get_secret_value(),
             "DB_PASSWORD": self.DB_PASSWORD.get_secret_value(),
         }
+
         if self.EMAIL_API_KEY:
             sensitive["EMAIL_API_KEY"] = self.EMAIL_API_KEY
+
+        for name, value in sensitive.items():
+            if any(marker in value.lower() for marker in _PLACEHOLDER_MARKERS):
+                errors.append(f"{name} still contains a placeholder value")
 
         if sensitive["JWT_SECRET_KEY"] == sensitive["CURSOR_SECRET_KEY"]:
             errors.append("JWT_SECRET_KEY and CURSOR_SECRET_KEY must differ")
