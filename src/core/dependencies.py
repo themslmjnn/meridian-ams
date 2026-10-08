@@ -1,5 +1,5 @@
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated
@@ -23,7 +23,9 @@ from src.utils.cache_keys import SessionCacheKey
 
 logger = structlog.get_logger(__name__)
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# auto_error=False: a missing token is reported through AppException so the
+# response keeps the standard {"error_code", "detail"} shape.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -50,12 +52,33 @@ class CurrentUser:
     session_id: int
 
 
+async def _read_atv_cache(
+    redis: Redis, key: str, session_id: int
+) -> tuple[int, int] | None:
+    """Return (atv, credentials_id) from the cache, or None on a miss/malformed value."""
+
+    raw = await get_cache_critical(redis, key)
+    if raw is None:
+        return None
+
+    try:
+        return SessionCacheKey.unpack_atv_cache(raw)
+
+    except ValueError:
+        logger.warning("atv_cache_malformed", session_id=session_id, cached=raw)
+
+        return None
+
+
 async def get_current_user(
     request: Request,
     session: session_dependency,
     redis: redis_dependency,
-    access_token: Annotated[str, Depends(oauth2_scheme)],
+    access_token: Annotated[str | None, Depends(oauth2_scheme)],
 ) -> CurrentUser:
+    if access_token is None:
+        raise exceptions.InvalidAccessTokenError(detail="Not authenticated")
+
     try:
         payload = decode_access_token(access_token)
 
@@ -69,24 +92,11 @@ async def get_current_user(
         raise exceptions.InvalidAccessTokenError() from exc
 
     atv_key = SessionCacheKey.access_token_version_key(session_id)
-    unpacked_cached_atv = await get_cache_critical(redis, atv_key)
+    cached = await _read_atv_cache(redis, atv_key, session_id)
 
-    if unpacked_cached_atv is not None:
-        try:
-            cached_atv, cached_credentials_id = SessionCacheKey.unpack_atv_cache(
-                unpacked_cached_atv
-            )
+    if cached is not None:
+        cached_atv, cached_credentials_id = cached
 
-        except ValueError:
-            logger.warning(
-                "atv_cache_malformed",
-                session_id=session_id,
-                cached=unpacked_cached_atv,
-            )
-
-            unpacked_cached_atv = None
-
-    if unpacked_cached_atv is not None:
         if cached_atv != atv:
             raise exceptions.InvalidAccessTokenError()
 
@@ -121,13 +131,17 @@ async def get_current_user(
 
     _verify_status(credentials)
 
+    settings = get_settings()
+
+    # Short TTL bounds how long a missed invalidation (revoked session, changed
+    # status or role) can stay unnoticed on the cache-hit path.
     await set_cache_critical(
         redis,
         atv_key,
         SessionCacheKey.pack_atv_cache(
             user_session.access_token_version, credentials.id
         ),
-        ex=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES * 60,
+        ex=settings.ACCESS_TOKEN_EXPIRES_MINUTES * 60,
     )
 
     current_user = CurrentUser(
@@ -173,7 +187,7 @@ def _verify_status(credentials: UserCredentials) -> None:
     )()
 
 
-def require_roles(*roles: UserRole):
+def require_roles(*roles: UserRole) -> Callable[..., CurrentUser]:
     def guard(current_user: current_user_dependency) -> CurrentUser:
         if current_user.role not in roles:
             raise exceptions.AccessDeniedError()
