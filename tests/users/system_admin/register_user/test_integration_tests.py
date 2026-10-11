@@ -15,6 +15,7 @@ from src.users.schemas.system_admin import (
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from tests.conftest import make_auth_header
 from tests.factories import make_student, make_teacher
+from tests.users.conftest import make_headers
 
 ENDPOINT = "/api/v1/admin/users"
 
@@ -37,11 +38,6 @@ def _assert_response_shape(data: dict) -> None:
     assert "date_of_birth" in data
     assert "address" in data
 
-
-def _make_headers(auth: dict) -> dict:
-    return {**auth, "Idempotency-Key": str(uuid.uuid4())}
-
-
 class TestAuth:
     async def test_unauthenticated_returns_401(
         self, integration_client: AsyncClient
@@ -57,7 +53,7 @@ class TestAuth:
         valid_staff_payload: CreateStaff,
         director: UserCredentials,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, director))
+        headers = make_headers(await make_auth_header(test_session, director))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -74,7 +70,7 @@ class TestAuth:
         valid_staff_payload: CreateStaff,
         teacher: UserCredentials,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, teacher))
+        headers = make_headers(await make_auth_header(test_session, teacher))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -91,7 +87,7 @@ class TestAuth:
         valid_staff_payload: CreateStaff,
         student: UserCredentials,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, student))
+        headers = make_headers(await make_auth_header(test_session, student))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -108,7 +104,7 @@ class TestAuth:
         valid_staff_payload: CreateStaff,
         guardian: UserCredentials,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, guardian))
+        headers = make_headers(await make_auth_header(test_session, guardian))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -127,7 +123,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -144,7 +140,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -167,7 +163,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -184,7 +180,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -206,7 +202,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -223,7 +219,7 @@ class TestSuccessfulRegistration:
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -250,7 +246,7 @@ class TestSuccessfulRegistration:
             username="existing_g_user",
             email="existing.g@example.com",
         )
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -273,7 +269,7 @@ class TestSuccessfulRegistration:
             username="existing_g_user2",
             email="existing.g2@example.com",
         )
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -320,7 +316,7 @@ class TestDuplicateFieldRejection:
         for field, value in override.items():
             setattr(valid_staff_payload, field, value)
 
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -364,7 +360,7 @@ class TestDuplicateFieldRejection:
         for field, value in override.items():
             setattr(valid_student_payload, field, value)
 
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -386,7 +382,7 @@ class TestDuplicateFieldRejection:
             username="ghost_guardian",
             email="ghost@example.com",
         )
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
             ENDPOINT,
@@ -403,7 +399,7 @@ class TestDuplicateFieldRejection:
         system_admin: UserCredentials,
     ) -> None:
         staff = await make_teacher(test_session)
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         first_payload = CreateGuardianWithExistingIdentity(
             type="existing_guardian",
@@ -452,7 +448,7 @@ class TestValidation:
         field: str,
         invalid_value: str,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         payload[field] = invalid_value
 
@@ -469,7 +465,7 @@ class TestValidation:
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_student_payload.model_dump(mode="json")
         del payload["date_of_birth"]
 
@@ -486,7 +482,7 @@ class TestValidation:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         payload["email"] = "personal@gmail.com"
 
@@ -503,7 +499,7 @@ class TestValidation:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         del payload["type"]
 
@@ -519,7 +515,7 @@ class TestValidation:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
     ) -> None:
-        headers = _make_headers(await make_auth_header(test_session, system_admin))
+        headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(ENDPOINT, json={}, headers=headers)
 
