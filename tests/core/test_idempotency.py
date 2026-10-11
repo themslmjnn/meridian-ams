@@ -6,16 +6,16 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.idempotency import (
+from src.core.idempotency.service import (
     _CachedResponseSignal,
     acquire_idempotency_lock,
     complete_idempotency_record,
     hash_payload,
     mirror_complete_to_redis_after_commit,
 )
-from src.core.models import IdempotencyRecord
+from src.core.idempotency.models import IdempotencyRecord
 from src.utils.cache_keys import IdempotencyCacheKey
-from src.utils.enums import IdempotencyStatus
+from src.core.idempotency.utils.enums import IdempotencyStatus
 from src.utils.exceptions import (
     IdempotencyPayloadMismatch,
     IdempotencyRequestInProgress,

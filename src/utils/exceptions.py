@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
 from src.core.exceptions import AppException
-from src.utils.constants import HTTP400, HTTP401, HTTP403, HTTP409
+from src.utils.constants import HTTP400, HTTP401, HTTP403
 
 
 # HTTP400
@@ -119,32 +119,6 @@ class AccountWithdrawnError(AppException):
     status_code = 403
     detail = HTTP403.ACCOUNT_WITHDRAWN
     error_code = "ACCOUNT_WITHDRAWN"
-
-
-# HTTP409
-class IdempotencyConflict(AppException):
-    status_code = 409
-    detail = HTTP409.IDEMPOTENCY_CONFLICT
-    error_code = "IDEMPOTENCY_CONFLICT"
-
-
-class IdempotencyRequestInProgress(AppException):
-    status_code = 409
-    detail = "A request with this key is currently being processed."
-    error_code = "IDEMPOTENCY_REQUEST_IN_PROGRESS"
-
-
-class IdempotencyPayloadMismatch(AppException):
-    status_code = 409
-    detail = "This idempotency key was previously used with a different payload."
-    error_code = "IDEMPOTENCY_PAYLOAD_MISMATCH"
-
-
-# HTTP500
-class IdempotencyStateError(AppException):
-    status_code = 500
-    detail = "Idempotency record in unexpected state"
-    error_code = "IDEMPOTENCY_STATE_ERROR"
 
 
 def raise_unhandled_integrity_error(error: IntegrityError) -> None:
