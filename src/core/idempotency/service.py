@@ -13,14 +13,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
-from src.core.models import IdempotencyRecord
-from src.utils.cache_keys import IdempotencyCacheKey
-from src.utils.enums import IdempotencyStatus
-from src.utils.exceptions import (
+from src.core.idempotency.models import IdempotencyRecord
+from src.core.idempotency.repository import IdempotencyRepository
+from src.core.idempotency.utils.enums import IdempotencyStatus
+from src.core.idempotency.utils.exceptions import (
     IdempotencyPayloadMismatch,
     IdempotencyRequestInProgress,
     IdempotencyStateError,
 )
+from src.utils.cache_keys import IdempotencyCacheKey
 
 logger = structlog.get_logger(__name__)
 
@@ -86,14 +87,9 @@ async def acquire_idempotency_lock(
 
         return
 
-    result = await session.execute(
-        select(IdempotencyRecord).where(
-            IdempotencyRecord.operation == operation,
-            IdempotencyRecord.actor_id == actor_id,
-            IdempotencyRecord.key == idempotency_key,
-        )
+    existing = await IdempotencyRepository.get_record(
+        session, operation=operation, actor_id=actor_id, idempotency_key=idempotency_key
     )
-    existing = result.scalar_one_or_none()
 
     if existing is not None:
         if existing.status == IdempotencyStatus.PROCESSING:
@@ -176,25 +172,17 @@ async def complete_idempotency_record(
     says COMPLETE but PostgreSQL has not yet committed.
     """
 
-    query = (
-        update(IdempotencyRecord)
-        .where(
-            IdempotencyRecord.operation == operation,
-            IdempotencyRecord.actor_id == actor_id,
-            IdempotencyRecord.key == idempotency_key,
-            IdempotencyRecord.status == IdempotencyStatus.PROCESSING,
-            IdempotencyRecord.request_hash == payload_hash,
-        )
-        .values(
-            status=IdempotencyStatus.COMPLETE,
-            http_status=http_status,
-            response_body=body,
-        )
+    result = await IdempotencyRepository.update_record(
+        session,
+        operation=operation,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        http_status=http_status,
+        body=body,
     )
 
-    result = await session.execute(query)
-
-    if result.rowcount != 1:
+    if result != 1:
         raise IdempotencyStateError()
 
 

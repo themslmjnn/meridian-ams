@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.database.connection import ImmutableBase
-from src.utils.enums import IdempotencyStatus
+from src.core.idempotency.utils.enums import IdempotencyStatus
 
 
 class IdempotencyRecord(ImmutableBase):
