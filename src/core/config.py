@@ -62,29 +62,30 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 7
-    REFRESH_GRACE_WINDOW_SECONDS: int = Field(60, ge=0, le=120)
+    REFRESH_GRACE_WINDOW_SECONDS: int = Field(ge=0, le=120, default=60, )
 
     MAX_LOGIN_ATTEMPTS: int = 5
-    LOCKOUT_DURATION_MINUTES: int = Field(30, ge=1)
+    LOCKOUT_DURATION_MINUTES: int = Field(ge=1, default=30)
+    MAX_SESSIONS_PER_USER: int = Field(ge=1, default=10)
 
     CURSOR_SECRET_KEY: SecretStr
 
     RATE_LIMIT_DEFAULT_IP: str = "60/minute"
 
-    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(48, ge=1, le=168)
-    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(15, ge=1, le=60)
-    RESET_PASSWORD_EXPIRES_MINUTES: int = Field(60, ge=1, le=120)
+    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
+    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(ge=1, le=60, default=15)
+    RESET_PASSWORD_EXPIRES_MINUTES: int = Field(ge=1, le=120, default=60)
 
-    IDEMPOTENCY_KEY_TTL: int = Field(60 * 60 * 24, ge=1)
-    IDEMPOTENCY_PROCESSING_TTL: int = Field(60 * 5, ge=1)
+    IDEMPOTENCY_KEY_TTL: int = Field(ge=1, default=60 * 60 * 24)
+    IDEMPOTENCY_PROCESSING_TTL: int = Field(ge=1, default=60 * 5)
 
     WORK_EMAIL_DOMAIN: str
 
     GRADING_PERIOD_TYPE: Literal["semester", "quarter", "trimester"] = "semester"
 
-    EMAIL_WORKER_INTERVAL: int = Field(60, ge=1)
-    EMAIL_WORKER_BATCH_SIZE: int = Field(10, ge=1, le=100)
-    DELETION_WORKER_INTERVAL: int = Field(3600, ge=60)
+    EMAIL_WORKER_INTERVAL: int = Field(ge=1, default=60)
+    EMAIL_WORKER_BATCH_SIZE: int = Field(ge=1, le=100, default=10)
+    DELETION_WORKER_INTERVAL: int = Field(ge=60, default=3600)
 
     EMAIL_API_KEY: str | None = None
     MAIL_FROM: str | None = None
