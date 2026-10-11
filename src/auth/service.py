@@ -378,15 +378,14 @@ class AuthService:
 
     @staticmethod
     async def logout(
+        response: Response,
         session: AsyncSession,
         redis: Redis,
-        response: Response,
         current_user: CurrentUser,
     ) -> None:
         user_session = await UserSessionRepository.get_by_id(
             session, current_user.session_id
         )
-
         if user_session is not None:
             await session.delete(user_session)
             await session.commit()
