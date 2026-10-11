@@ -38,6 +38,7 @@ def _assert_response_shape(data: dict) -> None:
     assert "date_of_birth" in data
     assert "address" in data
 
+
 class TestAuth:
     async def test_unauthenticated_returns_401(
         self, integration_client: AsyncClient

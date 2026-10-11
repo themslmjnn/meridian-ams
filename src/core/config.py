@@ -62,7 +62,11 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRES_DAYS: int = 7
-    REFRESH_GRACE_WINDOW_SECONDS: int = Field(ge=0, le=120, default=60, )
+    REFRESH_GRACE_WINDOW_SECONDS: int = Field(
+        ge=0,
+        le=120,
+        default=60,
+    )
 
     MAX_LOGIN_ATTEMPTS: int = 5
     LOCKOUT_DURATION_MINUTES: int = Field(ge=1, default=30)
