@@ -86,7 +86,7 @@ class UserServiceSelf:
         current_user: CurrentUser,
         payload: UpdateUserCredentials,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             current_user.public_id,
             load_options=LoadOptionsSchema(
@@ -94,15 +94,14 @@ class UserServiceSelf:
                 load_email_change=True,
             ),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise CredentialsNotFoundError()
 
         username_changing = (
-            payload.username is not None
-            and payload.username != user_credentials.username
+            payload.username is not None and payload.username != credentials.username
         )
         email_requested = (
-            payload.email is not None and payload.email != user_credentials.email
+            payload.email is not None and payload.email != credentials.email
         )
 
         if not username_changing and not email_requested:
@@ -114,9 +113,9 @@ class UserServiceSelf:
                 minutes=get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES
             )
 
-            if user_credentials.email_change is None:
+            if credentials.email_change is None:
                 new_email_change = UserEmailChange(
-                    credentials_id=user_credentials.id,
+                    credentials_id=credentials.id,
                     new_email=payload.email,
                     email_change_token_hash=hashed_code,
                     email_change_token_expires_at=code_expires_at,
@@ -125,13 +124,12 @@ class UserServiceSelf:
                 session.add(new_email_change)
             else:
                 pending_still_active = (
-                    user_credentials.email_change.email_change_code_expires_at
-                    is not None
-                    and user_credentials.email_change.email_change_code_expires_at
+                    credentials.email_change.email_change_code_expires_at is not None
+                    and credentials.email_change.email_change_code_expires_at
                     > datetime.now(UTC)
                 )
                 if (
-                    user_credentials.email_change.new_email == payload.email
+                    credentials.email_change.new_email == payload.email
                     and pending_still_active
                 ):
                     logger.warning(
@@ -142,20 +140,18 @@ class UserServiceSelf:
 
                     raise DuplicateEmailChangeRequestError()
 
-                user_credentials.email_change.new_email = payload.email
-                user_credentials.email_change.email_change_code_hash = hashed_code
-                user_credentials.email_change.email_change_code_expires_at = (
-                    code_expires_at
-                )
+                credentials.email_change.new_email = payload.email
+                credentials.email_change.email_change_token_hash = hashed_code
+                credentials.email_change.email_change_token_expires_at = code_expires_at
 
         try:
             if username_changing:
-                user_credentials.username = payload.username
+                credentials.username = payload.username
 
-                session_ids = [s.id for s in user_credentials.sessions]
+                session_ids = [s.id for s in credentials.sessions]
 
                 await UserSessionRepository.invalidate_all_sessions(
-                    user_credentials.sessions
+                    credentials.sessions
                 )
 
             await session.commit()
@@ -188,7 +184,7 @@ class UserServiceSelf:
                 logger.info(
                     "username_updated",
                     public_id=str(current_user.public_id),
-                    new_username=user_credentials.username,
+                    new_username=credentials.username,
                     method="self_service",
                 )
 
@@ -209,8 +205,8 @@ class UserServiceSelf:
                 reason=str(exc.orig),
                 method="self_service",
             )
-            handle_username_integrity_error(exc)
 
+            handle_username_integrity_error(exc)
             raise_unhandled_integrity_error(exc)
 
     @staticmethod
@@ -220,7 +216,7 @@ class UserServiceSelf:
         current_user: CurrentUser,
         confirm_request: ConfirmEmailChange,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             current_user.public_id,
             load_options=LoadOptionsSchema(
@@ -228,22 +224,20 @@ class UserServiceSelf:
                 load_email_change=True,
             ),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise CredentialsNotFoundError()
 
         if (
-            user_credentials.email_change.new_email is None
-            or user_credentials.email_change.email_change_code_hash is None
+            credentials.email_change.new_email is None
+            or credentials.email_change.email_change_token_hash is None
         ):
             raise NoPendingEmailChangeError()
 
-        if user_credentials.email_change.email_change_code_expires_at < datetime.now(
-            UTC
-        ):
+        if credentials.email_change.email_change_token_expires_at < datetime.now(UTC):
             raise EmailChangeCodeExpiredError()
 
         if not verify_email_change_code(
-            confirm_request.code, user_credentials.email_change.email_change_code_hash
+            confirm_request.code, credentials.email_change.email_change_token_hash
         ):
             logger.warning(
                 "email_change_confirmation_denied",
@@ -253,42 +247,42 @@ class UserServiceSelf:
 
             raise InvalidEmailChangeCodeError()
 
-        new_email = user_credentials.email_change.new_email
-        is_student = user_credentials.account_type == AccountType.STUDENT
+        new_email = credentials.email_change.new_email
+        is_student = credentials.account_type == AccountType.STUDENT
 
         await acquire_contact_locks(
-            session, phone_number=None, email=new_email, is_student=is_student
+            session,
+            phone_number=None,
+            email=new_email,
         )
 
         await check_contact_limit(
             session,
             current_user.credentials_id,
-            username=user_credentials.username,
+            username=credentials.username,
             phone_number=None,
             email=new_email,
-            resolved_role=user_credentials.identity.role,
-            account_type=user_credentials.account_type,
+            resolved_role=credentials.role,
+            account_type=credentials.account_type,
             exclude_credentials_id=current_user.credentials_id,
         )
 
         try:
-            old_email = user_credentials.email
-            user_credentials.email = new_email
+            old_email = credentials.email
+            credentials.email = new_email
 
-            await session.delete(user_credentials.email_change)
+            await session.delete(credentials.email_change)
 
-            session_ids = [s.id for s in user_credentials.sessions]
+            session_ids = [s.id for s in credentials.sessions]
 
-            await UserSessionRepository.invalidate_all_sessions(
-                user_credentials.sessions
-            )
+            await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
             await session.commit()
 
             asyncio.create_task(
                 emails.send_email_safe(
                     emails.send_email_changed_notification(
-                        old_email, user_credentials.email
+                        old_email, credentials.email
                     ),
                     email_type=EmailType.EMAIL_CHANGED,
                 )
@@ -307,7 +301,7 @@ class UserServiceSelf:
 
             logger.info(
                 "email_changed",
-                user_credentials_id=current_user.public_id,
+                credentials_id=current_user.public_id,
                 method="self_service",
             )
 
@@ -316,7 +310,7 @@ class UserServiceSelf:
 
             logger.error(
                 "email_change_confirmation_failed",
-                user_credentials_id=current_user.public_id,
+                credentials_id=current_user.public_id,
                 reason=str(exc.orig),
                 method="self_service",
             )
@@ -332,25 +326,25 @@ class UserServiceSelf:
         current_user: CurrentUser,
         payload: UpdateMePassword,
     ) -> None:
-        user_credentials = await UserCredentialsRepository.get_by_public_id(
+        credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             current_user.public_id,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
-        if user_credentials is None:
+        if credentials is None:
             raise CredentialsNotFoundError()
 
-        if user_credentials.password_hash is None:
+        if credentials.password_hash is None:
             raise IncorrectPasswordError()
 
         is_current_password_valid = await verify_password(
-            payload.current_password, user_credentials.password_hash
+            payload.current_password, credentials.password_hash
         )
 
         if not is_current_password_valid:
             logger.warning(
                 "password_change_denied",
-                user_credentials_id=current_user.public_id,
+                credentials_id=current_user.public_id,
                 denial_reason="incorrect_current_password",
                 method="self_service",
             )
@@ -362,17 +356,17 @@ class UserServiceSelf:
 
         new_password_hash = await hash_password(payload.new_password)
 
-        user_credentials.password_hash = new_password_hash
+        credentials.password_hash = new_password_hash
 
-        session_ids = [s.id for s in user_credentials.sessions]
+        session_ids = [s.id for s in credentials.sessions]
 
-        await UserSessionRepository.invalidate_all_sessions(user_credentials.sessions)
+        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
         await session.commit()
 
         asyncio.create_task(
             emails.send_email_safe(
-                emails.send_password_changed_notification(user_credentials.email),
+                emails.send_password_changed_notification(credentials.email),
                 email_type=EmailType.PASSWORD_CHANGED,
             )
         )
@@ -387,6 +381,6 @@ class UserServiceSelf:
 
         logger.info(
             "password_changed",
-            user_credentials_id=current_user.public_id,
+            credentials_id=current_user.public_id,
             method="self_service",
         )

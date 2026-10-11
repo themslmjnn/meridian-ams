@@ -39,11 +39,9 @@ async def update_me_credentials(
     session: session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
-    update_request: UpdateUserCredentials,
+    payload: UpdateUserCredentials,
 ):
-    await UserServiceSelf.update_me_credentials(
-        session, redis, current_user, update_request
-    )
+    await UserServiceSelf.update_me_credentials(session, redis, current_user, payload)
 
 
 @router.post(
