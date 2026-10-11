@@ -241,5 +241,6 @@ def mock_users_admin_check_contact_limit(mocker):
         "src.users.services.system_admin.check_contact_limit", new_callable=AsyncMock
     )
 
+
 def make_headers(auth: dict) -> dict:
     return {**auth, "Idempotency-Key": str(uuid.uuid4())}
