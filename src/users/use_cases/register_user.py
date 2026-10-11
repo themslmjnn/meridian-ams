@@ -6,15 +6,15 @@ from redis import RedisError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.idempotency import (
+from src.core.idempotency.service import (
     acquire_idempotency_lock,
     complete_idempotency_record,
     hash_payload,
     mirror_complete_to_redis_after_commit,
 )
+from src.core.idempotency.utils.enums import IdempotencyOperation
 from src.users.schemas.system_admin import CreateUserRequest, UserResponseDetailed
 from src.users.services.system_admin import UserService
-from src.utils.enums import IdempotencyOperation
 
 logger = structlog.get_logger(__name__)
 
@@ -26,7 +26,7 @@ class RegisterUserUseCase:
     async def execute(
         session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        actor_id: int,
         payload: CreateUserRequest,
         idempotency_key: str,
     ) -> UserResponseDetailed:
@@ -46,20 +46,20 @@ class RegisterUserUseCase:
         await acquire_idempotency_lock(
             session,
             redis,
-            actor_id=current_user_id,
-            operation=IdempotencyOperation.USER_REGISTER,
+            actor_id=actor_id,
+            operation=IdempotencyOperation.REGISTER_USER,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
         )
 
-        result = await UserService.register_user(session, current_user_id, payload)
+        result = await UserService.register_user(session, actor_id, payload)
 
         response = UserResponseDetailed.model_validate(result)
 
         await complete_idempotency_record(
             session,
-            actor_id=current_user_id,
-            operation=IdempotencyOperation.USER_REGISTER,
+            actor_id=actor_id,
+            operation=IdempotencyOperation.REGISTER_USER,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             http_status=status.HTTP_201_CREATED,
@@ -71,8 +71,8 @@ class RegisterUserUseCase:
         try:
             await mirror_complete_to_redis_after_commit(
                 redis,
-                actor_id=current_user_id,
-                operation=IdempotencyOperation.USER_REGISTER,
+                actor_id=actor_id,
+                operation=IdempotencyOperation.REGISTER_USER,
                 idempotency_key=idempotency_key,
                 payload_hash=payload_hash,
                 http_status=status.HTTP_201_CREATED,
@@ -82,8 +82,8 @@ class RegisterUserUseCase:
         except RedisError as exc:
             logger.warning(
                 "idempotency_redis_mirror_failed",
-                actor_id=current_user_id,
-                operation=IdempotencyOperation.USER_REGISTER,
+                actor_id=actor_id,
+                operation=IdempotencyOperation.REGISTER_USER,
                 error=str(exc),
             )
 

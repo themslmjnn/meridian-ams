@@ -8,7 +8,7 @@ from src.core.dependencies import (
     require_system_admin,
     session_dependency,
 )
-from src.core.idempotency import make_idempotency_key_dependency
+from src.core.idempotency.service import make_idempotency_key_dependency
 from src.core.limiter import user_limiter
 from src.core.pagination import CursorPage
 from src.users.schemas.system_admin import (
@@ -40,6 +40,7 @@ router = APIRouter(
 @user_limiter.limit("7/minute")
 async def register_user(
     request: Request,
+    response: Response,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,

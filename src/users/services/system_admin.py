@@ -48,7 +48,7 @@ class UserService:
     @staticmethod
     async def register_user(
         session: AsyncSession,
-        current_user_id: int,
+        actor_id: int,
         payload: schemas.CreateUserRequest,
     ) -> schemas.UserResponseDetailed:
         is_existing_identity = False
@@ -86,7 +86,7 @@ class UserService:
 
         await check_contact_limit(
             session,
-            current_user_id,
+            actor_id,
             username=payload.username,
             phone_number=phone_number,
             email=payload.email,
@@ -160,7 +160,7 @@ class UserService:
                     subject=subject,
                     html_body=html_body,
                     email_type=EmailType.ACTIVATION,
-                    triggered_by=current_user_id,
+                    triggered_by=actor_id,
                 )
             )
 
@@ -172,7 +172,7 @@ class UserService:
                 credentials_id=credentials.id,
                 public_id=str(credentials.public_id),
                 role=resolved_role,
-                created_by=current_user_id,
+                created_by=actor_id,
             )
 
             return await UserResponseRepository.get_registered_user_response(
@@ -186,7 +186,7 @@ class UserService:
                 "user_registration_failed",
                 reason="integrity_error",
                 error=str(exc),
-                requested_by=current_user_id,
+                requested_by=actor_id,
             )
 
             exceptions.handle_username_integrity_error(exc)
