@@ -7,13 +7,13 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.idempotency import _CachedResponseSignal
-from src.core.models import IdempotencyRecord
+from src.core.idempotency.service import _CachedResponseSignal
+from src.core.idempotency.models import IdempotencyRecord
 from src.users.models.credentials import UserCredentials
 from src.users.use_cases.create_reset_password_request import (
     CreateResetPasswordRequestUseCase,
 )
-from src.utils.enums import IdempotencyOperation
+from src.core.idempotency.utils.enums import IdempotencyOperation
 from src.utils.exceptions import IdempotencyPayloadMismatch
 
 

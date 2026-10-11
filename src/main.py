@@ -19,7 +19,7 @@ from src.auth.routers import router as auth_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
 from src.core.exceptions import AppException, register_exception_handlers
-from src.core.idempotency import _CachedResponseSignal, make_cached_response
+from src.core.idempotency.service import _CachedResponseSignal, make_cached_response
 from src.core.limiter import limiter, rate_limit_exceeded_handler
 from src.core.logging import configure_logging
 from src.core.middleware import (

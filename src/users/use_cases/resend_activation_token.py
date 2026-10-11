@@ -6,14 +6,14 @@ from redis import RedisError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.idempotency import (
+from src.core.idempotency.service import (
     acquire_idempotency_lock,
     complete_idempotency_record,
     hash_payload,
     mirror_complete_to_redis_after_commit,
 )
 from src.users.services.system_admin import UserService
-from src.utils.enums import IdempotencyOperation
+from src.core.idempotency.utils.enums import IdempotencyOperation
 
 logger = structlog.get_logger(__name__)
 

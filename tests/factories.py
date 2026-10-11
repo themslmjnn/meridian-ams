@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
-from src.core.models import IdempotencyRecord
+from src.core.idempotency.models import IdempotencyRecord
 from src.core.security import generate_token, hash_password
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
@@ -13,7 +13,7 @@ from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType, UserRole, UserStatus
-from src.utils.enums import IdempotencyStatus
+from src.core.idempotency.utils.enums import IdempotencyStatus
 
 _counter = itertools.count(1)
 
