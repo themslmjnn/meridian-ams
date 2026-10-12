@@ -59,16 +59,6 @@ async def logout(
     await AuthService.logout(response, session, redis, current_user)
 
 
-@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
-async def logout_all(
-    response: Response,
-    session: session_dependency,
-    redis: redis_dependency,
-    current_user: current_user_dependency,
-) -> None:
-    await AuthService.logout_all(session, redis, response, current_user)
-
-
 @router.post(
     "/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK
 )
