@@ -52,7 +52,7 @@ _COOKIE_PATH_LOGIN = "/api/v1/auth/login"
 
 class AuthService:
     @staticmethod
-    def _set_refresh_cookie(response: Response, raw_refresh_token: str) -> None:
+    def _set_refresh_token_cookie(response: Response, raw_refresh_token: str) -> None:
         response.set_cookie(
             key="refresh_token",
             value=raw_refresh_token,
@@ -64,14 +64,14 @@ class AuthService:
         )
 
     @staticmethod
-    def _clear_refresh_cookie(response: Response) -> None:
+    def _clear_refresh_token_cookie(response: Response) -> None:
         response.delete_cookie(
             key="refresh_token",
             path=_COOKIE_PATH_REFRESH,
         )
 
     @staticmethod
-    def _set_refresh_family_cookie(
+    def _set_refresh_token_family_cookie(
         response: Response, raw_refresh_token_family: str
     ) -> None:
         response.set_cookie(
@@ -85,7 +85,7 @@ class AuthService:
         )
 
     @staticmethod
-    def _clear_refresh_family_cookie(response: Response) -> None:
+    def _clear_refresh_token_family_cookie(response: Response) -> None:
         response.delete_cookie(
             key="refresh_token_family",
             path=_COOKIE_PATH_REFRESH,
@@ -370,8 +370,8 @@ class AuthService:
             device="existing" if existing_session else "new",
         )
 
-        AuthService._set_refresh_cookie(response, raw_refresh_token)
-        AuthService._set_refresh_family_cookie(response, refresh_token_family)
+        AuthService._set_refresh_token_cookie(response, raw_refresh_token)
+        AuthService._set_refresh_token_family_cookie(response, refresh_token_family)
         AuthService._set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
@@ -394,8 +394,8 @@ class AuthService:
             redis, SessionCacheKey.access_token_version_key(current_user.session_id)
         )
 
-        AuthService._clear_refresh_cookie(response)
-        AuthService._clear_refresh_family_cookie(response)
+        AuthService._clear_refresh_token_cookie(response)
+        AuthService._clear_refresh_token_family_cookie(response)
 
         logger.info(
             "logout",
@@ -403,14 +403,13 @@ class AuthService:
             session_id=current_user.session_id,
         )
 
-
     @staticmethod
     async def refresh_token(
         response: Response,
         session: AsyncSession,
         redis: Redis,
         raw_refresh_token: str,
-        raw_refresh_family: str,
+        raw_refresh_token_family: str,
     ) -> LoginResponse:
         try:
             payload = decode_refresh_token(raw_refresh_token)
@@ -449,8 +448,8 @@ class AuthService:
 
             raise exceptions.ExpiredRefreshTokenError()
 
-        family_valid = verify_token(
-            raw_refresh_family,
+        is_refresh_token_family_valid = verify_token(
+            raw_refresh_token_family,
             user_session.refresh_token_family,
         )
 
@@ -467,7 +466,7 @@ class AuthService:
             )
         )
 
-        if not family_valid or (
+        if not is_refresh_token_family_valid or (
             not token_matches_current and not token_matches_previous
         ):
             await AuthRepository.invalidate_session_family(session, user_session)
@@ -480,7 +479,7 @@ class AuthService:
             logger.warning(
                 "refresh_security_violation",
                 session_id=session_id,
-                family_valid=family_valid,
+                family_valid=is_refresh_token_family_valid,
                 token_matches_current=token_matches_current,
                 token_matches_previous=token_matches_previous,
                 action="session_invalidated",
@@ -514,7 +513,11 @@ class AuthService:
                     )
                 )
 
-                logger.info("refresh_grace_window_hit", session_id=session_id)
+                logger.info(
+                    "refresh_grace_window_hit",
+                    session_id=session_id,
+                )
+
                 return LoginResponse(access_token=access_token, token_type="bearer")
 
             else:
@@ -536,17 +539,16 @@ class AuthService:
 
                 raise exceptions.InvalidRefreshTokenError()
 
-        user_credentials = await UserCredentialsRepository.get_by_id(
+        credentials = await UserCredentialsRepository.get_by_id(
             session,
             user_session.credentials_id,
             load_options=LoadOptionsSchema(load_identity=True),
         )
-
-        if user_credentials is None:
+        if credentials is None:
             raise exceptions.InvalidRefreshTokenError()
 
-        new_family = secrets.token_urlsafe(32)
-        raw_new_refresh_token, hashed_new_refresh_token = create_refresh_token(
+        new_refresh_token_family = secrets.token_urlsafe(32)
+        new_raw_refresh_token, new_hashed_refresh_token = create_refresh_token(
             CreateRefreshToken(
                 public_id=user_credentials.public_id,
                 session_id=user_session.id,
@@ -555,8 +557,8 @@ class AuthService:
 
         user_session.previous_refresh_token_hash = user_session.refresh_token_hash
         user_session.rotated_at = datetime.now(UTC)
-        user_session.refresh_token_hash = hashed_new_refresh_token
-        user_session.refresh_token_family = new_family
+        user_session.refresh_token_hash = new_hashed_refresh_token
+        user_session.refresh_token_family = new_refresh_token_family
         user_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
             days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS
         )
@@ -589,8 +591,8 @@ class AuthService:
             credentials_id=user_credentials.id,
         )
 
-        AuthService._set_refresh_cookie(response, raw_new_refresh_token)
-        AuthService._set_refresh_family_cookie(response, new_family)
+        AuthService._set_refresh_token_cookie(response, new_raw_refresh_token)
+        AuthService._set_refresh_token_family_cookie(response, new_refresh_token_family)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 

@@ -60,7 +60,9 @@ async def logout(
 
 
 @router.post(
-    "/refresh-token", response_model=LoginResponse, status_code=status.HTTP_200_OK
+    "/refresh-token",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
 )
 @ip_limiter.limit("30/minute")
 async def refresh_token(
