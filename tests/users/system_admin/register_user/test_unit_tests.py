@@ -33,7 +33,7 @@ class TestAdvisoryLock:
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
         mock_users_advisory_lock_system_admin,
-    ) -> None:
+    ):
         await UserService.register_user(
             test_session, system_admin.id, valid_student_payload
         )
@@ -50,7 +50,7 @@ class TestAdvisoryLock:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
         mock_users_advisory_lock_system_admin,
-    ) -> None:
+    ):
         await UserService.register_user(
             test_session, system_admin.id, valid_staff_payload
         )
@@ -67,7 +67,7 @@ class TestAdvisoryLock:
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
         mock_users_advisory_lock_system_admin,
-    ) -> None:
+    ):
         await UserService.register_user(
             test_session, system_admin.id, valid_new_guardian_payload
         )
@@ -84,7 +84,7 @@ class TestAdvisoryLock:
         system_admin: UserCredentials,
         valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
         mock_users_advisory_lock_system_admin,
-    ) -> None:
+    ):
         await UserService.register_user(
             test_session, system_admin.id, valid_existing_guardian_payload
         )
@@ -112,7 +112,7 @@ class TestContactLimit:
         field: str,
         value: str,
         expected_exception: type[AppException],
-    ) -> None:
+    ):
         for i in range(3):
             await make_student(
                 test_session,
@@ -151,7 +151,7 @@ class TestContactLimit:
         field: str,
         value: str,
         expected_exception: type[AppException],
-    ) -> None:
+    ):
         await factory(test_session, **{field: value})
 
         payload = (
@@ -194,7 +194,7 @@ class TestDuplicateFieldRejection:
         existing_kwargs: dict,
         override: dict,
         expected_exception: type[Exception],
-    ) -> None:
+    ):
         await make_teacher(test_session, **existing_kwargs)
 
         for field, value in override.items():
@@ -233,7 +233,7 @@ class TestDuplicateFieldRejection:
         existing_kwargs: dict,
         override: dict,
         expected_exception: type[Exception],
-    ) -> None:
+    ):
         count = 1 if "username" in existing_kwargs else 3
 
         for i in range(count):
@@ -281,7 +281,7 @@ class TestDuplicateFieldRejection:
         existing_kwargs: dict,
         override: dict,
         expected_exception: type[Exception],
-    ) -> None:
+    ):
         await make_guardian(test_session, **existing_kwargs)
 
         for field, value in override.items():
@@ -351,7 +351,7 @@ class TestDBConstraints:
         expected_exception: type[Exception],
         request: pytest.FixtureRequest,
         mock_users_check_contact_limit_system_admin,
-    ) -> None:
+    ):
         await factory(test_session, **existing_kwargs)
 
         payload = request.getfixturevalue(payload_fixture)
@@ -369,7 +369,7 @@ class TestExistingIdentityGuardian:
         system_admin: UserCredentials,
         existing_identity: UserCredentials,
         valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
-    ) -> None:
+    ):
         identity_count_before = await UserIdentityRepository.count_identities(
             test_session, existing_identity.id
         )
@@ -388,7 +388,7 @@ class TestExistingIdentityGuardian:
         self,
         test_session: AsyncSession,
         registered_existing_guardian: UserCredentials,
-    ) -> None:
+    ):
         credentials_rows = await UserCredentialsRepository.count_credentials(
             test_session, registered_existing_guardian.identity_id
         )
@@ -399,7 +399,7 @@ class TestExistingIdentityGuardian:
         self,
         test_session: AsyncSession,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         payload = CreateGuardianWithExistingIdentity(
             type="existing_guardian",
             existing_identity_id=999999,
@@ -416,7 +416,7 @@ class TestExistingIdentityGuardian:
         system_admin: UserCredentials,
         existing_identity: UserCredentials,
         valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
-    ) -> None:
+    ):
         await UserService.register_user(
             test_session, system_admin.id, valid_existing_guardian_payload
         )
@@ -437,7 +437,7 @@ class TestExistingIdentityGuardian:
 class TestActivationRow:
     async def test_staff_activation_row_created(
         self, registered_staff: UserCredentials
-    ) -> None:
+    ):
         activation = registered_staff.activation
 
         assert activation is not None
@@ -447,7 +447,7 @@ class TestActivationRow:
 
     async def test_student_activation_row_created(
         self, registered_student: UserCredentials
-    ) -> None:
+    ):
         activation = registered_student.activation
 
         assert activation is not None
@@ -457,7 +457,7 @@ class TestActivationRow:
 
     async def test_new_guardian_activation_row_created(
         self, registered_new_guardian: UserCredentials
-    ) -> None:
+    ):
         activation = registered_new_guardian.activation
 
         assert activation is not None
@@ -467,9 +467,7 @@ class TestActivationRow:
 
 
 class TestLoginLockoutRow:
-    async def test_staff_lockout_row_created(
-        self, registered_staff: UserCredentials
-    ) -> None:
+    async def test_staff_lockout_row_created(self, registered_staff: UserCredentials):
         lockout = registered_staff.login_lockout
 
         assert lockout is not None
@@ -479,7 +477,7 @@ class TestLoginLockoutRow:
 
     async def test_student_lockout_row_created(
         self, registered_student: UserCredentials
-    ) -> None:
+    ):
         lockout = registered_student.login_lockout
 
         assert lockout is not None
@@ -489,7 +487,7 @@ class TestLoginLockoutRow:
 
     async def test_new_guardian_lockout_row_created(
         self, registered_new_guardian: UserCredentials
-    ) -> None:
+    ):
         lockout = registered_new_guardian.login_lockout
 
         assert lockout is not None
@@ -504,7 +502,7 @@ class TestEmailRow:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         registered_staff: UserCredentials,
-    ) -> None:
+    ):
         emails = await EmailRepository.get_by_triggered_by(
             test_session, system_admin.id
         )
@@ -519,7 +517,7 @@ class TestEmailRow:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         registered_student: UserCredentials,
-    ) -> None:
+    ):
         emails = await EmailRepository.get_by_triggered_by(
             test_session, system_admin.id
         )
@@ -534,7 +532,7 @@ class TestEmailRow:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         registered_new_guardian: UserCredentials,
-    ) -> None:
+    ):
         emails = await EmailRepository.get_by_triggered_by(
             test_session, system_admin.id
         )
@@ -551,7 +549,7 @@ class TestSuccessShape:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         response = await UserService.register_user(
             test_session, system_admin.id, valid_staff_payload
         )
@@ -573,7 +571,7 @@ class TestSuccessShape:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
-    ) -> None:
+    ):
         response = await UserService.register_user(
             test_session, system_admin.id, valid_student_payload
         )
@@ -595,7 +593,7 @@ class TestSuccessShape:
         test_session: AsyncSession,
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
-    ) -> None:
+    ):
         response = await UserService.register_user(
             test_session, system_admin.id, valid_new_guardian_payload
         )
@@ -618,7 +616,7 @@ class TestSuccessShape:
         system_admin: UserCredentials,
         existing_identity: UserCredentials,
         valid_existing_guardian_payload: CreateGuardianWithExistingIdentity,
-    ) -> None:
+    ):
         response = await UserService.register_user(
             test_session, system_admin.id, valid_existing_guardian_payload
         )

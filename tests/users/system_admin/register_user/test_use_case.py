@@ -29,7 +29,7 @@ class TestRegisterUserUseCase:
         mock_register_user_mirror_complete_to_redis_after_commit,
         mock_users_admin_acquire_contact_locks,
         mock_users_admin_check_contact_limit,
-    ) -> None:
+    ):
         mock_register_user_acquire_idempotency_lock.return_value = None
         mock_register_user_complete_idempotency_record.return_value = None
         mock_register_user_mirror_complete_to_redis_after_commit.return_value = None
@@ -56,7 +56,7 @@ class TestRegisterUserUseCase:
         valid_staff_payload: CreateStaff,
         idempotency_key: uuid.UUID,
         mock_register_user_acquire_idempotency_lock,
-    ) -> None:
+    ):
         original_body = {
             "public_id": str(uuid.uuid4()),
             "username": valid_staff_payload.username,
@@ -86,7 +86,7 @@ class TestRegisterUserUseCase:
         valid_staff_payload: CreateStaff,
         idempotency_key: uuid.UUID,
         mock_register_user_acquire_idempotency_lock,
-    ) -> None:
+    ):
         mock_register_user_acquire_idempotency_lock.side_effect = (
             IdempotencyPayloadMismatch()
         )
@@ -109,7 +109,7 @@ class TestRegisterUserUseCase:
         idempotency_key: uuid.UUID,
         mock_users_admin_acquire_contact_locks,
         mock_users_admin_check_contact_limit,
-    ) -> None:
+    ):
         actor_id = system_admin.id
 
         with (
@@ -148,7 +148,7 @@ class TestRegisterUserUseCase:
         mock_register_user_complete_idempotency_record,
         mock_users_admin_acquire_contact_locks,
         mock_users_admin_check_contact_limit,
-    ) -> None:
+    ):
         actor_id = system_admin.id
 
         mock_register_user_complete_idempotency_record.side_effect = RuntimeError(
@@ -187,7 +187,7 @@ class TestRegisterUserUseCase:
         mock_register_user_mirror_complete_to_redis_after_commit,
         mock_users_admin_acquire_contact_locks,
         mock_users_admin_check_contact_limit,
-    ) -> None:
+    ):
         mock_register_user_mirror_complete_to_redis_after_commit.side_effect = (
             RedisError("redis down")
         )

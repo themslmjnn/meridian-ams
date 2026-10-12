@@ -21,7 +21,7 @@ ENDPOINT = "/api/v1/admin/users"
 
 
 # HELPERS
-def _assert_response_shape(data: dict) -> None:
+def _assert_response_shape(data: dict):
     assert data["public_id"] is not None
     assert data["username"] is not None
     assert data["email"] is not None
@@ -40,9 +40,7 @@ def _assert_response_shape(data: dict) -> None:
 
 
 class TestAuth:
-    async def test_unauthenticated_returns_401(
-        self, integration_client: AsyncClient
-    ) -> None:
+    async def test_unauthenticated_returns_401(self, integration_client: AsyncClient):
         response = await integration_client.post(ENDPOINT, json={})
 
         assert response.status_code == 401
@@ -53,7 +51,7 @@ class TestAuth:
         integration_client: AsyncClient,
         valid_staff_payload: CreateStaff,
         director: UserCredentials,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, director))
 
         response = await integration_client.post(
@@ -70,7 +68,7 @@ class TestAuth:
         integration_client: AsyncClient,
         valid_staff_payload: CreateStaff,
         teacher: UserCredentials,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, teacher))
 
         response = await integration_client.post(
@@ -87,7 +85,7 @@ class TestAuth:
         integration_client: AsyncClient,
         valid_staff_payload: CreateStaff,
         student: UserCredentials,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, student))
 
         response = await integration_client.post(
@@ -104,7 +102,7 @@ class TestAuth:
         integration_client: AsyncClient,
         valid_staff_payload: CreateStaff,
         guardian: UserCredentials,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, guardian))
 
         response = await integration_client.post(
@@ -123,7 +121,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -140,7 +138,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -163,7 +161,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -180,7 +178,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -202,7 +200,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -219,7 +217,7 @@ class TestSuccessfulRegistration:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_new_guardian_payload: CreateGuardianWithNewIdentity,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(
@@ -239,7 +237,7 @@ class TestSuccessfulRegistration:
         test_session: AsyncSession,
         integration_client: AsyncClient,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         staff = await make_teacher(test_session)
         payload = CreateGuardianWithExistingIdentity(
             type="existing_guardian",
@@ -262,7 +260,7 @@ class TestSuccessfulRegistration:
         test_session: AsyncSession,
         integration_client: AsyncClient,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         staff = await make_teacher(test_session)
         payload = CreateGuardianWithExistingIdentity(
             type="existing_guardian",
@@ -311,7 +309,7 @@ class TestDuplicateFieldRejection:
         valid_staff_payload: CreateStaff,
         existing_kwargs: dict,
         override: dict,
-    ) -> None:
+    ):
         await make_teacher(test_session, **existing_kwargs)
 
         for field, value in override.items():
@@ -346,7 +344,7 @@ class TestDuplicateFieldRejection:
         valid_student_payload: CreateStudent,
         existing_kwargs: dict,
         override: dict,
-    ) -> None:
+    ):
         count = 1 if "username" in existing_kwargs else 3
 
         for i in range(count):
@@ -376,7 +374,7 @@ class TestDuplicateFieldRejection:
         test_session: AsyncSession,
         integration_client: AsyncClient,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         payload = CreateGuardianWithExistingIdentity(
             type="existing_guardian",
             existing_identity_id=999999,
@@ -398,7 +396,7 @@ class TestDuplicateFieldRejection:
         test_session: AsyncSession,
         integration_client: AsyncClient,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         staff = await make_teacher(test_session)
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
@@ -448,7 +446,7 @@ class TestValidation:
         valid_staff_payload: CreateStaff,
         field: str,
         invalid_value: str,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         payload[field] = invalid_value
@@ -465,7 +463,7 @@ class TestValidation:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_student_payload: CreateStudent,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_student_payload.model_dump(mode="json")
         del payload["date_of_birth"]
@@ -482,7 +480,7 @@ class TestValidation:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         payload["email"] = "personal@gmail.com"
@@ -499,7 +497,7 @@ class TestValidation:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
         payload = valid_staff_payload.model_dump(mode="json")
         del payload["type"]
@@ -515,7 +513,7 @@ class TestValidation:
         test_session: AsyncSession,
         integration_client: AsyncClient,
         system_admin: UserCredentials,
-    ) -> None:
+    ):
         headers = make_headers(await make_auth_header(test_session, system_admin))
 
         response = await integration_client.post(ENDPOINT, json={}, headers=headers)
@@ -530,7 +528,7 @@ class TestIdempotency:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         auth = await make_auth_header(test_session, system_admin)
         headers = {**auth, "Idempotency-Key": str(uuid.uuid4())}
 
@@ -556,7 +554,7 @@ class TestIdempotency:
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
         valid_student_payload: CreateStudent,
-    ) -> None:
+    ):
         auth = await make_auth_header(test_session, system_admin)
         shared_key = str(uuid.uuid4())
 
@@ -580,7 +578,7 @@ class TestIdempotency:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         headers = await make_auth_header(test_session, system_admin)
 
         response = await integration_client.post(
@@ -597,7 +595,7 @@ class TestIdempotency:
         integration_client: AsyncClient,
         system_admin: UserCredentials,
         valid_staff_payload: CreateStaff,
-    ) -> None:
+    ):
         auth = await make_auth_header(test_session, system_admin)
         headers = {**auth, "Idempotency-Key": "not-a-uuid"}
 
