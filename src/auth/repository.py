@@ -99,18 +99,18 @@ class AuthRepository:
 
         user_session.access_token_version += 1
         user_session.refresh_token_hash = None
-        user_session.previous_refresh_token_hash = None
         user_session.refresh_token_family = None
         user_session.refresh_token_expires_at = None
-        user_session.rotated_at = None
 
         await session.flush()
 
     @staticmethod
     async def get_session_by_id(
-        session: AsyncSession, session_id: int
+        session: AsyncSession, session_id: int, *, for_update: bool = False
     ) -> UserSession | None:
         query = select(UserSession).where(UserSession.id == session_id)
+        if for_update:
+            query = query.with_for_update()
 
         result = await session.execute(query)
 
