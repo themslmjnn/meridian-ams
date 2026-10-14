@@ -129,7 +129,7 @@ async def get_current_user(
     if user_session.access_token_version != atv:
         raise exceptions.InvalidAccessTokenError()
 
-    _verify_status(credentials)
+    verify_status(credentials)
 
     settings = get_settings()
 
@@ -170,7 +170,7 @@ STATUS_EXCEPTION_MAP: dict[UserStatus, type[AppException]] = {
 }
 
 
-def _verify_status(credentials: UserCredentials) -> None:
+def verify_status(credentials: UserCredentials) -> None:
     if credentials.status == UserStatus.ACTIVE:
         return
 
