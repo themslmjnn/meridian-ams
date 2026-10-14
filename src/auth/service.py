@@ -179,6 +179,7 @@ class AuthService:
                     failure_reason="account_locked",
                 )
             )
+
             await session.commit()
 
             logger.warning(
@@ -202,6 +203,7 @@ class AuthService:
                     failure_reason="account_not_activated",
                 )
             )
+
             await session.commit()
 
             raise exceptions.AccountInactiveError()
@@ -251,6 +253,7 @@ class AuthService:
                     failure_reason="invalid_password",
                 )
             )
+
             await session.commit()
 
             logger.warning(
@@ -304,7 +307,7 @@ class AuthService:
 
         if existing_session is not None:
             device_id = incoming_device_id
-            refresh_token_family = secrets.token_urlsafe(32)
+            raw_refresh_token_family, hashed_refresh_token_family = generate_token()
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 CreateRefreshToken(
@@ -314,12 +317,10 @@ class AuthService:
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
-            existing_session.refresh_token_family = refresh_token_family
+            existing_session.refresh_token_family_hash = hashed_refresh_token_family
             existing_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
                 days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS
             )
-            existing_session.previous_refresh_token_hash = None
-            existing_session.rotated_at = None
             existing_session.ip_address = ip_address
             existing_session.user_agent = user_agent
             existing_session.last_active_at = datetime.now(UTC)
@@ -343,12 +344,12 @@ class AuthService:
                 )
 
             device_id = secrets.token_urlsafe(32)
-            refresh_token_family = secrets.token_urlsafe(32)
+            raw_refresh_token_family, hashed_refresh_token_family = generate_token()
 
             user_session = UserSession(
                 credentials_id=credentials.id,
                 refresh_token_hash="",  # set below after flush gives us session.id
-                refresh_token_family=refresh_token_family,
+                refresh_token_family_hash=hashed_refresh_token_family,
                 refresh_token_expires_at=datetime.now(UTC)
                 + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
                 user_agent=user_agent,
@@ -381,7 +382,7 @@ class AuthService:
         await session.commit()
 
         logger.info(
-            "user_successfully_logged_in",
+            "user_logged_in",
             credentials_id=credentials.id,
             role=credentials.role,
             session_id=user_session.id,
@@ -389,7 +390,7 @@ class AuthService:
         )
 
         AuthService._set_refresh_token_cookie(response, raw_refresh_token)
-        AuthService._set_refresh_token_family_cookie(response, refresh_token_family)
+        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
         AuthService._set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
@@ -440,6 +441,7 @@ class AuthService:
             logger.warning(
                 "refresh_failed",
                 reason="invalid_jwt",
+                error=str(exc),
             )
 
             raise exceptions.InvalidRefreshTokenError() from exc
@@ -452,7 +454,7 @@ class AuthService:
         if (
             user_session is None
             or user_session.refresh_token_hash is None
-            or user_session.refresh_token_family is None
+            or user_session.refresh_token_family_hash is None
             or user_session.refresh_token_expires_at is None
         ):
             logger.warning(
@@ -473,7 +475,7 @@ class AuthService:
             raise exceptions.ExpiredRefreshTokenError()
 
         family_valid = verify_token(
-            raw_refresh_token_family, user_session.refresh_token_family
+            raw_refresh_token_family, user_session.refresh_token_family_hash
         )
         matches_current = verify_token(
             raw_refresh_token, user_session.refresh_token_hash
@@ -495,7 +497,6 @@ class AuthService:
         credentials = await UserCredentialsRepository.get_by_id(
             session, user_session.credentials_id
         )
-
         if credentials is None:
             raise exceptions.InvalidRefreshTokenError()
 
