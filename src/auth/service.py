@@ -368,15 +368,7 @@ class AuthService:
 
             user_session.refresh_token_hash = hashed_refresh_token
 
-        access_token = create_access_token(
-            CreateAccessToken(
-                public_id=credentials.public_id,
-                role=credentials.role,
-                account_type=credentials.account_type,
-                session_id=user_session.id,
-                access_token_version=user_session.access_token_version,
-            )
-        )
+        access_token = AuthService._access_token_for(credentials, user_session)
 
         session.add(
             LoginHistory(
@@ -389,7 +381,7 @@ class AuthService:
         await session.commit()
 
         logger.info(
-            "login_success",
+            "user_successfully_logged_in",
             credentials_id=credentials.id,
             role=credentials.role,
             session_id=user_session.id,
@@ -424,7 +416,7 @@ class AuthService:
         AuthService._clear_refresh_token_family_cookie(response)
 
         logger.info(
-            "logout",
+            "user_logged_out",
             credentials_id=current_user.credentials_id,
             session_id=current_user.session_id,
         )
