@@ -99,7 +99,7 @@ class AuthRepository:
 
         user_session.access_token_version += 1
         user_session.refresh_token_hash = None
-        user_session.refresh_token_family = None
+        user_session.refresh_token_family_hash = None
         user_session.refresh_token_expires_at = None
 
         await session.flush()
