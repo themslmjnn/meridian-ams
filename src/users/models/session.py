@@ -20,7 +20,9 @@ class UserSession(MutableBase):
     refresh_token_expires_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    refresh_token_family: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    refresh_token_family_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
 
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
