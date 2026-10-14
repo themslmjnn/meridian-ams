@@ -628,7 +628,7 @@ class AuthService:
         return LoginResponse(access_token=access_token, token_type="bearer")
 
     @staticmethod
-    async def forgot_password(
+    async def request_password_reset(
         session: AsyncSession,
         payload: ForgotPasswordRequest,
     ) -> None:
@@ -642,7 +642,6 @@ class AuthService:
                 load_password_reset=True,
             ),
         )
-
         if credentials is None:
             logger.info(
                 "user_not_found",
@@ -684,8 +683,8 @@ class AuthService:
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
-                body_html=html_body,
-                email_type=EmailType.PASSWORD_RESET_PUBLIC,
+                html_body=html_body,
+                email_type=EmailType.FORGOT_PASSWORD,
             )
         )
         await session.commit()

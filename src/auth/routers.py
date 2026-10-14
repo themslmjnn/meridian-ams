@@ -103,17 +103,17 @@ async def activate(
 
 
 @router.post(
-    "/forgot-password",
+    "/password-reset-request",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 @ip_limiter.limit("5/minute")
-async def forgot_password(
+async def request_password_reset(
     request: Request,
     response: Response,
     session: session_dependency,
     payload: ForgotPasswordRequest,
 ):
-    await AuthService.forgot_password(session, payload)
+    await AuthService.request_password_reset(session, payload)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)

@@ -13,7 +13,7 @@ class EmailType(StrEnum):
     EMAIL_CHANGE_CODE = "email_change_code"
     EMAIL_CHANGED = "email_changed"
     PASSWORD_CHANGED = "password_changed"
-    PASSWORD_RESET_PUBLIC = "password_reset_public"
+    FORGOT_PASSWORD = "forgot_password"
 
 
 class EmailStatus(StrEnum):
