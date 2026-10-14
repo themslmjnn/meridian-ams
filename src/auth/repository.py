@@ -118,8 +118,7 @@ class AuthRepository:
 
     @staticmethod
     async def get_credentials_by_activation_token_hash(
-        session: AsyncSession,
-        activation_token_hash: str,
+        session: AsyncSession, activation_token_hash: str
     ) -> UserCredentials | None:
         query = (
             select(UserCredentials)
@@ -138,8 +137,7 @@ class AuthRepository:
 
     @staticmethod
     async def claim_activation_token(
-        session: AsyncSession,
-        credentials_id: int,
+        session: AsyncSession, credentials_id: int
     ) -> bool:
         """
         Atomically delete the UserActivation row using DELETE ... RETURNING.
