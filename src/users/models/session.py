@@ -21,10 +21,6 @@ class UserSession(MutableBase):
         DateTime(timezone=True), nullable=True
     )
     refresh_token_family: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    previous_refresh_token_hash: Mapped[str | None] = mapped_column(nullable=True)
-    rotated_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
 
     user_agent: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
