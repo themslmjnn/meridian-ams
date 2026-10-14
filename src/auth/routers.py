@@ -116,10 +116,14 @@ async def request_password_reset(
     await AuthService.request_password_reset(session, payload)
 
 
-@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/reset-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 @ip_limiter.limit("5/minute")
 async def reset_password(
     request: Request,
+    response: Response,
     session: session_dependency,
     redis: redis_dependency,
     payload: ResetPasswordRequest,

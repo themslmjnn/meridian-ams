@@ -700,14 +700,16 @@ class AuthService:
         redis: Redis,
         payload: ResetPasswordRequest,
     ) -> None:
-        token_hash = sha256(payload.token)
+        token_hash = sha256(payload.reset_password_token)
 
         credentials = await AuthRepository.get_credentials_by_reset_token_hash(
             session, token_hash
         )
-
         if credentials is None or credentials.password_reset is None:
-            logger.warning("reset_password_failed", reason="token_not_found")
+            logger.warning(
+                "reset_password_failed",
+                reason="reset_token_not_found",
+            )
 
             raise exceptions.InvalidResetPasswordTokenError()
 
@@ -717,7 +719,7 @@ class AuthService:
         ):
             logger.warning(
                 "reset_password_failed",
-                reason="token_expired",
+                reason="reset_token_expired",
                 credentials_id=credentials.id,
             )
 
@@ -738,7 +740,6 @@ class AuthService:
         session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
 
         await AuthRepository.delete_all_sessions(session, credentials.id)
-
         await AuthRepository.delete_password_reset_token(session, credentials.id)
 
         credentials.password_hash = await hash_password(payload.new_password)
@@ -759,10 +760,13 @@ class AuthService:
         )
         await session.commit()
 
-        for session_id in session_ids:
-            await delete_cache(
-                redis, SessionCacheKey.access_token_version_key(session_id)
-            )
+        await delete_cache(
+            redis,
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
+        )
 
         logger.info(
             "password_reset_complete",
