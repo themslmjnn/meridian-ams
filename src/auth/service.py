@@ -17,9 +17,9 @@ from src.auth.schemas import (
     LoginResponse,
     ResetPasswordRequest,
 )
-from src.core.caching import delete_cache, set_cache_critical
+from src.core.caching import delete_cache
 from src.core.config import get_settings
-from src.core.dependencies import CurrentUser
+from src.core.dependencies import CurrentUser, verify_status
 from src.core.security import (
     create_access_token,
     create_refresh_token,
@@ -32,6 +32,7 @@ from src.core.security import (
 )
 from src.emails.models import Email
 from src.emails.utils.enums import EmailType
+from src.users.models.credentials import UserCredentials
 from src.users.models.login_history import LoginHistory
 from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
@@ -108,6 +109,31 @@ class AuthService:
         response.delete_cookie(
             key="device_id",
             path=_COOKIE_PATH_LOGIN,
+        )
+
+    @staticmethod
+    async def _revoke_session(
+        session: AsyncSession,
+        redis: Redis,
+        user_session: UserSession,
+        session_id: int,
+    ) -> None:
+        await AuthRepository.invalidate_session_family(session, user_session)
+        await session.commit()
+        await delete_cache(redis, SessionCacheKey.access_token_version_key(session_id))
+
+    @staticmethod
+    def _access_token_for(
+        credentials: UserCredentials, user_session: UserSession
+    ) -> str:
+        return create_access_token(
+            CreateAccessToken(
+                public_id=credentials.public_id,
+                role=credentials.role,
+                account_type=credentials.account_type,
+                session_id=user_session.id,
+                access_token_version=user_session.access_token_version,
+            )
         )
 
     @staticmethod
@@ -411,6 +437,9 @@ class AuthService:
         raw_refresh_token: str,
         raw_refresh_token_family: str,
     ) -> LoginResponse:
+        settings = get_settings()
+        now = datetime.now(UTC)
+
         try:
             payload = decode_refresh_token(raw_refresh_token)
             session_id = int(payload["session_id"])
@@ -423,7 +452,10 @@ class AuthService:
 
             raise exceptions.InvalidRefreshTokenError() from exc
 
-        user_session = await AuthRepository.get_session_by_id(session, session_id)
+        # Row lock: concurrent refreshes for one session are serialised.
+        user_session = await AuthRepository.get_session_by_id(
+            session, session_id, for_update=True
+        )
 
         if (
             user_session is None
@@ -439,7 +471,7 @@ class AuthService:
 
             raise exceptions.InvalidRefreshTokenError()
 
-        if datetime.now(UTC) > user_session.refresh_token_expires_at:
+        if now > user_session.refresh_token_expires_at:
             logger.warning(
                 "refresh_failed",
                 reason="refresh_token_expired",
@@ -448,151 +480,59 @@ class AuthService:
 
             raise exceptions.ExpiredRefreshTokenError()
 
-        is_refresh_token_family_valid = verify_token(
-            raw_refresh_token_family,
-            user_session.refresh_token_family,
+        family_valid = verify_token(
+            raw_refresh_token_family, user_session.refresh_token_family
+        )
+        matches_current = verify_token(
+            raw_refresh_token, user_session.refresh_token_hash
         )
 
-        token_matches_current = verify_token(
-            raw_refresh_token,
-            user_session.refresh_token_hash,
-        )
-
-        token_matches_previous = (
-            user_session.previous_refresh_token_hash is not None
-            and verify_token(
-                raw_refresh_token,
-                user_session.previous_refresh_token_hash,
-            )
-        )
-
-        if not is_refresh_token_family_valid or (
-            not token_matches_current and not token_matches_previous
-        ):
-            await AuthRepository.invalidate_session_family(session, user_session)
-            await session.commit()
-
-            await delete_cache(
-                redis, SessionCacheKey.access_token_version_key(session_id)
-            )
+        if not family_valid or not matches_current:
+            await AuthService._revoke_session(session, redis, user_session, session_id)
 
             logger.warning(
                 "refresh_security_violation",
                 session_id=session_id,
-                family_valid=is_refresh_token_family_valid,
-                token_matches_current=token_matches_current,
-                token_matches_previous=token_matches_previous,
+                family_valid=family_valid,
+                token_matches_current=matches_current,
                 action="session_invalidated",
             )
 
             raise exceptions.InvalidRefreshTokenError()
 
-        if token_matches_previous and not token_matches_current:
-            grace_window = timedelta(
-                seconds=get_settings().REFRESH_GRACE_WINDOW_SECONDS
-            )
-            within_grace = (
-                user_session.rotated_at is not None
-                and datetime.now(UTC) - user_session.rotated_at < grace_window
-            )
-
-            if within_grace:
-                user_credentials = await UserCredentialsRepository.get_by_id(
-                    session,
-                    user_session.credentials_id,
-                    load_options=LoadOptionsSchema(load_identity=True),
-                )
-
-                access_token = create_access_token(
-                    CreateAccessToken(
-                        public_id=user_credentials.public_id,
-                        role=user_credentials.role,
-                        account_type=user_credentials.account_type,
-                        session_id=user_session.id,
-                        access_token_version=user_session.access_token_version,
-                    )
-                )
-
-                logger.info(
-                    "refresh_grace_window_hit",
-                    session_id=session_id,
-                )
-
-                return LoginResponse(access_token=access_token, token_type="bearer")
-
-            else:
-                await AuthRepository.invalidate_session_family(session, user_session)
-                await session.commit()
-
-                await delete_cache(
-                    redis, SessionCacheKey.access_token_version_key(session_id)
-                )
-
-                logger.warning(
-                    "refresh_replay_attack",
-                    session_id=session_id,
-                    rotated_at=user_session.rotated_at.isoformat()
-                    if user_session.rotated_at
-                    else None,
-                    action="session_invalidated",
-                )
-
-                raise exceptions.InvalidRefreshTokenError()
-
         credentials = await UserCredentialsRepository.get_by_id(
-            session,
-            user_session.credentials_id,
-            load_options=LoadOptionsSchema(load_identity=True),
+            session, user_session.credentials_id
         )
+
         if credentials is None:
             raise exceptions.InvalidRefreshTokenError()
 
-        new_refresh_token_family = secrets.token_urlsafe(32)
+        verify_status(credentials)
+
         new_raw_refresh_token, new_hashed_refresh_token = create_refresh_token(
             CreateRefreshToken(
-                public_id=user_credentials.public_id,
-                session_id=user_session.id,
+                public_id=credentials.public_id, session_id=user_session.id
             )
         )
 
-        user_session.previous_refresh_token_hash = user_session.refresh_token_hash
-        user_session.rotated_at = datetime.now(UTC)
         user_session.refresh_token_hash = new_hashed_refresh_token
-        user_session.refresh_token_family = new_refresh_token_family
-        user_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
-            days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS
+        user_session.refresh_token_expires_at = now + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRES_DAYS
         )
-        user_session.last_active_at = datetime.now(UTC)
+        user_session.last_active_at = now
 
-        access_token = create_access_token(
-            CreateAccessToken(
-                public_id=user_credentials.public_id,
-                role=user_credentials.role,
-                account_type=user_credentials.account_type,
-                session_id=user_session.id,
-                access_token_version=user_session.access_token_version,
-            )
-        )
+        access_token = AuthService._access_token_for(credentials, user_session)
 
         await session.commit()
-
-        await set_cache_critical(
-            redis,
-            SessionCacheKey.access_token_version_key(session_id),
-            SessionCacheKey.pack_atv_cache(
-                user_session.access_token_version, user_credentials.id
-            ),
-            ex=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES * 60,
-        )
 
         logger.info(
             "refresh_token_rotated",
             session_id=session_id,
-            credentials_id=user_credentials.id,
+            credentials_id=credentials.id,
         )
 
         AuthService._set_refresh_token_cookie(response, new_raw_refresh_token)
-        AuthService._set_refresh_token_family_cookie(response, new_refresh_token_family)
+        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 
