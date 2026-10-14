@@ -11,7 +11,7 @@ class NoChangesDetectedError(AppException):
     error_code = "NO_CHANGES_DETECTED"
 
 
-class InvalidActivationCodeError(AppException):
+class InvalidActivationTokenError(AppException):
     status_code = 400
     detail = HTTP400.INVALID_ACTIVATION_TOKEN
     error_code = "INVALID_ACTIVATION_TOKEN"

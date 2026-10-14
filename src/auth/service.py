@@ -41,6 +41,7 @@ from src.users.repository.user import (
     UserSessionRepository,
 )
 from src.users.utils.enums import UserStatus
+from src.users.utils.exceptions import UserNotPendingActivationError
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils.cache_keys import SessionCacheKey
 from src.utils.email import build_reset_password_email
@@ -539,58 +540,58 @@ class AuthService:
     ) -> LoginResponse:
         token_hash = sha256(payload.activation_token)
 
-        user_credentials = (
-            await AuthRepository.get_credentials_by_activation_token_hash(
-                session, token_hash
-            )
+        credentials = await AuthRepository.get_credentials_by_activation_token_hash(
+            session, token_hash
         )
-        if user_credentials is None or user_credentials.activation is None:
-            logger.warning("activation_failed", reason="token_not_found")
-
-            raise exceptions.InvalidActivationCodeError()
-
-        if datetime.now(UTC) > user_credentials.activation.activation_token_expires_at:
+        if credentials is None or credentials.activation is None:
             logger.warning(
                 "activation_failed",
-                reason="token_expired",
-                credentials_id=user_credentials.id,
+                reason="activation_token_not_found",
+            )
+
+            raise exceptions.InvalidActivationTokenError()
+
+        if datetime.now(UTC) > credentials.activation.activation_token_expires_at:
+            logger.warning(
+                "activation_failed",
+                reason="activation_token_expired",
+                credentials_id=credentials.id,
             )
 
             raise exceptions.ExpiredActivationCodeError()
 
-        if user_credentials.status != UserStatus.PENDING_ACTIVATION:
+        if credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
                 "activation_failed",
                 reason="wrong_status",
-                credentials_id=user_credentials.id,
-                status=user_credentials.status,
+                credentials_id=credentials.id,
+                status=credentials.status,
             )
 
-            raise exceptions.UserNotPendingActivationError()
+            raise UserNotPendingActivationError()
 
-        claimed = await AuthRepository.claim_activation_token(
-            session, user_credentials.id
-        )
+        claimed = await AuthRepository.claim_activation_token(session, credentials.id)
 
         if not claimed:
+            print("error")
             logger.warning(
                 "activation_failed",
                 reason="concurrent_claim",
-                credentials_id=user_credentials.id,
+                credentials_id=credentials.id,
             )
 
-            raise exceptions.InvalidActivationCodeError()
+            raise exceptions.InvalidActivationTokenError()
 
-        user_credentials.password_hash = await hash_password(payload.new_password)
-        user_credentials.status = UserStatus.ACTIVE
+        credentials.password_hash = await hash_password(payload.new_password)
+        credentials.status = UserStatus.ACTIVE
 
-        refresh_token_family = secrets.token_urlsafe(32)
+        raw_refresh_token_family, refresh_token_family_hash = generate_token()
         device_id = secrets.token_urlsafe(32)
 
         user_session = UserSession(
-            credentials_id=user_credentials.id,
+            credentials_id=credentials.id,
             refresh_token_hash="",
-            refresh_token_family=refresh_token_family,
+            refresh_token_family_hash=refresh_token_family_hash,
             refresh_token_expires_at=datetime.now(UTC)
             + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
             user_agent=user_agent,
@@ -603,33 +604,25 @@ class AuthService:
 
         raw_refresh_token, hashed_refresh_token = create_refresh_token(
             CreateRefreshToken(
-                public_id=user_credentials.public_id,
+                public_id=credentials.public_id,
                 session_id=user_session.id,
             )
         )
         user_session.refresh_token_hash = hashed_refresh_token
 
-        access_token = create_access_token(
-            CreateAccessToken(
-                public_id=user_credentials.public_id,
-                role=user_credentials.role,
-                account_type=user_credentials.account_type,
-                session_id=user_session.id,
-                access_token_version=user_session.access_token_version,
-            )
-        )
+        access_token = AuthService._access_token_for(credentials, user_session)
 
         await session.commit()
 
         logger.info(
             "account_activated",
-            credentials_id=user_credentials.id,
-            role=user_credentials.role,
+            credentials_id=credentials.id,
+            role=credentials.role,
             session_id=user_session.id,
         )
 
-        AuthService._set_refresh_cookie(response, raw_refresh_token)
-        AuthService._set_refresh_family_cookie(response, refresh_token_family)
+        AuthService._set_refresh_token_cookie(response, raw_refresh_token)
+        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
         AuthService._set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
@@ -641,7 +634,7 @@ class AuthService:
     ) -> None:
         raw_token, token_hash = generate_token()
 
-        user_credentials = await UserCredentialsRepository.get_by_email(
+        credentials = await UserCredentialsRepository.get_by_email(
             session,
             payload.email,
             load_options=LoadOptionsSchema(
@@ -650,28 +643,29 @@ class AuthService:
             ),
         )
 
-        if user_credentials is None:
+        if credentials is None:
             logger.info(
-                "forgot_password_email_not_found", reason="no_account_for_email"
+                "user_not_found",
+                email=payload.email,
             )
 
             return
 
-        if user_credentials.status not in (
+        if credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_ACTIVATION,
         ):
             logger.info(
                 "forgot_password_skipped",
-                credentials_id=user_credentials.id,
-                reason=f"status_{user_credentials.status.value}",
+                credentials_id=credentials.id,
+                reason=f"status_{credentials.status.value}",
             )
 
             return
 
-        if user_credentials.password_reset is None:
+        if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
-                credentials_id=user_credentials.id,
+                credentials_id=credentials.id,
                 reset_password_token_hash=token_hash,
                 reset_password_token_expires_at=datetime.now(UTC)
                 + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
@@ -679,27 +673,26 @@ class AuthService:
 
             session.add(new_password_reset)
         else:
-            user_credentials.password_reset.reset_password_token_hash = token_hash
-            user_credentials.password_reset.reset_password_token_expires_at = (
-                datetime.now(UTC)
-                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
-            )
+            credentials.password_reset.reset_password_token_hash = token_hash
+            credentials.password_reset.reset_password_token_expires_at = datetime.now(
+                UTC
+            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
 
         subject, html_body = build_reset_password_email(raw_token)
 
         session.add(
             Email(
-                recipient_email=user_credentials.email,
+                recipient_email=credentials.email,
                 subject=subject,
                 body_html=html_body,
-                email_type=EmailType.PASSWORD_RESET_ADMIN,
+                email_type=EmailType.PASSWORD_RESET_PUBLIC,
             )
         )
         await session.commit()
 
         logger.info(
-            "forgot_password_token_issued",
-            credentials_id=user_credentials.id,
+            "password_reset_requested",
+            credentials_id=credentials.id,
         )
 
     @staticmethod
@@ -710,57 +703,55 @@ class AuthService:
     ) -> None:
         token_hash = sha256(payload.token)
 
-        user_credentials = await AuthRepository.get_credentials_by_reset_token_hash(
+        credentials = await AuthRepository.get_credentials_by_reset_token_hash(
             session, token_hash
         )
 
-        if user_credentials is None or user_credentials.password_reset is None:
+        if credentials is None or credentials.password_reset is None:
             logger.warning("reset_password_failed", reason="token_not_found")
 
             raise exceptions.InvalidResetPasswordTokenError()
 
         if (
             datetime.now(UTC)
-            > user_credentials.password_reset.reset_password_token_expires_at
+            > credentials.password_reset.reset_password_token_expires_at
         ):
             logger.warning(
                 "reset_password_failed",
                 reason="token_expired",
-                credentials_id=user_credentials.id,
+                credentials_id=credentials.id,
             )
 
             raise exceptions.ExpiredResetPasswordTokenError()
 
-        if user_credentials.status not in (
+        if credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_ACTIVATION,
         ):
             logger.warning(
                 "reset_password_failed",
-                reason=f"status_{user_credentials.status.value}",
-                credentials_id=user_credentials.id,
+                reason=f"status_{credentials.status.value}",
+                credentials_id=credentials.id,
             )
 
             raise exceptions.InvalidResetPasswordTokenError()
 
-        session_ids = await AuthRepository.get_all_session_ids(
-            session, user_credentials.id
-        )
+        session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
 
-        await AuthRepository.delete_all_sessions(session, user_credentials.id)
+        await AuthRepository.delete_all_sessions(session, credentials.id)
 
-        await AuthRepository.delete_password_reset_token(session, user_credentials.id)
+        await AuthRepository.delete_password_reset_token(session, credentials.id)
 
-        user_credentials.password_hash = await hash_password(payload.new_password)
+        credentials.password_hash = await hash_password(payload.new_password)
 
-        if user_credentials.login_lockout is not None:
-            user_credentials.login_lockout.failed_attempts = 0
-            user_credentials.login_lockout.locked_until = None
-            user_credentials.login_lockout.last_failed_at = None
+        if credentials.login_lockout is not None:
+            credentials.login_lockout.failed_attempts = 0
+            credentials.login_lockout.locked_until = None
+            credentials.login_lockout.last_failed_at = None
 
         session.add(
             LoginHistory(
-                credentials_id=user_credentials.id,
+                credentials_id=credentials.id,
                 success=True,
                 ip_address=None,
                 user_agent=None,
@@ -776,6 +767,6 @@ class AuthService:
 
         logger.info(
             "password_reset_complete",
-            credentials_id=user_credentials.id,
+            credentials_id=credentials.id,
             sessions_revoked=len(session_ids),
         )

@@ -82,7 +82,9 @@ async def refresh_token(
 
 
 @router.post(
-    "/activation", response_model=LoginResponse, status_code=status.HTTP_200_OK
+    "/activation",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
 )
 @ip_limiter.limit("3/minute")
 async def activate(
@@ -100,10 +102,14 @@ async def activate(
     )
 
 
-@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/forgot-password",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
 @ip_limiter.limit("5/minute")
 async def forgot_password(
     request: Request,
+    response: Response,
     session: session_dependency,
     payload: ForgotPasswordRequest,
 ):
