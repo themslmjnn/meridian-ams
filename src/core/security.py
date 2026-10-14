@@ -76,6 +76,7 @@ def create_refresh_token(payload: CreateRefreshToken) -> tuple[str, str]:
 
     data = {
         "sub": str(payload.public_id),
+        "session_id": payload.session_id,
         "type": "refresh",
         "jti": secrets.token_urlsafe(16),
         "exp": now + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
@@ -97,7 +98,7 @@ def decode_refresh_token(token: str) -> dict:
             token,
             get_settings().JWT_SECRET_KEY.get_secret_value(),
             algorithms=[get_settings().ALGORITHM],
-            options={"require": ["exp", "iat", "sub", "jti"]},
+            options={"require": ["exp", "iat", "sub", "session_id", "jti"]},
         )
 
         if payload.get("type") != "refresh":
