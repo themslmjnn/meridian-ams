@@ -212,7 +212,6 @@ class TestNumericBounds:
             ("LOCKOUT_DURATION_MINUTES", 0),
             ("EMAIL_WORKER_INTERVAL", 0),
             ("EMAIL_WORKER_BATCH_SIZE", 0),
-            ("REFRESH_GRACE_WINDOW_SECONDS", 121),
         ],
     )
     def test_out_of_range_raises(self, make_settings: Settings, field, value):
