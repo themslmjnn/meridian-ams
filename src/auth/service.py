@@ -374,7 +374,6 @@ class AuthService:
         raw_refresh_token_family: str,
     ) -> LoginResponse:
         settings = get_settings()
-        now = datetime.now(UTC)
 
         try:
             payload = decode_refresh_token(raw_refresh_token)
@@ -382,8 +381,8 @@ class AuthService:
 
         except (ValueError, KeyError, TypeError) as exc:
             logger.warning(
-                "refresh_failed",
-                reason="invalid_jwt",
+                "refresh_token_rotation_failed",
+                failure_reason="invalid_jwt",
                 error=str(exc),
             )
 
@@ -393,7 +392,6 @@ class AuthService:
         user_session = await AuthRepository.get_session_by_id(
             session, session_id, for_update=True
         )
-
         if (
             user_session is None
             or user_session.refresh_token_hash is None
@@ -401,17 +399,17 @@ class AuthService:
             or user_session.refresh_token_expires_at is None
         ):
             logger.warning(
-                "refresh_failed",
-                reason="session_not_found_or_incomplete",
+                "refresh_token_rotation_failed",
                 session_id=session_id,
+                failure_reason="session_not_found_or_incomplete",
             )
 
             raise exceptions.InvalidRefreshTokenError()
 
-        if now > user_session.refresh_token_expires_at:
+        if datetime.now(UTC) > user_session.refresh_token_expires_at:
             logger.warning(
-                "refresh_failed",
-                reason="refresh_token_expired",
+                "refresh_token_rotation_failed",
+                failure_reason="refresh_token_expired",
                 session_id=session_id,
             )
 
@@ -450,10 +448,10 @@ class AuthService:
         )
 
         user_session.refresh_token_hash = new_hashed_refresh_token
-        user_session.refresh_token_expires_at = now + timedelta(
+        user_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
             days=settings.REFRESH_TOKEN_EXPIRES_DAYS
         )
-        user_session.last_active_at = now
+        user_session.last_active_at = datetime.now(UTC)
 
         access_token = create_access_token(
             public_id=credentials.public_id,
