@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -24,6 +25,7 @@ from src.auth.tokens import (
 from src.core.caching import delete_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
+from src.core.email.service import send_email_safe
 from src.core.security import (
     generate_token,
     hash_password,
@@ -33,8 +35,8 @@ from src.core.security import (
 )
 from src.emails.models import Email
 from src.emails.templates.authentication import (
-    build_new_login_notification_email,
     build_reset_password_email,
+    send_new_login_notification_email,
 )
 from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
@@ -315,26 +317,23 @@ class AuthService:
             )
         )
 
+        await session.commit()
+
         if not existing_session:
             login_time = datetime.now(UTC).strftime("%B %d, %Y at %H:%M UTC")
             password_reset_link = "/api/v1/auth/password-reset"
 
-            subject, html_body = build_new_login_notification_email(
-                user_agent=user_agent,
-                login_time=login_time,
-                password_reset_link=password_reset_link,
-            )
-
-            session.add(
-                Email(
-                    recipient_email=credentials.email,
-                    subject=subject,
-                    html_body=html_body,
+            asyncio.create_task(
+                send_email_safe(
+                    send_new_login_notification_email(
+                        to_email=credentials.email,
+                        user_agent=user_agent,
+                        login_time=login_time,
+                        password_reset_link=password_reset_link,
+                    ),
                     email_type=EmailType.NEW_LOGIN,
                 )
             )
-
-        await session.commit()
 
         logger.info(
             "user_logged_in",
