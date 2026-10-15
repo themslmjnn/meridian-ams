@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache
 from src.core.dependencies import CurrentUser
+from src.core.email.service import send_email_safe
+from src.emails.templates import account
 from src.emails.utils.enums import EmailType
 from src.users.repository.user import (
     UserCredentialsRepository,
@@ -26,7 +28,6 @@ from src.users.utils.exceptions import (
 )
 from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import LoadOptionsSchema
-from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
 from src.utils.helpers import update_object
@@ -75,8 +76,8 @@ class UserServiceGuardian:
         await session.commit()
 
         asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_account_deletion_email(credentials.email),
+            send_email_safe(
+                account.send_account_deletion_email(credentials.email),
                 email_type=EmailType.ACCOUNT_DELETION,
             )
         )
@@ -141,8 +142,8 @@ class UserServiceGuardian:
             await session.commit()
 
             asyncio.create_task(
-                emails.send_email_safe(
-                    emails.send_account_info_updated_email(credentials.email),
+                send_email_safe(
+                    account.send_account_info_updated_email(credentials.email),
                     email_type=EmailType.UPDATING_ACCOUNT,
                 )
             )

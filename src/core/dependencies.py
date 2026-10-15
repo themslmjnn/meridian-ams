@@ -11,10 +11,10 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.utils.exceptions as exceptions
+from src.auth.tokens import decode_access_token
 from src.core.caching import get_cache_critical, get_redis, set_cache_critical
 from src.core.config import get_settings
 from src.core.exceptions import AppException
-from src.core.security import decode_access_token
 from src.database.connection import session_factory
 from src.users.models.credentials import UserCredentials
 from src.users.repository.user import UserCredentialsRepository, UserSessionRepository

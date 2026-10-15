@@ -18,6 +18,7 @@ from src.api.health import router as health_router
 from src.auth.routers import router as auth_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
+from src.core.email.providers import close_email_client
 from src.core.exceptions import AppException, register_exception_handlers
 from src.core.idempotency.service import _CachedResponseSignal, make_cached_response
 from src.core.limiter import limiter, rate_limit_exceeded_handler
@@ -33,7 +34,6 @@ from src.users.routers.director import router as users_director_router
 from src.users.routers.guardian import router as users_guardian_router
 from src.users.routers.shared import router as users_shared_router
 from src.users.routers.system_admin import router as users_system_admin_router
-from src.utils.email import close_email_client
 from src.workers.deletion_worker import run_deletion_worker
 from src.workers.email_worker import run_email_worker
 

@@ -17,6 +17,7 @@ from src.core.config import get_settings
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
+from src.emails.templates import account as emails
 from src.emails.utils.enums import EmailType
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
@@ -36,7 +37,6 @@ from src.users.utils.schemas import (
     LoadOptionsSchema,
     UpdateCredentials,
 )
-from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import raise_unhandled_integrity_error
 from src.utils.helpers import update_object

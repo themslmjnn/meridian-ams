@@ -4,11 +4,11 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
+from src.core.email.service import send_email
 from src.database.connection import session_factory
 from src.emails.models import Email
 from src.emails.repository import EmailRepository
 from src.emails.utils.enums import EmailStatus
-from src.utils.email import send_email
 
 logger = structlog.get_logger(__name__)
 

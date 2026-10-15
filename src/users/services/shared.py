@@ -10,12 +10,14 @@ from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
+from src.core.email.service import send_email_safe
 from src.core.security import (
     generate_email_change_code,
     hash_password,
     verify_email_change_code,
     verify_password,
 )
+from src.emails.templates import account
 from src.emails.utils.enums import EmailType
 from src.users.models.email_change import UserEmailChange
 from src.users.repository.user import (
@@ -45,7 +47,6 @@ from src.users.utils.exceptions import (
 )
 from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import LoadOptionsSchema
-from src.utils import email as emails
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import NoChangesDetectedError, raise_unhandled_integrity_error
 
@@ -158,8 +159,8 @@ class UserServiceSelf:
 
             if email_requested:
                 asyncio.create_task(
-                    emails.send_email_safe(
-                        emails.send_email_change_verification(payload.email, raw_code),
+                    send_email_safe(
+                        account.send_email_change_verification(payload.email, raw_code),
                         email_type=EmailType.EMAIL_CHANGE_CODE,
                     )
                 )
@@ -280,8 +281,8 @@ class UserServiceSelf:
             await session.commit()
 
             asyncio.create_task(
-                emails.send_email_safe(
-                    emails.send_email_changed_notification(
+                send_email_safe(
+                    account.send_email_changed_notification(
                         old_email, credentials.email
                     ),
                     email_type=EmailType.EMAIL_CHANGED,
@@ -365,8 +366,8 @@ class UserServiceSelf:
         await session.commit()
 
         asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_password_changed_notification(credentials.email),
+            send_email_safe(
+                account.send_password_changed_notification(credentials.email),
                 email_type=EmailType.PASSWORD_CHANGED,
             )
         )
