@@ -59,6 +59,7 @@ async def register_user(
 @user_limiter.limit("10/minute")
 async def update_profile(
     request: Request,
+    response: Response,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
@@ -77,6 +78,7 @@ async def update_profile(
 @user_limiter.limit("5/minute")
 async def update_credentials(
     request: Request,
+    response: Response,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
@@ -95,6 +97,7 @@ async def update_credentials(
 @user_limiter.limit("7/minute")
 async def deactivate_user(
     request: Request,
+    response: Response,
     session: session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
@@ -163,40 +166,6 @@ async def resend_activation_token(
         current_user_id=current_user.credentials_id,
         public_id=public_id,
         idempotency_key=idempotency_key,
-    )
-
-
-@router.post(
-    "/{public_id}/guardian-deletion",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-@user_limiter.limit("3/minute")
-async def create_guardian_deletion_request(
-    request: Request,
-    session: session_dependency,
-    redis: redis_dependency,
-    current_user: require_system_admin,
-    public_id: uuid.UUID,
-):
-    await UserService.create_guardian_deletion_request(
-        session, redis, current_user.credentials_id, public_id
-    )
-
-
-@router.post(
-    "/{public_id}/cancel-deletion",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-@user_limiter.limit("3/minute")
-async def cancel_guardian_deletion_request(
-    request: Request,
-    session: session_dependency,
-    redis: redis_dependency,
-    current_user: require_system_admin,
-    public_id: uuid.UUID,
-):
-    await UserService.cancel_guardian_deletion_request(
-        session, redis, current_user.credentials_id, public_id
     )
 
 

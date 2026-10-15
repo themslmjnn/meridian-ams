@@ -14,10 +14,15 @@ import src.users.utils.exceptions as exceptions
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
+from src.core.email.service import send_email_safe
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
 from src.emails.templates import account as emails
+from src.emails.templates.authentication import (
+    build_account_activation_email,
+    build_reset_password_email,
+)
 from src.emails.utils.enums import EmailType
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
@@ -51,6 +56,8 @@ class UserService:
         actor_id: int,
         payload: schemas.CreateUserRequest,
     ) -> schemas.UserResponseDetailed:
+        settings = get_settings()
+
         is_existing_identity = False
 
         match payload:
@@ -97,7 +104,7 @@ class UserService:
         raw_activation_token, hashed_activation_token = generate_token()
 
         activation_token_expires_at = datetime.now(UTC) + timedelta(
-            hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
+            hours=settings.ACTIVATION_TOKEN_EXPIRES_HOURS
         )
 
         try:
@@ -165,8 +172,6 @@ class UserService:
             )
 
             await session.flush()
-
-            print(raw_activation_token)
 
             logger.info(
                 "user_registered",
@@ -271,9 +276,9 @@ class UserService:
             await session.commit()
 
             asyncio.create_task(
-                emails.send_email_safe(
-                    emails.send_account_info_updated_email(credentials.email),
-                    email_type=EmailType.UPDATING_ACCOUNT,
+                send_email_safe(
+                    emails.send_admin_profile_override_email(credentials.email),
+                    email_type=EmailType.ADMIN_PROFILE_OVERRIDE,
                 )
             )
 
@@ -298,7 +303,7 @@ class UserService:
                 "update_profile_failed",
                 public_id=public_id,
                 requested_by=current_user_id,
-                reason=str(exc.orig),
+                failure_reason=str(exc.orig),
                 method="admin_update",
             )
 
@@ -314,6 +319,8 @@ class UserService:
         public_id: uuid.UUID,
         payload: UpdateCredentials,
     ) -> None:
+        settings = get_settings()
+
         credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
@@ -375,7 +382,7 @@ class UserService:
 
                 raw_activation_token, hashed_activation_token = generate_token()
                 activation_token_expires_at = datetime.now(UTC) + timedelta(
-                    hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
+                    hours=settings.ACTIVATION_TOKEN_EXPIRES_HOURS
                 )
 
                 credentials.activation.activation_token_hash = hashed_activation_token
@@ -383,7 +390,7 @@ class UserService:
                     activation_token_expires_at
                 )
 
-                subject, html_body = emails.build_activation_email(
+                subject, html_body = build_account_activation_email(
                     raw_activation_token, credentials.username
                 )
 
@@ -392,7 +399,7 @@ class UserService:
                         recipient_email=credentials.email,
                         subject=subject,
                         html_body=html_body,
-                        email_type=EmailType.ACTIVATION,
+                        email_type=EmailType.ACCOUNT_ACTIVATION,
                         triggered_by=current_user_id,
                     )
                 )
@@ -407,7 +414,7 @@ class UserService:
                 notify_new_email = credentials.email if email_changed else None
 
                 subject, html_body = (
-                    emails.build_admin_credentials_override_notification_email(
+                    emails.build_admin_credentials_override_email(
                         notify_old_username,
                         notify_new_username,
                         notify_old_email,
@@ -443,10 +450,10 @@ class UserService:
             )
 
             logger.info(
-                "credentials_updated",
+                "user_credentials_updated",
                 public_id=public_id,
                 updated_by=current_user_id,
-                method="admin_credentials_override",
+                method="admin_update",
             )
 
         except IntegrityError as exc:
@@ -456,8 +463,8 @@ class UserService:
                 "update_credentials_failed",
                 public_id=public_id,
                 requested_by=current_user_id,
-                reason=str(exc.orig),
-                method="admin_credentials_override",
+                failurereason=str(exc.orig),
+                method="admin_update",
             )
 
             exceptions.handle_username_integrity_error(exc)
@@ -486,7 +493,7 @@ class UserService:
                 "user_deactivation_failed",
                 public_id=public_id,
                 requested_by=current_user_id,
-                reason="user_is_already_deactivated",
+                failure_reason="user_is_already_deactivated",
             )
 
             raise exceptions.UserAlreadyInactiveError()
@@ -504,9 +511,9 @@ class UserService:
         await session.commit()
 
         asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_account_deactivation_email(credentials.email),
-                email_type=EmailType.ACCOUNT_DEACTIVATION,
+            send_email_safe(
+                emails.send_admin_account_deactivation_email(credentials.email),
+                email_type=EmailType.ADMIN_ACCOUNT_DEACTIVATION,
             )
         )
 
@@ -565,9 +572,9 @@ class UserService:
         await session.commit()
 
         asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_account_activation_email(credentials.email),
-                email_type=EmailType.ACCOUNT_ACTIVATION,
+            send_email_safe(
+                emails.send_admin_account_activation_email(credentials.email),
+                email_type=EmailType.ADMIN_ACCOUNT_ACTIVATION,
             )
         )
 
@@ -590,6 +597,8 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
+        settings = get_settings()
+
         credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
@@ -610,7 +619,7 @@ class UserService:
                 credentials_id=credentials.id,
                 reset_password_token_hash=hashed_reset_token,
                 reset_password_token_expires_at=datetime.now(UTC)
-                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
+                + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
             )
 
             session.add(new_password_reset)
@@ -618,9 +627,9 @@ class UserService:
             credentials.password_reset.reset_password_token_hash = hashed_reset_token
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
                 UTC
-            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+            ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
 
-        subject, html_body = emails.build_reset_password_email(raw_reset_token)
+        subject, html_body = build_reset_password_email(raw_reset_token)
 
         session.add(
             Email(
@@ -646,6 +655,8 @@ class UserService:
         current_user_id: int,
         public_id: uuid.UUID,
     ) -> None:
+        settings = get_settings()
+
         credentials = await UserCredentialsRepository.get_by_public_id(
             session,
             public_id,
@@ -676,13 +687,13 @@ class UserService:
 
         raw_activation_token, hashed_activation_token = generate_token()
         activation_token_expires_at = datetime.now(UTC) + timedelta(
-            hours=get_settings().ACTIVATION_TOKEN_EXPIRES_HOURS
+            hours=settings.ACTIVATION_TOKEN_EXPIRES_HOURS
         )
 
         credentials.activation.activation_token_hash = hashed_activation_token
         credentials.activation.activation_token_expires_at = activation_token_expires_at
 
-        subject, html_body = emails.build_activation_email(
+        subject, html_body = build_account_activation_email(
             raw_activation_token, credentials.username
         )
 
@@ -691,7 +702,7 @@ class UserService:
                 recipient_email=credentials.email,
                 subject=subject,
                 html_body=html_body,
-                email_type=EmailType.ACTIVATION,
+                email_type=EmailType.ACCOUNT_ACTIVATION,
                 triggered_by=current_user_id,
             )
         )
@@ -704,133 +715,6 @@ class UserService:
             actor_user_id=current_user_id,
         )
 
-    @staticmethod
-    async def create_guardian_deletion_request(
-        session: AsyncSession,
-        redis: Redis,
-        current_user_id: int,
-        public_id: uuid.UUID,
-    ) -> None:
-        credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
-            public_id,
-            allowed_roles=constants.GUARDIAN_ROLE,
-            load_options=LoadOptionsSchema(load_sessions=True),
-        )
-        if credentials is None:
-            raise exceptions.CredentialsNotFoundError()
-
-        if credentials.status == UserStatus.PENDING_DELETION:
-            logger.warning(
-                "guardian_deletion_denied",
-                actor_user_id=current_user_id,
-                public_id=public_id,
-                denial_reason="guardian_already_pending_deletion",
-            )
-
-            raise exceptions.GuardianAlreadyPendingDeletionError()
-
-        if credentials.status not in (
-            UserStatus.ACTIVE,
-            UserStatus.DEACTIVATED,
-            UserStatus.PENDING_ACTIVATION,
-        ):
-            raise exceptions.InvalidStatusTransitionError()
-
-        user_email = credentials.email
-        deletion_scheduled_for = datetime.now(UTC) + timedelta(
-            days=constants.DELETION_GRACE_PERIOD_DAYS
-        )
-
-        credentials.pre_transition_status = credentials.status
-        credentials.status = UserStatus.PENDING_DELETION
-        credentials.deletion_scheduled_for = deletion_scheduled_for
-
-        session_ids = [s.id for s in credentials.sessions]
-
-        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
-
-        await session.commit()
-
-        asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_account_deletion_email(user_email),
-                email_type=EmailType.ACCOUNT_DELETION,
-            )
-        )
-
-        await delete_cache(
-            redis,
-            *[
-                SessionCacheKey.access_token_version_key(session_id)
-                for session_id in session_ids
-            ],
-            UserCacheKey.user_detail_key_admin(public_id),
-            UserCacheKey.user_detail_key_self(public_id),
-        )
-
-        logger.info(
-            "guardian_deletion_scheduled",
-            actor_user_id=current_user_id,
-            public_id=public_id,
-            deletion_scheduled_for=deletion_scheduled_for.isoformat(),
-        )
-
-    @staticmethod
-    async def cancel_guardian_deletion_request(
-        session: AsyncSession,
-        redis: Redis,
-        current_user_id: int,
-        public_id: uuid.UUID,
-    ) -> None:
-        credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
-            public_id,
-        )
-        if credentials is None:
-            raise exceptions.CredentialsNotFoundError()
-
-        user_email = credentials.email
-
-        if credentials.status != UserStatus.PENDING_DELETION:
-            raise exceptions.GuardianNotPendingDeletionError()
-
-        reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
-            session, public_id, credentials.pre_transition_status
-        )
-
-        if not reactivated:
-            await session.rollback()
-
-            logger.warning(
-                "guardian_deletion_cancel_lost_race",
-                actor_user_id=current_user_id,
-                public_id=public_id,
-                denial_reason="user_hard_deleted_before_cancel_committed",
-            )
-
-            raise exceptions.CredentialsNotFoundError()
-
-        await session.commit()
-
-        asyncio.create_task(
-            emails.send_email_safe(
-                emails.send_account_deletion_canceled_email(user_email),
-                email_type=EmailType.CANCEL_ACCOUNT_DELETION,
-            )
-        )
-
-        await delete_cache(
-            redis,
-            UserCacheKey.user_detail_key_admin(public_id),
-            UserCacheKey.user_detail_key_self(public_id),
-        )
-
-        logger.info(
-            "guardian_deletion_cancelled",
-            actor_user_id=current_user_id,
-            public_id=public_id,
-        )
 
     @staticmethod
     async def get_staff(
