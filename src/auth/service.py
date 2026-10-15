@@ -8,6 +8,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.utils.exceptions as exceptions
+from src.auth import cookies
 from src.auth.repository import AuthRepository
 from src.auth.schemas import (
     ActivateAccount,
@@ -48,70 +49,8 @@ from src.utils.email import build_reset_password_email
 
 logger = structlog.get_logger(__name__)
 
-_COOKIE_PATH_REFRESH = "/api/v1/auth/refresh-token"
-_COOKIE_PATH_LOGIN = "/api/v1/auth/login"
-
 
 class AuthService:
-    @staticmethod
-    def _set_refresh_token_cookie(response: Response, raw_refresh_token: str) -> None:
-        response.set_cookie(
-            key="refresh_token",
-            value=raw_refresh_token,
-            httponly=True,
-            secure=get_settings().COOKIE_SECURE,
-            samesite="strict",
-            max_age=get_settings().REFRESH_TOKEN_EXPIRES_DAYS,
-            path=_COOKIE_PATH_REFRESH,
-        )
-
-    @staticmethod
-    def _clear_refresh_token_cookie(response: Response) -> None:
-        response.delete_cookie(
-            key="refresh_token",
-            path=_COOKIE_PATH_REFRESH,
-        )
-
-    @staticmethod
-    def _set_refresh_token_family_cookie(
-        response: Response, raw_refresh_token_family: str
-    ) -> None:
-        response.set_cookie(
-            key="refresh_token_family",
-            value=raw_refresh_token_family,
-            httponly=True,
-            secure=get_settings().COOKIE_SECURE,
-            samesite="strict",
-            max_age=get_settings().REFRESH_TOKEN_EXPIRES_DAYS,
-            path=_COOKIE_PATH_REFRESH,
-        )
-
-    @staticmethod
-    def _clear_refresh_token_family_cookie(response: Response) -> None:
-        response.delete_cookie(
-            key="refresh_token_family",
-            path=_COOKIE_PATH_REFRESH,
-        )
-
-    @staticmethod
-    def _set_device_id_cookie(response: Response, device_id: str) -> None:
-        response.set_cookie(
-            key="device_id",
-            value=device_id,
-            httponly=True,
-            secure=get_settings().COOKIE_SECURE,
-            samesite="strict",
-            max_age=get_settings().REFRESH_TOKEN_EXPIRES_DAYS,
-            path=_COOKIE_PATH_LOGIN,
-        )
-
-    @staticmethod
-    def _clear_device_id_cookie(response: Response) -> None:
-        response.delete_cookie(
-            key="device_id",
-            path=_COOKIE_PATH_LOGIN,
-        )
-
     @staticmethod
     async def _revoke_session(
         session: AsyncSession,
@@ -390,9 +329,9 @@ class AuthService:
             device="existing" if existing_session else "new",
         )
 
-        AuthService._set_refresh_token_cookie(response, raw_refresh_token)
-        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
-        AuthService._set_device_id_cookie(response, device_id)
+        cookies.set_refresh_token_cookie(response, raw_refresh_token)
+        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
+        cookies.set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 
@@ -414,8 +353,8 @@ class AuthService:
             redis, SessionCacheKey.access_token_version_key(current_user.session_id)
         )
 
-        AuthService._clear_refresh_token_cookie(response)
-        AuthService._clear_refresh_token_family_cookie(response)
+        cookies.clear_refresh_token_cookie(response)
+        cookies.clear_refresh_token_family_cookie(response)
 
         logger.info(
             "user_logged_out",
@@ -525,8 +464,8 @@ class AuthService:
             credentials_id=credentials.id,
         )
 
-        AuthService._set_refresh_token_cookie(response, new_raw_refresh_token)
-        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
+        cookies.set_refresh_token_cookie(response, new_raw_refresh_token)
+        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 
@@ -621,9 +560,9 @@ class AuthService:
             session_id=user_session.id,
         )
 
-        AuthService._set_refresh_token_cookie(response, raw_refresh_token)
-        AuthService._set_refresh_token_family_cookie(response, raw_refresh_token_family)
-        AuthService._set_device_id_cookie(response, device_id)
+        cookies.set_refresh_token_cookie(response, raw_refresh_token)
+        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
+        cookies.set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 
