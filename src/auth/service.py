@@ -32,6 +32,10 @@ from src.core.security import (
     verify_token,
 )
 from src.emails.models import Email
+from src.emails.templates.authentication import (
+    build_new_login_notification_email,
+    build_reset_password_email,
+)
 from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
 from src.users.models.password_reset import UserPasswordReset
@@ -44,23 +48,11 @@ from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import UserNotPendingActivationError
 from src.users.utils.schemas import LoadOptionsSchema
 from src.utils.cache_keys import SessionCacheKey
-from src.utils.email import build_reset_password_email
 
 logger = structlog.get_logger(__name__)
 
 
 class AuthService:
-    @staticmethod
-    async def _revoke_session(
-        session: AsyncSession,
-        redis: Redis,
-        user_session: UserSession,
-        session_id: int,
-    ) -> None:
-        await AuthRepository.invalidate_session_family(session, user_session)
-        await session.commit()
-        await delete_cache(redis, SessionCacheKey.access_token_version_key(session_id))
-
     @staticmethod
     async def login(
         request: Request,
@@ -322,6 +314,26 @@ class AuthService:
                 user_agent=user_agent,
             )
         )
+
+        if not existing_session:
+            login_time = datetime.now(UTC).strftime("%B %d, %Y at %H:%M UTC")
+            password_reset_link = "/api/v1/auth/password-reset"
+
+            subject, html_body = build_new_login_notification_email(
+                user_agent=user_agent,
+                login_time=login_time,
+                password_reset_link=password_reset_link,
+            )
+
+            session.add(
+                Email(
+                    recipient_email=credentials.email,
+                    subject=subject,
+                    html_body=html_body,
+                    email_type=EmailType.NEW_LOGIN,
+                )
+            )
+
         await session.commit()
 
         logger.info(
@@ -423,7 +435,12 @@ class AuthService:
         )
 
         if not family_valid or not matches_current:
-            await AuthService._revoke_session(session, redis, user_session, session_id)
+            await AuthRepository.invalidate_session_family(session, user_session)
+
+            await session.commit()
+            await delete_cache(
+                redis, SessionCacheKey.access_token_version_key(session_id)
+            )
 
             logger.warning(
                 "refresh_security_violation",
