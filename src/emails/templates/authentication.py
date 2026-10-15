@@ -330,7 +330,7 @@ async def send_activation_email(
     raw_activation_token: str,
 ) -> None:
     subject, html_body = build_account_activation_email(
-        activation_token=raw_activation_token,
+        raw_activation_token=raw_activation_token,
         username=username,
     )
 
