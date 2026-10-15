@@ -413,13 +413,11 @@ class UserService:
                 notify_old_email = old_email if email_changed else None
                 notify_new_email = credentials.email if email_changed else None
 
-                subject, html_body = (
-                    emails.build_admin_credentials_override_email(
-                        notify_old_username,
-                        notify_new_username,
-                        notify_old_email,
-                        notify_new_email,
-                    )
+                subject, html_body = emails.build_admin_credentials_override_email(
+                    notify_old_username,
+                    notify_new_username,
+                    notify_old_email,
+                    notify_new_email,
                 )
 
                 session.add(
@@ -714,7 +712,6 @@ class UserService:
             public_id=public_id,
             actor_user_id=current_user_id,
         )
-
 
     @staticmethod
     async def get_staff(
