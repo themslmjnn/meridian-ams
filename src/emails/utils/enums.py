@@ -2,18 +2,18 @@ from enum import StrEnum
 
 
 class EmailType(StrEnum):
-    ACTIVATION = "activation"
-    UPDATING_ACCOUNT = "updating_account"
-    ADMIN_CREDENTIALS_OVERRIDE = "admin_credentials_override"
-    ACCOUNT_DEACTIVATION = "account_deactivation"
     ACCOUNT_ACTIVATION = "account_activation"
-    ACCOUNT_DELETION = "account_deletion"
-    CANCEL_ACCOUNT_DELETION = "cancel_account_deletion"
-    PASSWORD_RESET_ADMIN = "password_reset_admin"
-    EMAIL_CHANGE_CODE = "email_change_code"
-    EMAIL_CHANGED = "email_changed"
-    PASSWORD_CHANGED = "password_changed"
-    FORGOT_PASSWORD = "forgot_password"
+    ADMIN_PROFILE_OVERRIDE = "admin_profile_override"
+    ADMIN_CREDENTIALS_OVERRIDE = "admin_credentials_override"
+    ADMIN_ACCOUNT_DEACTIVATION = "admin_account_deactivation"
+    ADMIN_ACCOUNT_ACTIVATION = "admin_account_activation"
+    ADMIN_ACCOUNT_DELETION = "admin_account_deletion"
+    ADMIN_ACCOUNT_DELETION_CANCELLATION = "admin_account_deletion_cancellation"
+    ADMIN_PASSWORD_RESET = "admin_password_reset"
+    PUBLIC_PASSWORD_RESET = "public_password_reset"
+    EMAIL_CHANGE = "email_change"
+    EMAIL_CHANGE_CONFIRMATION = "email_change_confirmation"
+    PASSWORD_CHANGE_CONFIRMATION = "password_change_confirmation"
 
 
 class EmailStatus(StrEnum):

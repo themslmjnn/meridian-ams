@@ -624,7 +624,9 @@ class AuthService:
 
             session.add(new_password_reset)
         else:
-            credentials.password_reset.reset_password_token_hash = hashed_reset_password_token
+            credentials.password_reset.reset_password_token_hash = (
+                hashed_reset_password_token
+            )
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
                 UTC
             ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
