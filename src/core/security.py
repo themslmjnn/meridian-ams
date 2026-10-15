@@ -1,14 +1,10 @@
 import hashlib
 import hmac
 import secrets
-from datetime import UTC, datetime, timedelta
 
 import bcrypt
-import jwt
 from fastapi.concurrency import run_in_threadpool
 
-import src.utils.exceptions as exceptions
-from src.auth.schemas import CreateAccessToken, CreateRefreshToken
 from src.core.config import get_settings
 
 _BCRYPT_MAX_BYTES = 72
@@ -27,90 +23,6 @@ def _keyed_hash(value: str) -> str:
     key = get_settings().JWT_SECRET_KEY.get_secret_value().encode()
 
     return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()
-
-
-def create_access_token(payload: CreateAccessToken) -> str:
-    now = datetime.now(UTC)
-
-    data = {
-        "sub": str(payload.public_id),
-        "role": payload.role,
-        "account_type": payload.account_type,
-        "session_id": payload.session_id,
-        "atv": payload.access_token_version,
-        "type": "access",
-        "exp": now + timedelta(minutes=get_settings().ACCESS_TOKEN_EXPIRES_MINUTES),
-        "iat": now,
-    }
-
-    return jwt.encode(
-        data,
-        get_settings().JWT_SECRET_KEY.get_secret_value(),
-        algorithm=get_settings().ALGORITHM,
-    )
-
-
-def decode_access_token(token: str) -> dict:
-    try:
-        payload = jwt.decode(
-            token,
-            get_settings().JWT_SECRET_KEY.get_secret_value(),
-            algorithms=[get_settings().ALGORITHM],
-            options={"require": ["exp", "iat", "sub", "session_id", "atv"]},
-        )
-
-        if payload.get("type") != "access":
-            raise exceptions.InvalidTokenTypeError()
-
-        return payload
-
-    except jwt.ExpiredSignatureError as exc:
-        raise exceptions.ExpiredAccessTokenError() from exc
-
-    except jwt.InvalidTokenError as exc:
-        raise exceptions.InvalidAccessTokenError() from exc
-
-
-def create_refresh_token(payload: CreateRefreshToken) -> tuple[str, str]:
-    now = datetime.now(UTC)
-
-    data = {
-        "sub": str(payload.public_id),
-        "session_id": payload.session_id,
-        "type": "refresh",
-        "jti": secrets.token_urlsafe(16),
-        "exp": now + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
-        "iat": now,
-    }
-
-    raw_token = jwt.encode(
-        data,
-        get_settings().JWT_SECRET_KEY.get_secret_value(),
-        algorithm=get_settings().ALGORITHM,
-    )
-
-    return raw_token, sha256(raw_token)
-
-
-def decode_refresh_token(token: str) -> dict:
-    try:
-        payload = jwt.decode(
-            token,
-            get_settings().JWT_SECRET_KEY.get_secret_value(),
-            algorithms=[get_settings().ALGORITHM],
-            options={"require": ["exp", "iat", "sub", "session_id", "jti"]},
-        )
-
-        if payload.get("type") != "refresh":
-            raise exceptions.InvalidTokenTypeError()
-
-        return payload
-
-    except jwt.ExpiredSignatureError as exc:
-        raise exceptions.ExpiredRefreshTokenError() from exc
-
-    except jwt.InvalidTokenError as exc:
-        raise exceptions.InvalidRefreshTokenError() from exc
 
 
 def generate_token() -> tuple[str, str]:

@@ -12,19 +12,19 @@ from src.auth import cookies
 from src.auth.repository import AuthRepository
 from src.auth.schemas import (
     ActivateAccount,
-    CreateAccessToken,
-    CreateRefreshToken,
     ForgotPasswordRequest,
     LoginResponse,
     ResetPasswordRequest,
+)
+from src.auth.tokens import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
 )
 from src.core.caching import delete_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
 from src.core.security import (
-    create_access_token,
-    create_refresh_token,
-    decode_refresh_token,
     generate_token,
     hash_password,
     sha256,
@@ -61,20 +61,6 @@ class AuthService:
         await AuthRepository.invalidate_session_family(session, user_session)
         await session.commit()
         await delete_cache(redis, SessionCacheKey.access_token_version_key(session_id))
-
-    @staticmethod
-    def _access_token_for(
-        credentials: UserCredentials, user_session: UserSession
-    ) -> str:
-        return create_access_token(
-            CreateAccessToken(
-                public_id=credentials.public_id,
-                role=credentials.role,
-                account_type=credentials.account_type,
-                session_id=user_session.id,
-                access_token_version=user_session.access_token_version,
-            )
-        )
 
     @staticmethod
     async def login(
@@ -250,10 +236,8 @@ class AuthService:
             raw_refresh_token_family, hashed_refresh_token_family = generate_token()
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
-                CreateRefreshToken(
-                    public_id=credentials.public_id,
-                    session_id=existing_session.id,
-                )
+                public_id=credentials.public_id,
+                session_id=existing_session.id,
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
@@ -301,15 +285,19 @@ class AuthService:
             await session.flush()
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
-                CreateRefreshToken(
-                    public_id=credentials.public_id,
-                    session_id=user_session.id,
-                )
+                public_id=credentials.public_id,
+                session_id=user_session.id,
             )
 
             user_session.refresh_token_hash = hashed_refresh_token
 
-        access_token = AuthService._access_token_for(credentials, user_session)
+        access_token = create_access_token(
+            public_id=credentials.public_id,
+            role=credentials.role,
+            account_type=credentials.account_type,
+            session_id=user_session.id,
+            access_token_version=user_session.access_token_version,
+        )
 
         session.add(
             LoginHistory(
@@ -443,9 +431,7 @@ class AuthService:
         verify_status(credentials)
 
         new_raw_refresh_token, new_hashed_refresh_token = create_refresh_token(
-            CreateRefreshToken(
-                public_id=credentials.public_id, session_id=user_session.id
-            )
+            public_id=credentials.public_id, session_id=user_session.id
         )
 
         user_session.refresh_token_hash = new_hashed_refresh_token
@@ -454,7 +440,13 @@ class AuthService:
         )
         user_session.last_active_at = now
 
-        access_token = AuthService._access_token_for(credentials, user_session)
+        access_token = create_access_token(
+            public_id=credentials.public_id,
+            role=credentials.role,
+            account_type=credentials.account_type,
+            session_id=user_session.id,
+            access_token_version=user_session.access_token_version,
+        )
 
         await session.commit()
 
@@ -542,14 +534,18 @@ class AuthService:
         await session.flush()
 
         raw_refresh_token, hashed_refresh_token = create_refresh_token(
-            CreateRefreshToken(
-                public_id=credentials.public_id,
-                session_id=user_session.id,
-            )
+            public_id=credentials.public_id,
+            session_id=user_session.id,
         )
         user_session.refresh_token_hash = hashed_refresh_token
 
-        access_token = AuthService._access_token_for(credentials, user_session)
+        access_token = create_access_token(
+            public_id=credentials.public_id,
+            role=credentials.role,
+            account_type=credentials.account_type,
+            session_id=user_session.id,
+            access_token_version=user_session.access_token_version,
+        )
 
         await session.commit()
 
