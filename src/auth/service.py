@@ -36,6 +36,7 @@ from src.core.security import (
 from src.emails.models import Email
 from src.emails.templates.authentication import (
     build_reset_password_email,
+    send_guardian_account_reactivated_email,
     send_new_login_notification_email,
 )
 from src.emails.utils.enums import EmailType
@@ -217,8 +218,16 @@ class AuthService:
 
                 raise exceptions.InvalidCredentialsError()
 
-            credentials.status = credentials.pre_transition_status
+            credentials.pre_transition_status = credentials.status
+            credentials.status = UserStatus.ACTIVE
             credentials.deletion_scheduled_for = None
+
+            asyncio.create_task(
+                send_email_safe(
+                    send_guardian_account_reactivated_email(to_email=credentials.email),
+                    email_type=EmailType.GUARDIAN_ACCOUNT_REACTIVATED,
+                )
+            )
 
             logger.info(
                 "deletion_implicitly_cancelled",
@@ -250,7 +259,7 @@ class AuthService:
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
-            existing_session.hashed_refresh_token_family = hashed_refresh_token_family
+            existing_session.refresh_token_family_raw = hashed_refresh_token_family
             existing_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
                 days=settings.REFRESH_TOKEN_EXPIRES_DAYS
             )
@@ -282,7 +291,7 @@ class AuthService:
             user_session = UserSession(
                 credentials_id=credentials.id,
                 refresh_token_hash="",  # set below after flush gives us session.id
-                hashed_refresh_token_family=hashed_refresh_token_family,
+                refresh_token_family_hash=hashed_refresh_token_family,
                 refresh_token_expires_at=datetime.now(UTC)
                 + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
                 user_agent=user_agent,
@@ -321,7 +330,7 @@ class AuthService:
 
         if not existing_session:
             login_time = datetime.now(UTC).strftime("%B %d, %Y at %H:%M UTC")
-            password_reset_link = "/api/v1/auth/password-reset"
+            password_reset_link = f"{settings.APP_URL}/api/v1/auth/password-reset"
 
             asyncio.create_task(
                 send_email_safe(
