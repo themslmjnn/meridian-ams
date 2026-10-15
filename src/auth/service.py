@@ -415,7 +415,7 @@ class AuthService:
         if (
             user_session is None
             or user_session.refresh_token_hash is None
-            or user_session.hashed_refresh_token_family is None
+            or user_session.refresh_token_family_hash is None
             or user_session.refresh_token_expires_at is None
         ):
             logger.warning(
@@ -436,7 +436,7 @@ class AuthService:
             raise exceptions.ExpiredRefreshTokenError()
 
         family_valid = verify_token(
-            raw_refresh_token_family, user_session.hashed_refresh_token_family
+            raw_refresh_token_family, user_session.refresh_token_family_hash
         )
         matches_current = verify_token(
             raw_refresh_token, user_session.refresh_token_hash
