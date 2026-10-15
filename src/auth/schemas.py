@@ -1,25 +1,6 @@
-import uuid
-from dataclasses import dataclass
+from pydantic import BaseModel, field_validator, model_validator
 
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
-
-from src.users.utils.enums import AccountType, UserRole
 from src.users.utils.validators import validate_password
-
-
-@dataclass
-class CreateAccessToken:
-    public_id: uuid.UUID
-    role: UserRole
-    account_type: AccountType
-    session_id: int
-    access_token_version: int
-
-
-@dataclass
-class CreateRefreshToken:
-    public_id: uuid.UUID
-    session_id: int
 
 
 class LoginResponse(BaseModel):
@@ -45,11 +26,11 @@ class ActivateAccount(BaseModel):
         return self
 
 
-class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+class PasswordResetRequestPublic(BaseModel):
+    email: str
 
 
-class ResetPasswordRequest(BaseModel):
+class ResetPassword(BaseModel):
     reset_password_token: str
     new_password: str
     confirm_password: str
@@ -60,7 +41,7 @@ class ResetPasswordRequest(BaseModel):
         return validate_password(v)
 
     @model_validator(mode="after")
-    def _validate_passwords_match(self) -> "ResetPasswordRequest":
+    def _validate_passwords_match(self) -> "ResetPassword":
         if self.new_password != self.confirm_password:
             raise ValueError("Passwords do not match")
         return self
