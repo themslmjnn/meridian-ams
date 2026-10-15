@@ -12,8 +12,8 @@ from src.core.idempotency.service import (
     hash_payload,
     mirror_complete_to_redis_after_commit,
 )
-from src.users.services.system_admin import UserService
 from src.core.idempotency.utils.enums import IdempotencyOperation
+from src.users.services.system_admin import UserService
 
 logger = structlog.get_logger(__name__)
 
