@@ -5,9 +5,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 
 from src.auth.schemas import (
     ActivateAccount,
-    ForgotPasswordRequest,
     LoginResponse,
-    ResetPasswordRequest,
+    PasswordResetRequestPublic,
+    ResetPassword,
 )
 from src.auth.service import AuthService
 from src.core.dependencies import (
@@ -37,9 +37,9 @@ async def login(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     return await AuthService.login(
-        session=session,
-        request=request,
-        response=response,
+        request,
+        response,
+        session,
         form_data=form_data,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),
@@ -103,7 +103,7 @@ async def activate(
 
 
 @router.post(
-    "/password-reset-request",
+    "/password-reset",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 @ip_limiter.limit("5/minute")
@@ -111,7 +111,7 @@ async def request_password_reset(
     request: Request,
     response: Response,
     session: session_dependency,
-    payload: ForgotPasswordRequest,
+    payload: PasswordResetRequestPublic,
 ):
     await AuthService.request_password_reset(session, payload)
 
@@ -126,6 +126,6 @@ async def reset_password(
     response: Response,
     session: session_dependency,
     redis: redis_dependency,
-    payload: ResetPasswordRequest,
+    payload: ResetPassword,
 ):
     await AuthService.reset_password(session, redis, payload)

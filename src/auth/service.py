@@ -12,9 +12,9 @@ from src.auth import cookies
 from src.auth.repository import AuthRepository
 from src.auth.schemas import (
     ActivateAccount,
-    ForgotPasswordRequest,
     LoginResponse,
-    ResetPasswordRequest,
+    PasswordResetRequestPublic,
+    ResetPassword,
 )
 from src.auth.tokens import (
     create_access_token,
@@ -63,8 +63,8 @@ class AuthService:
 
     @staticmethod
     async def login(
-        response: Response,
         request: Request,
+        response: Response,
         session: AsyncSession,
         form_data: OAuth2PasswordRequestForm,
         ip_address: str | None,
@@ -564,7 +564,7 @@ class AuthService:
     @staticmethod
     async def request_password_reset(
         session: AsyncSession,
-        payload: ForgotPasswordRequest,
+        payload: PasswordResetRequestPublic,
     ) -> None:
         raw_token, token_hash = generate_token()
 
@@ -632,7 +632,7 @@ class AuthService:
     async def reset_password(
         session: AsyncSession,
         redis: Redis,
-        payload: ResetPasswordRequest,
+        payload: ResetPassword,
     ) -> None:
         token_hash = sha256(payload.reset_password_token)
 
