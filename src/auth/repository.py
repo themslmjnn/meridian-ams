@@ -10,6 +10,22 @@ from src.users.models.session import UserSession
 
 class AuthRepository:
     @staticmethod
+    async def get_session_by_id(
+        session: AsyncSession,
+        session_id: int,
+        *,
+        for_update: bool = False,
+    ) -> UserSession | None:
+        query = select(UserSession).where(UserSession.id == session_id)
+
+        if for_update:
+            query = query.with_for_update()
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_session_by_device_id(
         session: AsyncSession,
         credentials_id: int,
@@ -25,10 +41,7 @@ class AuthRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_session_count(
-        session: AsyncSession,
-        credentials_id: int,
-    ) -> int:
+    async def get_session_count(session: AsyncSession, credentials_id: int) -> int:
         query = (
             select(func.count())
             .select_from(UserSession)
@@ -42,10 +55,17 @@ class AuthRepository:
         return result.scalar_one()
 
     @staticmethod
-    async def evict_oldest_session(
-        session: AsyncSession,
-        credentials_id: int,
-    ) -> None:
+    async def get_session_ids(session: AsyncSession, credentials_id: int) -> list[int]:
+        query = select(UserSession.id).where(
+            UserSession.credentials_id == credentials_id
+        )
+
+        result = await session.execute(query)
+
+        return result.scalars().all()
+
+    @staticmethod
+    async def evict_oldest_session(session: AsyncSession, credentials_id: int) -> None:
         query = (
             select(UserSession)
             .where(UserSession.credentials_id == credentials_id)
@@ -65,10 +85,7 @@ class AuthRepository:
             await session.flush()
 
     @staticmethod
-    async def delete_all_sessions(
-        session: AsyncSession,
-        credentials_id: int,
-    ) -> None:
+    async def delete_all_sessions(session: AsyncSession, credentials_id: int) -> None:
         query = delete(UserSession).where(UserSession.credentials_id == credentials_id)
 
         await session.execute(query)
@@ -76,45 +93,15 @@ class AuthRepository:
         await session.flush()
 
     @staticmethod
-    async def get_session_ids(
-        session: AsyncSession, credentials_id: int
-    ) -> list[UserSession]:
-        query = select(UserSession.id).where(
-            UserSession.credentials_id == credentials_id
-        )
-
-        result = await session.execute(query)
-
-        return result.scalars().all()
-
-    @staticmethod
     async def invalidate_session_family(
-        session: AsyncSession,
-        user_session: UserSession,
+        session: AsyncSession, user_session: UserSession
     ) -> None:
-        """
-        Security violation — wipe all token state on this session.
-        Bumps ATV so any in-flight access tokens are immediately rejected.
-        """
-
         user_session.access_token_version += 1
         user_session.refresh_token_hash = None
         user_session.refresh_token_family_hash = None
         user_session.refresh_token_expires_at = None
 
         await session.flush()
-
-    @staticmethod
-    async def get_session_by_id(
-        session: AsyncSession, session_id: int, *, for_update: bool = False
-    ) -> UserSession | None:
-        query = select(UserSession).where(UserSession.id == session_id)
-        if for_update:
-            query = query.with_for_update()
-
-        result = await session.execute(query)
-
-        return result.scalar_one_or_none()
 
     @staticmethod
     async def get_credentials_by_activation_token_hash(
@@ -131,9 +118,43 @@ class AuthRepository:
                 joinedload(UserCredentials.activation),
             )
         )
+
         result = await session.execute(query)
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_credentials_by_reset_password_token_hash(
+        session: AsyncSession, token_hash: str
+    ) -> UserCredentials | None:
+        query = (
+            select(UserCredentials)
+            .join(
+                UserPasswordReset,
+                UserPasswordReset.credentials_id == UserCredentials.id,
+            )
+            .where(UserPasswordReset.reset_password_token_hash == token_hash)
+            .options(
+                joinedload(UserCredentials.password_reset),
+                joinedload(UserCredentials.login_lockout),
+            )
+        )
+
+        result = await session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def delete_password_reset_password_token(
+        session: AsyncSession, credentials_id: int
+    ) -> None:
+        query = delete(UserPasswordReset).where(
+            UserPasswordReset.credentials_id == credentials_id
+        )
+
+        await session.execute(query)
+
+        await session.flush()
 
     @staticmethod
     async def claim_activation_token(
@@ -155,51 +176,3 @@ class AuthRepository:
         await session.flush()
 
         return result.scalar_one_or_none() is not None
-
-    @staticmethod
-    async def get_credentials_by_reset_token_hash(
-        session: AsyncSession,
-        token_hash: str,
-    ) -> UserCredentials | None:
-        query = (
-            select(UserCredentials)
-            .join(
-                UserPasswordReset,
-                UserPasswordReset.credentials_id == UserCredentials.id,
-            )
-            .where(UserPasswordReset.reset_password_token_hash == token_hash)
-            .options(
-                joinedload(UserCredentials.password_reset),
-                joinedload(UserCredentials.login_lockout),
-            )
-        )
-
-        result = await session.execute(query)
-
-        return result.scalar_one_or_none()
-
-    @staticmethod
-    async def get_all_session_ids(
-        session: AsyncSession,
-        credentials_id: int,
-    ) -> list[int]:
-        query = select(UserSession.id).where(
-            UserSession.credentials_id == credentials_id
-        )
-
-        result = await session.execute(query)
-
-        return list(result.scalars().all())
-
-    @staticmethod
-    async def delete_password_reset_token(
-        session: AsyncSession,
-        credentials_id: int,
-    ) -> None:
-        query = delete(UserPasswordReset).where(
-            UserPasswordReset.credentials_id == credentials_id
-        )
-
-        await session.execute(query)
-
-        await session.flush()

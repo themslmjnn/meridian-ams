@@ -636,7 +636,7 @@ class AuthService:
     ) -> None:
         token_hash = sha256(payload.reset_password_token)
 
-        credentials = await AuthRepository.get_credentials_by_reset_token_hash(
+        credentials = await AuthRepository.get_credentials_by_reset_password_token_hash(
             session, token_hash
         )
         if credentials is None or credentials.password_reset is None:
@@ -671,10 +671,10 @@ class AuthService:
 
             raise exceptions.InvalidResetPasswordTokenError()
 
-        session_ids = await AuthRepository.get_all_session_ids(session, credentials.id)
+        session_ids = await AuthRepository.get_session_ids(session, credentials.id)
 
         await AuthRepository.delete_all_sessions(session, credentials.id)
-        await AuthRepository.delete_password_reset_token(session, credentials.id)
+        await AuthRepository.delete_password_reset_password_token(session, credentials.id)
 
         credentials.password_hash = await hash_password(payload.new_password)
 
