@@ -1,7 +1,7 @@
 from src.core.email.service import send_email
 
 
-async def send_password_changed_notification(to_email: str) -> None:
+async def send_password_changed_confirmation(to_email: str) -> None:
     subject = "Your Meridian password was changed"
 
     html_body = """

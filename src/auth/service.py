@@ -39,6 +39,7 @@ from src.emails.templates.authentication import (
     send_guardian_account_reactivated_email,
     send_new_login_notification_email,
 )
+from src.emails.templates.security import send_password_changed_confirmation
 from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
 from src.users.models.password_reset import UserPasswordReset
@@ -561,7 +562,7 @@ class AuthService:
         user_session = UserSession(
             credentials_id=credentials.id,
             refresh_token_hash="",
-            hashed_refresh_token_family=hashed_refresh_token_family,
+            refresh_token_family_hash=hashed_refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
             + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
             user_agent=user_agent,
@@ -610,9 +611,9 @@ class AuthService:
 
         raw_reset_password_token, hashed_reset_password_token = generate_token()
 
-        credentials = await UserCredentialsRepository.get_by_email(
+        credentials = await UserCredentialsRepository.get_by_username(
             session,
-            payload.email,
+            payload.username,
             load_options=LoadOptionsSchema(
                 load_login_lockout=True,
                 load_password_reset=True,
@@ -621,7 +622,7 @@ class AuthService:
         if credentials is None:
             logger.info(
                 "password_reset_request_failed",
-                email=payload.email,
+                username=payload.username,
                 failure_reason="user_not_found",
             )
 
@@ -663,9 +664,10 @@ class AuthService:
                 recipient_email=credentials.email,
                 subject=subject,
                 html_body=html_body,
-                email_type=EmailType.FORGOT_PASSWORD,
+                email_type=EmailType.PUBLIC_PASSWORD_RESET,
             )
         )
+
         await session.commit()
 
         logger.info(
@@ -687,7 +689,7 @@ class AuthService:
         if credentials is None or credentials.password_reset is None:
             logger.warning(
                 "reset_password_failed",
-                reason="reset_token_not_found",
+                failure_reason="reset_password_token_not_found",
             )
 
             raise exceptions.InvalidResetPasswordTokenError()
@@ -739,7 +741,15 @@ class AuthService:
                 failure_reason="password_reset",
             )
         )
+
         await session.commit()
+
+        asyncio.create_task(
+            send_email_safe(
+                send_password_changed_confirmation(credentials.email),
+                email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
+            )
+        )
 
         await delete_cache(
             redis,
@@ -750,7 +760,7 @@ class AuthService:
         )
 
         logger.info(
-            "password_reset_complete",
+            "password_reset_completed",
             credentials_id=credentials.id,
             sessions_revoked=len(session_ids),
         )

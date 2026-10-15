@@ -27,7 +27,7 @@ class ActivateAccount(BaseModel):
 
 
 class PasswordResetRequestPublic(BaseModel):
-    email: str
+    username: str
 
 
 class ResetPassword(BaseModel):

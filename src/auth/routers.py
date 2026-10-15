@@ -87,7 +87,7 @@ async def refresh_token(
     status_code=status.HTTP_200_OK,
 )
 @ip_limiter.limit("3/minute")
-async def activate(
+async def activate_account(
     request: Request,
     response: Response,
     session: session_dependency,

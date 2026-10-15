@@ -159,12 +159,14 @@ class UserService:
                     recipient_email=payload.email,
                     subject=subject,
                     html_body=html_body,
-                    email_type=EmailType.ACTIVATION,
+                    email_type=EmailType.ACCOUNT_ACTIVATION,
                     triggered_by=actor_id,
                 )
             )
 
             await session.flush()
+
+            print(raw_activation_token)
 
             logger.info(
                 "user_registered",
