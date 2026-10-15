@@ -323,7 +323,7 @@ def build_account_activation_email(
     return subject, html_body
 
 
-async def send_activation_email(
+async def send_account_activation_email(
     *,
     to_email: str,
     username: str,
