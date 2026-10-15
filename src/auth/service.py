@@ -256,7 +256,7 @@ class AuthService:
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
-            existing_session.refresh_token_family_hash = hashed_refresh_token_family
+            existing_session.hashed_refresh_token_family = hashed_refresh_token_family
             existing_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
                 days=settings.REFRESH_TOKEN_EXPIRES_DAYS
             )
@@ -288,7 +288,7 @@ class AuthService:
             user_session = UserSession(
                 credentials_id=credentials.id,
                 refresh_token_hash="",  # set below after flush gives us session.id
-                refresh_token_family_hash=hashed_refresh_token_family,
+                hashed_refresh_token_family=hashed_refresh_token_family,
                 refresh_token_expires_at=datetime.now(UTC)
                 + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
                 user_agent=user_agent,
@@ -395,7 +395,7 @@ class AuthService:
         if (
             user_session is None
             or user_session.refresh_token_hash is None
-            or user_session.refresh_token_family_hash is None
+            or user_session.hashed_refresh_token_family is None
             or user_session.refresh_token_expires_at is None
         ):
             logger.warning(
@@ -416,7 +416,7 @@ class AuthService:
             raise exceptions.ExpiredRefreshTokenError()
 
         family_valid = verify_token(
-            raw_refresh_token_family, user_session.refresh_token_family_hash
+            raw_refresh_token_family, user_session.hashed_refresh_token_family
         )
         matches_current = verify_token(
             raw_refresh_token, user_session.refresh_token_hash
@@ -482,10 +482,12 @@ class AuthService:
         ip_address: str | None,
         user_agent: str | None,
     ) -> LoginResponse:
-        token_hash = sha256(payload.activation_token)
+        settings = get_settings()
+
+        activation_token_hash = sha256(payload.activation_token)
 
         credentials = await AuthRepository.get_credentials_by_activation_token_hash(
-            session, token_hash
+            session, activation_token_hash
         )
         if credentials is None or credentials.activation is None:
             logger.warning(
@@ -498,18 +500,18 @@ class AuthService:
         if datetime.now(UTC) > credentials.activation.activation_token_expires_at:
             logger.warning(
                 "activation_failed",
-                reason="activation_token_expired",
                 credentials_id=credentials.id,
+                failure_reason="activation_token_expired",
             )
 
-            raise exceptions.ExpiredActivationCodeError()
+            raise exceptions.ExpiredActivationTokenError()
 
         if credentials.status != UserStatus.PENDING_ACTIVATION:
             logger.warning(
                 "activation_failed",
-                reason="wrong_status",
                 credentials_id=credentials.id,
                 status=credentials.status,
+                failure_reason="wrong_user_status",
             )
 
             raise UserNotPendingActivationError()
@@ -517,11 +519,10 @@ class AuthService:
         claimed = await AuthRepository.claim_activation_token(session, credentials.id)
 
         if not claimed:
-            print("error")
             logger.warning(
                 "activation_failed",
-                reason="concurrent_claim",
                 credentials_id=credentials.id,
+                failure_reason="concurrent_claim",
             )
 
             raise exceptions.InvalidActivationTokenError()
@@ -529,15 +530,15 @@ class AuthService:
         credentials.password_hash = await hash_password(payload.new_password)
         credentials.status = UserStatus.ACTIVE
 
-        raw_refresh_token_family, refresh_token_family_hash = generate_token()
+        raw_refresh_token_family, hashed_refresh_token_family = generate_token()
         device_id = secrets.token_urlsafe(32)
 
         user_session = UserSession(
             credentials_id=credentials.id,
             refresh_token_hash="",
-            refresh_token_family_hash=refresh_token_family_hash,
+            hashed_refresh_token_family=hashed_refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
-            + timedelta(days=get_settings().REFRESH_TOKEN_EXPIRES_DAYS),
+            + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
             user_agent=user_agent,
             ip_address=ip_address,
             device_id=device_id,
@@ -580,7 +581,9 @@ class AuthService:
         session: AsyncSession,
         payload: PasswordResetRequestPublic,
     ) -> None:
-        raw_token, token_hash = generate_token()
+        settings = get_settings()
+
+        raw_reset_password_token, hashed_reset_password_token = generate_token()
 
         credentials = await UserCredentialsRepository.get_by_email(
             session,
@@ -592,8 +595,9 @@ class AuthService:
         )
         if credentials is None:
             logger.info(
-                "user_not_found",
+                "password_reset_request_failed",
                 email=payload.email,
+                failure_reason="user_not_found",
             )
 
             return
@@ -603,9 +607,9 @@ class AuthService:
             UserStatus.PENDING_ACTIVATION,
         ):
             logger.info(
-                "forgot_password_skipped",
+                "password_reset_request_failed",
                 credentials_id=credentials.id,
-                reason=f"status_{credentials.status.value}",
+                failure_reason=f"status_{credentials.status.value}",
             )
 
             return
@@ -613,19 +617,19 @@ class AuthService:
         if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
                 credentials_id=credentials.id,
-                reset_password_token_hash=token_hash,
+                reset_password_token_hash=hashed_reset_password_token,
                 reset_password_token_expires_at=datetime.now(UTC)
-                + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES),
+                + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
             )
 
             session.add(new_password_reset)
         else:
-            credentials.password_reset.reset_password_token_hash = token_hash
+            credentials.password_reset.reset_password_token_hash = hashed_reset_password_token
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
                 UTC
-            ) + timedelta(minutes=get_settings().RESET_PASSWORD_EXPIRES_MINUTES)
+            ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
 
-        subject, html_body = build_reset_password_email(raw_token)
+        subject, html_body = build_reset_password_email(raw_reset_password_token)
 
         session.add(
             Email(
