@@ -11,19 +11,18 @@ from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.tokens import create_access_token, create_refresh_token
 import src.utils.exceptions as exceptions
-from src.auth.schemas import CreateAccessToken, CreateRefreshToken
 from src.core.config import get_settings
 from src.core.dependencies import (
     STATUS_EXCEPTION_MAP,
     CurrentUser,
-    _verify_status,
     get_session,
     require_roles,
+    verify_status,
 )
-from src.core.security import create_access_token, create_refresh_token
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserSessionRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.cache_keys import SessionCacheKey
 from tests.conftest import make_auth_header  # adjust if you import it elsewhere
@@ -49,6 +48,7 @@ async def forged_header(
     user_session = await UserSessionRepository.get_by_credentials_id(
         test_session, user_credentials.id
     )
+
     fields = {
         "public_id": user_credentials.public_id,
         "role": user_credentials.role,
@@ -59,9 +59,7 @@ async def forged_header(
 
     fields.update(overrides)
 
-    return {
-        "Authorization": f"Bearer {create_access_token(CreateAccessToken(**fields))}"
-    }
+    return {"Authorization": f"Bearer {create_access_token(**fields)}"}
 
 
 def raw_header(*, exp_delta: timedelta = timedelta(minutes=5), **overrides) -> dict:
@@ -148,9 +146,7 @@ class TestTokenValidation:
     async def test_refresh_token_not_accepted_as_access_token(
         self, integration_client: AsyncClient, teacher: UserCredentials
     ):
-        token, _ = create_refresh_token(
-            CreateRefreshToken(public_id=teacher.public_id, session_id=1)
-        )
+        token, _ = create_refresh_token(public_id=teacher.public_id, session_id=1)
 
         response = await integration_client.get(
             ME_URL, headers={"Authorization": f"Bearer {token}"}
@@ -457,7 +453,7 @@ class TestVerifyStatusUnit:
         credentials = SimpleNamespace(status="mystery", deletion_scheduled_for=None)
 
         with pytest.raises(exceptions.AccessDeniedError):
-            _verify_status(credentials)
+            verify_status(credentials)
 
     def test_pending_deletion_without_schedule_is_rejected(self):
         credentials = SimpleNamespace(
@@ -465,7 +461,7 @@ class TestVerifyStatusUnit:
         )
 
         with pytest.raises(STATUS_EXCEPTION_MAP[UserStatus.PENDING_DELETION]):
-            _verify_status(credentials)
+            verify_status(credentials)
 
 
 class TestRoleGuards:
