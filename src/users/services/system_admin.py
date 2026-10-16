@@ -29,13 +29,12 @@ from src.users.models.credentials import UserCredentials
 from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.password_reset import UserPasswordReset
-from src.users.repository.user import (
-    UserCredentialsRepository,
-    UserIdentityRepository,
+from src.users.repository.base import (
     UserRepositoryBase,
     UserResponseRepository,
-    UserSessionRepository,
 )
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import (

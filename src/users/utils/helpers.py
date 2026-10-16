@@ -1,7 +1,7 @@
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.users.repository.user import UserCredentialsRepository
+from src.users.repository.credentials import UserCredentialsRepository
 from src.users.utils.constants import (
     STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT,
     STUDENT_MAX_SHARED_CONTACT,

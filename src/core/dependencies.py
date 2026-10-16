@@ -17,7 +17,8 @@ from src.core.config import get_settings
 from src.core.exceptions import AppException
 from src.database.connection import session_factory
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.utils.cache_keys import SessionCacheKey
 

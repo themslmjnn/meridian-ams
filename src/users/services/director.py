@@ -6,9 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.caching import get_cache, set_cache
 from src.core.pagination import CursorPage
-from src.users.repository.user import (
-    UserRepositoryBase,
-)
+from src.users.repository.base import UserRepositoryBase
 from src.users.schemas.director import UserResponseDirectorDetailed
 from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.constants import TEACHER_ROLE

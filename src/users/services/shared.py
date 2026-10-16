@@ -20,11 +20,9 @@ from src.core.security import (
 from src.emails.templates import account
 from src.emails.utils.enums import EmailType
 from src.users.models.email_change import UserEmailChange
-from src.users.repository.user import (
-    UserCredentialsRepository,
-    UserRepositoryBase,
-    UserSessionRepository,
-)
+from src.users.repository.base import UserRepositoryBase
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,

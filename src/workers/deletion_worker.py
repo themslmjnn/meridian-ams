@@ -6,7 +6,7 @@ import structlog
 
 from src.core.config import get_settings
 from src.database.connection import session_factory
-from src.users.repository.user import UserCredentialsRepository, UserIdentityRepository
+from src.users.repository.credentials import UserCredentialsRepository
 
 logger = structlog.get_logger(__name__)
 
@@ -76,7 +76,7 @@ async def _run_deletion_sweep() -> None:
                     # references it. A staff member who also had a personal
                     # account shares one identity with their work account —
                     # deleting the identity here would destroy the work account.
-                    remaining = await UserIdentityRepository.count_credentials(
+                    remaining = await UserIdentityRepository.count_identities(
                         session, identity_id
                     )
 

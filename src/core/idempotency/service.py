@@ -8,7 +8,6 @@ from fastapi import Header, Response, status
 from fastapi.responses import JSONResponse
 from redis import RedisError
 from redis.asyncio import Redis
-from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
