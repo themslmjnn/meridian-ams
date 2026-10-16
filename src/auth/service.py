@@ -44,10 +44,8 @@ from src.emails.utils.enums import EmailType
 from src.users.models.login_history import LoginHistory
 from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
-from src.users.repository.user import (
-    UserCredentialsRepository,
-    UserSessionRepository,
-)
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import UserNotPendingActivationError
 from src.users.utils.schemas import LoadOptionsSchema
