@@ -16,7 +16,7 @@ from src.core.dependencies import get_session
 from src.database.connection import ImmutableBase
 from src.main import app
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserSessionRepository
+from src.users.repository.session import UserSessionRepository
 from tests.factories import (
     make_director,
     make_guardian,
@@ -45,10 +45,12 @@ def _guard_test_environment():
 
     if settings.ENVIRONMENT != "test":
         problems.append(f"ENVIRONMENT is '{settings.ENVIRONMENT}', expected 'test'")
+
     if "test" not in settings.DB_NAME.lower():
         problems.append(
             f"DB_NAME '{settings.DB_NAME}' does not look like a test database"
         )
+
     if settings.REDIS_DB != 1:
         problems.append(f"REDIS_DB is {settings.REDIS_DB}, expected 1 for tests")
 

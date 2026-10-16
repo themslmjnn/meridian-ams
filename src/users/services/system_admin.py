@@ -34,6 +34,7 @@ from src.users.repository.base import (
     UserResponseRepository,
 )
 from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.identity import UserIdentityRepository
 from src.users.repository.session import UserSessionRepository
 from src.users.utils.enums import AccountType, UserRole, UserStatus
 from src.users.utils.helpers import check_contact_limit

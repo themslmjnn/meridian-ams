@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.idempotency.models import IdempotencyRecord
+from src.core.idempotency.utils.enums import IdempotencyStatus
 from src.core.security import generate_token, hash_password
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
@@ -13,7 +14,6 @@ from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType, UserRole, UserStatus
-from src.core.idempotency.utils.enums import IdempotencyStatus
 
 _counter = itertools.count(1)
 
@@ -110,13 +110,19 @@ async def make_system_admin(test_session: AsyncSession, **kwargs) -> UserCredent
 
 async def make_director(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session, role=UserRole.DIRECTOR, account_type=AccountType.WORK, **kwargs
+        test_session,
+        role=UserRole.DIRECTOR,
+        account_type=AccountType.WORK,
+        **kwargs,
     )
 
 
 async def make_teacher(test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session, role=UserRole.TEACHER, account_type=AccountType.WORK, **kwargs
+        test_session,
+        role=UserRole.TEACHER,
+        account_type=AccountType.WORK,
+        **kwargs,
     )
 
 
@@ -124,7 +130,10 @@ async def make_student(test_session: AsyncSession, **kwargs) -> UserCredentials:
     kwargs.setdefault("date_of_birth", date(2008, 1, 1))
 
     return await make_user(
-        test_session, role=UserRole.STUDENT, account_type=AccountType.STUDENT, **kwargs
+        test_session,
+        role=UserRole.STUDENT,
+        account_type=AccountType.STUDENT,
+        **kwargs,
     )
 
 

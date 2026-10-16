@@ -44,6 +44,7 @@ async def _check_database() -> dict[str, Any]:
 
 async def _check_redis(request: Request) -> dict[str, Any]:
     """Verify Redis is reachable by sending a PING command."""
+
     start = time.perf_counter()
 
     try:

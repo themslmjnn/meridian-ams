@@ -14,8 +14,10 @@ def _json_default(obj: Any) -> Any:
 
     if isinstance(obj, (uuid.UUID, Path)):
         return str(obj)
+
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
+
     if isinstance(obj, Enum):
         return obj.value
 
