@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserIdentityRepository
+from src.users.repository.identity import UserIdentityRepository
 from src.users.schemas.system_admin import (
     UpdateStaffOrGuardianProfile,
     UpdateStudentProfile,

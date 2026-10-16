@@ -5,7 +5,8 @@ from src.core.exceptions import AppException
 from src.emails.repository import EmailRepository
 from src.emails.utils.enums import EmailType
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository, UserIdentityRepository
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.identity import UserIdentityRepository
 from src.users.schemas.system_admin import (
     CreateGuardianWithExistingIdentity,
     CreateGuardianWithNewIdentity,

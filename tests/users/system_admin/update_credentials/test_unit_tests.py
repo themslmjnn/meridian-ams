@@ -9,11 +9,9 @@ from src.emails.repository import EmailRepository
 from src.emails.utils.enums import EmailType
 from src.users.models.credentials import UserCredentials
 from src.users.models.email_change import UserEmailChange
-from src.users.repository.user import (
-    UserActivationRepository,
-    UserEmailChangeRepository,
-    UserSessionRepository,
-)
+from src.users.repository.activation import UserActivationRepository
+from src.users.repository.email_change import UserEmailChangeRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.services.system_admin import UserService
 from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import (
@@ -252,7 +250,7 @@ class TestActivationTokenReissue:
         pending_teacher = await make_teacher(
             test_session, status=UserStatus.PENDING_ACTIVATION
         )
-        activation = await UserActivationRepository.get_by_id(
+        activation = await UserActivationRepository.get_by_credentials_id(
             test_session, pending_teacher.id
         )
         old_token_hash = activation.activation_token_hash
@@ -266,7 +264,7 @@ class TestActivationTokenReissue:
             payload,
         )
 
-        new_activation = await UserActivationRepository.get_by_id(
+        new_activation = await UserActivationRepository.get_by_credentials_id(
             test_session, pending_teacher.id
         )
 
@@ -440,7 +438,7 @@ class TestPendingEmailChangeCleared:
             payload,
         )
 
-        user_email_change = await UserEmailChangeRepository.get_by_id(
+        user_email_change = await UserEmailChangeRepository.get_by_credentials_id(
             test_session, teacher.id
         )
 

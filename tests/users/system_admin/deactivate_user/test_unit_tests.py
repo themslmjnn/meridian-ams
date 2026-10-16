@@ -5,7 +5,8 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.services.system_admin import UserService
 from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import (

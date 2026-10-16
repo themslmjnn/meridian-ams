@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
 from src.users.models.email_change import UserEmailChange
-from src.users.repository.user import UserCredentialsRepository, UserSessionRepository
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.session import UserSessionRepository
 from src.users.schemas.shared import UpdateUserCredentials
 from src.users.services.shared import UserServiceSelf
 from src.users.utils.exceptions import (

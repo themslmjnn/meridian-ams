@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.emails.repository import EmailRepository
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserActivationRepository
+from src.users.repository.activation import UserActivationRepository
 from src.users.services.system_admin import UserService
 from src.users.utils.enums import UserStatus
 from src.users.utils.exceptions import (

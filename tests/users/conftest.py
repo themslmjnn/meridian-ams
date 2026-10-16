@@ -6,7 +6,7 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserCredentialsRepository
+from src.users.repository.credentials import UserCredentialsRepository
 from src.users.schemas.system_admin import (
     CreateGuardianWithExistingIdentity,
     CreateGuardianWithNewIdentity,
