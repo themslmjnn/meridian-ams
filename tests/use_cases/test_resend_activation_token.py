@@ -7,12 +7,12 @@ from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.idempotency.service import _CachedResponseSignal
 from src.core.idempotency.models import IdempotencyRecord
+from src.core.idempotency.service import _CachedResponseSignal
+from src.core.idempotency.utils.enums import IdempotencyOperation
+from src.core.idempotency.utils.exceptions import IdempotencyPayloadMismatch
 from src.users.models.credentials import UserCredentials
 from src.users.use_cases.resend_activation_token import ResendActivationTokenUseCase
-from src.core.idempotency.utils.enums import IdempotencyOperation
-from src.utils.exceptions import IdempotencyPayloadMismatch
 
 
 def _idempotency_key() -> str:
