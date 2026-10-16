@@ -1,5 +1,3 @@
-from types import SimpleNamespace
-
 from fastapi import Response
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.service import AuthService
 from src.core.dependencies import CurrentUser
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserSessionRepository
+from src.users.repository.session import UserSessionRepository
 from src.utils.cache_keys import SessionCacheKey
 from tests.auth.conftest import get_sessions, seed_sessions
 

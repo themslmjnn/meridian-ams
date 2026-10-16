@@ -1,10 +1,9 @@
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.schemas import CreateAccessToken
 from src.core.security import create_access_token
 from src.users.models.credentials import UserCredentials
-from src.users.repository.user import UserSessionRepository
+from src.users.repository.session import UserSessionRepository
 from tests.auth.conftest import get_sessions, seed_sessions
 from tests.conftest import make_auth_header
 
@@ -14,13 +13,11 @@ PROTECTED_ENDPOINT = "/api/v1/users/me"
 
 def _header_for(credentials, user_session):
     token = create_access_token(
-        CreateAccessToken(
-            public_id=credentials.public_id,
-            role=credentials.role,
-            account_type=credentials.account_type,
-            session_id=user_session.id,
-            access_token_version=user_session.access_token_version,
-        )
+        public_id=credentials.public_id,
+        role=credentials.role,
+        account_type=credentials.account_type,
+        session_id=user_session.id,
+        access_token_version=user_session.access_token_version,
     )
 
     return {"Authorization": f"Bearer {token}"}

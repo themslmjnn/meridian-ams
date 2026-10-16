@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.auth.repository import AuthRepository
 from src.auth.service import AuthService
 from src.core.config import get_settings
+from src.users.models.credentials import UserCredentials
 from src.users.models.session import UserSession
 from src.users.utils.enums import UserStatus
 from src.utils import exceptions
@@ -63,17 +64,17 @@ def _cookie_value(header: str) -> str:
 
 class TestSuccessfulLogin:
     async def test_returns_bearer_token_with_expected_claims(
-        self, test_session: AsyncSession, login_user
+        self, test_session: AsyncSession, teacher: UserCredentials
     ):
-        result = await _call_login(test_session, login_user.username)
+        result = await _call_login(test_session, teacher.username)
 
-        sessions = await get_sessions(test_session, login_user.id)
+        sessions = await get_sessions(test_session, teacher.id)
         claims = jwt.decode(result.access_token, options={"verify_signature": False})
 
         assert result.token_type == "bearer"
-        assert claims["sub"] == str(login_user.public_id)
-        assert claims["role"] == login_user.role
-        assert claims["account_type"] == login_user.account_type
+        assert claims["sub"] == str(teacher.public_id)
+        assert claims["role"] == teacher.role
+        assert claims["account_type"] == teacher.account_type
         assert claims["session_id"] in {s.id for s in sessions}
 
     async def test_new_device_creates_session(

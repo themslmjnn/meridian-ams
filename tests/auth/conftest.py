@@ -116,7 +116,10 @@ async def seed_sessions(
 
 @pytest_asyncio.fixture
 async def login_user(test_session: AsyncSession):
-    teacher = await make_teacher(test_session)
+    teacher = await make_teacher(
+        test_session,
+        password_hash=PASSWORD,
+    )
 
     return await prepare_for_login(test_session, teacher)
 
