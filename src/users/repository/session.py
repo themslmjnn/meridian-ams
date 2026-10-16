@@ -6,8 +6,16 @@ from src.users.models.session import UserSession
 
 class UserSessionRepository:
     @staticmethod
-    async def get_by_id(session: AsyncSession, session_id: int) -> UserSession | None:
+    async def get_by_id(
+        session: AsyncSession,
+        session_id: int,
+        *,
+        for_update: bool = False,
+    ) -> UserSession | None:
         query = select(UserSession).where(UserSession.id == session_id)
+
+        if for_update:
+            query = query.with_for_update()
 
         result = await session.execute(query)
 
