@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, func, select, update
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -28,14 +28,19 @@ class UserCredentialsRepository:
         if load_options is not None:
             if load_options.load_identity:
                 query = query.options(joinedload(UserCredentials.identity))
+
             if load_options.load_sessions:
                 query = query.options(selectinload(UserCredentials.sessions))
+
             if load_options.load_activation:
                 query = query.options(joinedload(UserCredentials.activation))
+
             if load_options.load_login_lockout:
                 query = query.options(joinedload(UserCredentials.login_lockout))
+
             if load_options.load_email_change:
                 query = query.options(joinedload(UserCredentials.email_change))
+
             if load_options.load_password_reset:
                 query = query.options(joinedload(UserCredentials.password_reset))
 
@@ -94,25 +99,6 @@ class UserCredentialsRepository:
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.username == username)
-        query = UserCredentialsRepository._build_load_options(query, load_options)
-
-        result = await session.execute(query)
-
-        return result.scalar_one_or_none()
-
-    @staticmethod
-    async def get_by_email(
-        session: AsyncSession,
-        email: str,
-        *,
-        account_type: AccountType | None = None,
-        load_options: LoadOptionsSchema | None = None,
-    ) -> UserCredentials | None:
-        query = select(UserCredentials).where(UserCredentials.email == email)
-
-        if account_type is not None:
-            query = query.where(UserCredentials.account_type == account_type)
-
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
         result = await session.execute(query)
@@ -205,27 +191,6 @@ class UserCredentialsRepository:
         return result.scalar_one()
 
     @staticmethod
-    async def reactivate_pending_deletion_user(
-        session: AsyncSession, public_id: uuid.UUID, pre_transition_status: UserRole
-    ) -> bool:
-        query = (
-            update(UserCredentials)
-            .where(
-                UserCredentials.public_id == public_id,
-                UserCredentials.account_type == AccountType.PERSONAL,
-                UserCredentials.status == UserStatus.PENDING_DELETION,
-            )
-            .values(
-                status=pre_transition_status,
-                deletion_scheduled_for=None,
-            )
-        )
-
-        result = await session.execute(query)
-
-        return result.rowcount > 0
-
-    @staticmethod
     async def get_due_for_deletion(session: AsyncSession, limit: int = 50) -> list[int]:
         """
         Returns a batch of credentials IDs due for hard deletion.
@@ -268,4 +233,3 @@ class UserCredentialsRepository:
         result = await session.execute(query)
 
         return result.scalar_one_or_none()
-
