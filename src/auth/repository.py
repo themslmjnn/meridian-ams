@@ -10,22 +10,6 @@ from src.users.models.session import UserSession
 
 class AuthRepository:
     @staticmethod
-    async def get_session_by_id(
-        session: AsyncSession,
-        session_id: int,
-        *,
-        for_update: bool = False,
-    ) -> UserSession | None:
-        query = select(UserSession).where(UserSession.id == session_id)
-
-        if for_update:
-            query = query.with_for_update()
-
-        result = await session.execute(query)
-
-        return result.scalar_one_or_none()
-
-    @staticmethod
     async def get_session_by_device_id(
         session: AsyncSession,
         credentials_id: int,
@@ -93,17 +77,6 @@ class AuthRepository:
         await session.flush()
 
     @staticmethod
-    async def invalidate_session_family(
-        session: AsyncSession, user_session: UserSession
-    ) -> None:
-        user_session.access_token_version += 1
-        user_session.refresh_token_hash = None
-        user_session.refresh_token_family_hash = None
-        user_session.refresh_token_expires_at = None
-
-        await session.flush()
-
-    @staticmethod
     async def get_credentials_by_activation_token_hash(
         session: AsyncSession, activation_token_hash: str
     ) -> UserCredentials | None:
@@ -145,7 +118,7 @@ class AuthRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def delete_password_reset_password_token(
+    async def delete_reset_password_record(
         session: AsyncSession, credentials_id: int
     ) -> None:
         query = delete(UserPasswordReset).where(
