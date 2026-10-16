@@ -408,7 +408,7 @@ class AuthService:
             raise exceptions.InvalidRefreshTokenError() from exc
 
         # Row lock: concurrent refreshes for one session are serialised.
-        user_session = await AuthRepository.get_session_by_id(
+        user_session = await UserSessionRepository.get_by_id(
             session, session_id, for_update=True
         )
         if (
@@ -442,9 +442,10 @@ class AuthService:
         )
 
         if not family_valid or not matches_current:
-            await AuthRepository.invalidate_session_family(session, user_session)
+            await UserSessionRepository.invalidate_session(session, user_session)
 
             await session.commit()
+
             await delete_cache(
                 redis, SessionCacheKey.access_token_version_key(session_id)
             )
@@ -719,9 +720,7 @@ class AuthService:
         session_ids = await AuthRepository.get_session_ids(session, credentials.id)
 
         await AuthRepository.delete_all_sessions(session, credentials.id)
-        await AuthRepository.delete_password_reset_password_token(
-            session, credentials.id
-        )
+        await AuthRepository.delete_reset_password_record(session, credentials.id)
 
         credentials.password_hash = await hash_password(payload.new_password)
 
