@@ -7,6 +7,7 @@ import structlog
 from src.core.config import get_settings
 from src.database.connection import session_factory
 from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.identity import UserIdentityRepository
 
 logger = structlog.get_logger(__name__)
 
