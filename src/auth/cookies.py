@@ -15,7 +15,7 @@ def set_refresh_token_cookie(response: Response, raw_refresh_token: str) -> None
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS,
+        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60,
         path=_COOKIE_PATH_REFRESH,
     )
 
@@ -36,7 +36,7 @@ def set_refresh_token_family_cookie(
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS,
+        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60,
         path=_COOKIE_PATH_REFRESH,
     )
 
@@ -55,7 +55,7 @@ def set_device_id_cookie(response: Response, device_id: str) -> None:
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS,
+        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60,
         path=_COOKIE_PATH_LOGIN,
     )
 

@@ -198,6 +198,8 @@ class AuthService:
 
             raise exceptions.InvalidCredentialsError()
 
+        should_send_account_reactivation_email = False
+
         if credentials.status == UserStatus.PENDING_DELETION:
             if (
                 credentials.deletion_scheduled_for is None
@@ -221,12 +223,7 @@ class AuthService:
             credentials.status = UserStatus.ACTIVE
             credentials.deletion_scheduled_for = None
 
-            asyncio.create_task(
-                send_email_safe(
-                    send_guardian_account_reactivated_email(to_email=credentials.email),
-                    email_type=EmailType.GUARDIAN_ACCOUNT_REACTIVATED,
-                )
-            )
+            should_send_account_reactivation_email = True
 
             logger.info(
                 "deletion_implicitly_cancelled",
@@ -258,7 +255,7 @@ class AuthService:
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
-            existing_session.refresh_token_family_raw = hashed_refresh_token_family
+            existing_session.refresh_token_family_hash = hashed_refresh_token_family
             existing_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
                 days=settings.REFRESH_TOKEN_EXPIRES_DAYS
             )
@@ -326,6 +323,14 @@ class AuthService:
         )
 
         await session.commit()
+
+        if should_send_account_reactivation_email:
+            asyncio.create_task(
+                send_email_safe(
+                    send_guardian_account_reactivated_email(to_email=credentials.email),
+                    email_type=EmailType.GUARDIAN_ACCOUNT_REACTIVATED,
+                )
+            )
 
         if not existing_session:
             login_time = datetime.now(UTC).strftime("%B %d, %Y at %H:%M UTC")
