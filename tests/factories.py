@@ -14,6 +14,7 @@ from src.users.models.identity import UserIdentity
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
 from src.users.utils.enums import AccountType, UserRole, UserStatus
+from tests.auth.constants import PASSWORD
 
 _counter = itertools.count(1)
 
@@ -36,7 +37,7 @@ async def make_user(
     address: str | None = None,
     username: str | None = None,
     email: str | None = None,
-    password: str | None = "TestPassword123!",
+    password: str | None = PASSWORD,
     failed_attempts: int | None = None,
     locked_until: datetime | None = None,
 ) -> UserCredentials:
