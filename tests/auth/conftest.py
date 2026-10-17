@@ -1,21 +1,18 @@
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
-import pytest_asyncio
+import pytest
 from fastapi import Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.service import AuthService
-from src.core.security import hash_password
 from src.users.models.credentials import UserCredentials
 from src.users.models.login_history import LoginHistory
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
-from src.users.utils.enums import UserStatus
-from tests.factories import make_teacher
-
-PASSWORD = "Str0ng!Passw0rd"
+from tests.auth.constants import PASSWORD
 
 
 def make_request(cookies: dict[str, str] | None = None) -> Request:
@@ -29,19 +26,6 @@ def make_request(cookies: dict[str, str] | None = None) -> Request:
 
 def make_form(username: str, password: str = PASSWORD) -> OAuth2PasswordRequestForm:
     return OAuth2PasswordRequestForm(username=username, password=password)
-
-
-async def prepare_for_login(
-    test_session: AsyncSession,
-    credentials,
-    status=UserStatus.ACTIVE,
-):
-    credentials.password_hash = await hash_password(PASSWORD)
-    credentials.status = status
-
-    await test_session.flush()
-
-    return credentials
 
 
 async def get_lockout(
@@ -105,6 +89,7 @@ async def seed_sessions(
             device_id=f"seed-device-{i}",
             last_active_at=now - timedelta(hours=count - i),
         )
+
         test_session.add(user_session)
 
         seeded.append(user_session)
@@ -112,16 +97,6 @@ async def seed_sessions(
     await test_session.flush()
 
     return seeded
-
-
-@pytest_asyncio.fixture
-async def login_user(test_session: AsyncSession):
-    teacher = await make_teacher(
-        test_session,
-        password_hash=PASSWORD,
-    )
-
-    return await prepare_for_login(test_session, teacher)
 
 
 def cookie_values(set_cookie_headers):
@@ -156,3 +131,29 @@ async def session_for_cookies(
     sessions = await get_sessions(test_session, credentials.id)
 
     return next(s for s in sessions if s.device_id == cookies["device_id"])
+
+
+@pytest.fixture
+def mock_auth_verify_password(mocker):
+    return mocker.patch("src.auth.service.verify_password", new_callable=AsyncMock)
+
+
+@pytest.fixture(autouse=True)
+def mock_send_email_safe(mocker):
+    return mocker.patch("src.auth.service.send_email_safe", new_callable=AsyncMock)
+
+
+@pytest.fixture(autouse=True)
+def mock_send_new_login_notification_email(mocker, mock_send_email_safe):
+    return mocker.patch(
+        "src.auth.service.send_new_login_notification_email",
+        new_callable=MagicMock,
+    )
+
+
+@pytest.fixture(autouse=True)
+def mock_send_guardian_account_reactivated_email(mocker, mock_send_email_safe):
+    return mocker.patch(
+        "src.auth.service.send_guardian_account_reactivated_email",
+        new_callable=MagicMock,
+    )
