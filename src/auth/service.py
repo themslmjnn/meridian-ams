@@ -447,7 +447,7 @@ class AuthService:
         )
 
         if not family_valid or not matches_current:
-            await UserSessionRepository.invalidate_session(session, user_session)
+            await UserSessionRepository.invalidate_session(user_session)
 
             await session.commit()
 
@@ -685,10 +685,10 @@ class AuthService:
         redis: Redis,
         payload: ResetPassword,
     ) -> None:
-        token_hash = sha256(payload.reset_password_token)
+        reset_password_token_hash = sha256(payload.reset_password_token)
 
         credentials = await AuthRepository.get_credentials_by_reset_password_token_hash(
-            session, token_hash
+            session, reset_password_token_hash
         )
         if credentials is None or credentials.password_reset is None:
             logger.warning(
