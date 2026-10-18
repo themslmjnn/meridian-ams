@@ -3,6 +3,7 @@ class AuthEndpoints:
     LOGOUT = "/api/v1/auth/logout"
     REFRESH = "/api/v1/auth/refresh-token"
     PASSWORD_RESET = "/api/v1/auth/password-reset"
+    ACTIVATION = "/api/v1/auth/activation"
 
 
 class UserEndpoints:
