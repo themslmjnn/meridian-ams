@@ -1,3 +1,5 @@
-PASSWORD = "TestPassword123!"
 IP = "203.0.113.7"
 USER_AGENT = "pytest-agent"
+NEW_PASSWORD = "N3w!Passw0rd#2026"
+PASSWORD = "TestPassword123!"
+RAW_ACTIVATION_TOKEN = "raw-activation-token"

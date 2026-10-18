@@ -2,17 +2,22 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from fastapi import Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.service import AuthService
+from src.auth.tokens import sha256
+from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
 from src.users.models.login_history import LoginHistory
 from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.session import UserSession
-from tests.auth.constants import PASSWORD
+from src.users.utils.enums import UserStatus
+from tests.auth.constants import PASSWORD, RAW_ACTIVATION_TOKEN
+from tests.factories import make_teacher
 
 
 def make_request(cookies: dict[str, str] | None = None) -> Request:
@@ -28,9 +33,23 @@ def make_form(username: str, password: str = PASSWORD) -> OAuth2PasswordRequestF
     return OAuth2PasswordRequestForm(username=username, password=password)
 
 
+async def get_activation(
+    session: AsyncSession, credentials_id: int
+) -> UserActivation | None:
+    query = (
+        select(UserActivation)
+        .where(UserActivation.credentials_id == credentials_id)
+        .execution_options(populate_existing=True)
+    )
+
+    result = await session.execute(query)
+
+    return result.scalar_one_or_none()
+
+
 async def get_lockout(
     test_session: AsyncSession, credentials_id: int
-) -> UserLoginLockout:
+) -> UserLoginLockout | None:
     query = (
         select(UserLoginLockout)
         .where(UserLoginLockout.credentials_id == credentials_id)
@@ -157,3 +176,24 @@ def mock_send_guardian_account_reactivated_email(mocker, mock_send_email_safe):
         "src.auth.service.send_guardian_account_reactivated_email",
         new_callable=MagicMock,
     )
+
+
+@pytest_asyncio.fixture
+async def pending_user(test_session):
+    teacher = await make_teacher(test_session)
+
+    await test_session.execute(
+        delete(UserActivation).where(UserActivation.credentials_id == teacher.id)
+    )
+    teacher.status = UserStatus.PENDING_ACTIVATION
+    teacher.password_hash = None
+    test_session.add(
+        UserActivation(
+            credentials_id=teacher.id,
+            activation_token_hash=sha256(RAW_ACTIVATION_TOKEN),
+            activation_token_expires_at=datetime.now(UTC) + timedelta(hours=72),
+        )
+    )
+    await test_session.flush()
+
+    return teacher
