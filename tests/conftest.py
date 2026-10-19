@@ -41,32 +41,19 @@ test_engine = create_async_engine(url=settings.DATABASE_URL, poolclass=NullPool)
 
 @pytest.fixture(scope="session", autouse=True)
 def _guard_test_environment():
-    problems = []
+    problems: list[str] = []
 
     if settings.ENVIRONMENT != "test":
         problems.append(f"ENVIRONMENT is '{settings.ENVIRONMENT}', expected 'test'")
 
-    if "test" not in settings.DB_NAME.lower():
-        problems.append(
-            f"DB_NAME '{settings.DB_NAME}' does not look like a test database"
-        )
+    if not settings.DB_NAME.lower().endswith("_test"):
+        problems.append(f"DB_NAME '{settings.DB_NAME}' must end with '_test'")
 
     if settings.REDIS_DB != 1:
         problems.append(f"REDIS_DB is {settings.REDIS_DB}, expected 1 for tests")
 
     if problems:
-        pytest.exit("Refusing to run tests: " + "; ".join(problems))
-
-
-@pytest.fixture(scope="session", autouse=True)
-def clear_settings_cache(_guard_test_environment) -> None:  # type: ignore[misc]
-    """Clear the lru_cache on get_settings before and after the test session."""
-
-    get_settings.cache_clear()
-
-    yield  # type: ignore[misc]
-
-    get_settings.cache_clear()
+        pytest.exit("Refusing to run tests: " + "; ".join(problems), returncode=2)
 
 
 @pytest.fixture(scope="session")  # no autouse: only DB-backed tests pay for it
@@ -75,6 +62,7 @@ def create_tables(_guard_test_environment):
 
     with sync_engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+
         conn.commit()
 
     ImmutableBase.metadata.drop_all(sync_engine)  # clear leftovers from a crashed run
