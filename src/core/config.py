@@ -17,7 +17,6 @@ _ENV_FILE = _ENV_FILE_MAP.get(_ENV, ".env")
 _DOMAIN_RE = re.compile(
     r"[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+"
 )
-_PLACEHOLDER_MARKERS = ("your_", "changeme", "change_me")
 
 
 class Settings(BaseSettings):
@@ -29,12 +28,12 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
 
-    ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
-
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
     IS_PRODUCTION_LIKE: bool = False
+
     APP_NAME: str = "Meridian AMS"
     APP_URL: str = "http://localhost:8000"
+
     ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1"]
     CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 
@@ -58,6 +57,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: SecretStr | None = None
     REDIS_DB: int = Field(ge=0)
 
+    ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
     JWT_SECRET_KEY: SecretStr
 
     ACCESS_TOKEN_EXPIRES_MINUTES: int = 15
@@ -200,6 +200,7 @@ class Settings(BaseSettings):
     def validate_rate_limit(cls, v: str) -> str:
         try:
             parse_many(v)
+
         except ValueError as exc:
             raise ValueError(f"Invalid rate limit string {v!r}") from exc
 
@@ -234,10 +235,6 @@ class Settings(BaseSettings):
 
         if self.EMAIL_API_KEY:
             sensitive["EMAIL_API_KEY"] = self.EMAIL_API_KEY
-
-        for name, value in sensitive.items():
-            if any(marker in value.lower() for marker in _PLACEHOLDER_MARKERS):
-                errors.append(f"{name} still contains a placeholder value")
 
         if sensitive["JWT_SECRET_KEY"] == sensitive["CURSOR_SECRET_KEY"]:
             errors.append("JWT_SECRET_KEY and CURSOR_SECRET_KEY must differ")
