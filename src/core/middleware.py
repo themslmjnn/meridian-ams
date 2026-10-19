@@ -9,11 +9,13 @@ from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp
 
 from src.core.exceptions import redis_error_handler
 
 logger = structlog.get_logger(__name__)
 
+_QUIET_PATH_PREFIX = "/health/"
 _REQUEST_ID_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
@@ -31,10 +33,13 @@ class CorrelationIDMiddleware(BaseHTTPMiddleware):
     Generates or propagates a request correlation ID.
 
     - Reads X-Request-ID from incoming headers; uses it only if it matches
-      [A-Za-z0-9._-]{1,64}, otherwise generates a UUID4.
+    [A-Za-z0-9._-]{1,64}, otherwise generates a UUID4.
+
     - Binds request_id so all log events within this request carry it
-      automatically. (environment is added by the logging processor.)
+    automatically. (environment is added by the logging processor.)
+
     - Appends X-Request-ID to the response headers for client-side tracing.
+
     - Clears the context when the request finishes.
     """
 
@@ -67,7 +72,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     @staticmethod
     def _log(request: Request, status_code: int, start: float) -> None:
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
-        is_quiet = request.url.path.startswith("/health/") and status_code < 400
+        is_quiet = request.url.path.startswith(_QUIET_PATH_PREFIX) and status_code < 400
         log = logger.debug if is_quiet else logger.info
 
         log(
@@ -76,6 +81,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             path=request.url.path,
             status_code=status_code,
             duration_ms=duration_ms,
+            client_ip=request.client.host if request.client else None,
         )
 
     async def dispatch(
@@ -83,13 +89,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         start = time.perf_counter()
 
-        try:
-            response = await call_next(request)
-
-        except Exception:
-            self._log(request, 500, start)
-
-            raise
+        response = await call_next(request)
 
         self._log(request, response.status_code, start)
 
@@ -147,7 +147,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - Strict-Transport-Security (only when hsts=True, i.e. staging/production)
     """
 
-    def __init__(self, app, *, hsts: bool = False) -> None:
+    def __init__(self, app: ASGIApp, *, hsts: bool = False) -> None:
         super().__init__(app)
         self.hsts = hsts
 
