@@ -8,65 +8,16 @@ from redis.exceptions import RedisError
 
 logger = structlog.get_logger(__name__)
 
-_FIELDS = ("status_code", "error_code", "detail")
-
 
 # Base application exception
 class AppException(Exception):
-    """
-    Base class for all expected application errors.
-
-    Subclass this for domain-specific errors (e.g. UserNotFoundError).
-    Instances are caught by app_exception_handler and returned as structured
-    JSON. They are NOT forwarded to Sentry — expected errors are noise there.
-    """
+    """Base class for expected application errors. Subclasses set the three fields."""
 
     status_code: int
-    detail: str
     error_code: str
-
-    def __init_subclass__(cls, **kwargs: object) -> None:
-        super().__init_subclass__(**kwargs)
-
-        status_code = getattr(cls, "status_code", None)
-        if (
-            not isinstance(status_code, int)
-            or isinstance(status_code, bool)
-            or not 400 <= status_code <= 599
-        ):
-            raise TypeError(f"{cls.__name__}.status_code must be an int in 400-599")
-
-        for attr in ("error_code", "detail"):
-            value = getattr(cls, attr, None)
-            if not isinstance(value, str) or not value:
-                raise TypeError(
-                    f"{cls.__name__}.{attr} must be a non-empty str class attribute. "
-                    f"Example:\n"
-                    f"    class {cls.__name__}(AppException):\n"
-                    f"        status_code = 404\n"
-                    f"        error_code = 'RESOURCE_NOT_FOUND'\n"
-                    f"        detail = 'The requested resource was not found.'"
-                )
-
-        extra = [
-            name
-            for name, value in vars(cls).items()
-            if not name.startswith("_") and name not in _FIELDS and not callable(value)
-        ]
-
-        if extra:
-            raise TypeError(
-                f"{cls.__name__} defines unsupported attributes {extra}; "
-                f"only {list(_FIELDS)} are allowed."
-            )
+    detail: str
 
     def __init__(self, detail: str | None = None) -> None:
-        if type(self) is AppException:
-            raise TypeError(
-                "AppException must not be raised directly. "
-                "Define a subclass with status_code, error_code, and detail."
-            )
-
         self.detail = detail if detail is not None else type(self).detail
         super().__init__(self.detail)
 
