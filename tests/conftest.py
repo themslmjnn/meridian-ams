@@ -12,7 +12,7 @@ from sqlalchemy.pool import NullPool
 
 import src.models  # noqa: F401  (registers every model on the metadata)
 from src.auth.tokens import create_access_token
-from src.core.caching import get_redis
+from src.core.caching import close_redis, init_redis
 from src.core.config import Settings, get_settings
 from src.core.dependencies import get_session
 from src.database.connection import ImmutableBase, engine
@@ -40,7 +40,7 @@ SYNC_DB_URL = URL.create(
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _guard_test_environment():
+def _guard_test_environment() -> None:
     problems: list[str] = []
 
     if settings.ENVIRONMENT != "test":
@@ -59,7 +59,7 @@ def _guard_test_environment():
         pytest.exit("Refusing to run tests: " + "; ".join(problems), returncode=2)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="session")  # not autouse: only DB-backed tests pay for it
 def create_tables(_guard_test_environment: None) -> Iterator[None]:
     sync_engine = create_engine(SYNC_DB_URL)
 
@@ -69,7 +69,8 @@ def create_tables(_guard_test_environment: None) -> Iterator[None]:
 
             if not (db_name or "").endswith("_test"):
                 pytest.exit(
-                    f"Refusing to reset database '{db_name}': name must end with '_test'",
+                    f"Refusing to reset database '{db_name}': "
+                    "name must end with '_test'",
                     returncode=2,
                 )
 
@@ -107,46 +108,37 @@ async def test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
 
         finally:
             app.dependency_overrides.pop(get_session, None)
-
             await session.close()
             await outer.rollback()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def integration_client(test_session, override_redis):
+@pytest_asyncio.fixture
+async def redis_client() -> AsyncIterator[aioredis.Redis]:
+    app.state.settings = settings  # init_redis reads it; lifespan doesn't run here
+
+    await init_redis(app)
+
+    client: aioredis.Redis = app.state.redis
+
+    try:
+        await client.flushdb()
+
+        yield client
+
+    finally:
+        await close_redis(app)
+
+        del app.state.redis
+
+
+@pytest_asyncio.fixture
+async def integration_client(
+    test_session: AsyncSession, redis_client: aioredis.Redis
+) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test",
-    ) as async_client:
-        yield async_client
-
-
-@pytest_asyncio.fixture(scope="function")
-async def redis_client():
-    client = aioredis.from_url(
-        settings.REDIS_URL,
-        encoding="utf-8",
-        decode_responses=True,
-    )
-
-    await client.flushdb()
-
-    yield client
-
-    await client.flushdb()
-    await client.aclose()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def override_redis(redis_client):
-    async def get_test_redis():
-        return redis_client
-
-    app.dependency_overrides[get_redis] = get_test_redis
-
-    yield
-
-    app.dependency_overrides.pop(get_redis, None)
+        transport=ASGITransport(app=app), base_url="http://localhost"
+    ) as client:
+        yield client
 
 
 @pytest.fixture
