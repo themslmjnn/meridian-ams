@@ -2,14 +2,9 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware  # type: ignore[attr-defined]
-from prometheus_fastapi_instrumentator import Instrumentator
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.starlette import StarletteIntegration
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -19,7 +14,7 @@ from src.auth.routers import router as auth_router
 from src.core.caching import close_redis, init_redis
 from src.core.config import get_settings
 from src.core.email.providers import close_email_client
-from src.core.exceptions import AppException, register_exception_handlers
+from src.core.exceptions import register_exception_handlers
 from src.core.idempotency.service import _CachedResponseSignal, make_cached_response
 from src.core.limiter import limiter, rate_limit_exceeded_handler
 from src.core.logging import configure_logging
@@ -47,27 +42,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Startup order:
     1. Configure logging (first — all subsequent startup logs use it)
     2. Attach settings to app.state
-    3. Initialise Sentry (before anything that can fail)
-    4. Initialise Redis and verify connectivity
-    5. Start email and deletion worker tasks
-
-    Prometheus is initialised in create_app(), because it adds middleware
-    and that is not allowed once the app has started.
+    3. Initialise Redis and verify connectivity
+    4. Start email and deletion worker tasks
 
     Shutdown (always runs, even after a partial startup failure):
     1. Cancel and await worker tasks
     2. Close email client, Redis, and the DB engine (each step guarded)
     """
 
-    # --- Startup ---
     settings = get_settings()
 
     configure_logging(
         settings.IS_PRODUCTION_LIKE, settings.ENVIRONMENT, settings.LOG_LEVEL
     )
-    app.state.settings = settings
 
-    _init_sentry()  # before anything that can fail, so startup errors are captured
+    app.state.settings = settings
 
     logger.info("application_starting", environment=settings.ENVIRONMENT)
 
@@ -78,15 +67,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
         tasks.append(asyncio.create_task(run_email_worker(), name="email_worker"))
         tasks.append(asyncio.create_task(run_deletion_worker(), name="deletion_worker"))
-        logger.info("workers_started")
 
+        logger.info("workers_started")
         logger.info("application_ready")
 
         yield
 
     finally:
-        # --- Shutdown ---
-
         logger.info("application_shutting_down")
 
         for task in tasks:
@@ -118,45 +105,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.exception("shutdown_step_failed", step=step)
 
         logger.info("application_stopped")
-
-
-def _init_sentry() -> None:
-    settings = get_settings()
-    if not settings.SENTRY_DSN:
-        return
-
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.ENVIRONMENT,
-        integrations=[
-            StarletteIntegration(),
-            FastApiIntegration(),
-            SqlalchemyIntegration(),
-        ],
-        ignore_errors=[AppException],
-        traces_sample_rate=0.1,
-        before_send=_sentry_before_send,
-    )
-
-    logger.info("sentry_initialised")
-
-
-def _sentry_before_send(
-    event: dict,  # type: ignore[type-arg]
-    hint: dict,  # type: ignore[type-arg]
-) -> dict | None:  # type: ignore[type-arg]
-    """Filter additional noise before events reach Sentry."""
-
-    return event
-
-
-def _init_prometheus(app: FastAPI) -> None:
-    if not get_settings().METRICS_ENABLED:
-        return
-
-    Instrumentator().instrument(app).expose(app, endpoint="/metrics")
-
-    logger.info("prometheus_initialised")
 
 
 def create_app() -> FastAPI:
@@ -206,8 +154,6 @@ def create_app() -> FastAPI:
     app.add_middleware(SecurityHeadersMiddleware, hsts=settings.IS_PRODUCTION_LIKE)
     app.add_middleware(RequestLoggingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
-
-    _init_prometheus(app)
 
     # Exception handlers
     register_exception_handlers(app)
