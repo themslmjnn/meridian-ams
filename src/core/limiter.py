@@ -7,6 +7,7 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from src.auth.tokens import decode_access_token
 from src.core.config import get_settings
 
 logger = structlog.get_logger(__name__)
@@ -33,9 +34,6 @@ def get_user_identifier(request: Request) -> str:
     if auth_header.startswith("Bearer "):
         token = auth_header[len("Bearer ") :]
         try:
-            # Import here to avoid circular import at module load time
-            from src.core.security import decode_access_token
-
             payload = decode_access_token(token)
             user_id = payload.get("sub")
 
