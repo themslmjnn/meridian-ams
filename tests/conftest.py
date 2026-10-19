@@ -1,3 +1,4 @@
+from collections.abc import AsyncIterator, Iterator
 from unittest.mock import AsyncMock
 
 import pytest
@@ -9,6 +10,7 @@ from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+import src.models  # noqa: F401  (registers every model on the metadata)
 from src.auth.tokens import create_access_token
 from src.core.caching import get_redis
 from src.core.config import Settings, get_settings
@@ -56,28 +58,36 @@ def _guard_test_environment():
         pytest.exit("Refusing to run tests: " + "; ".join(problems), returncode=2)
 
 
-@pytest.fixture(scope="session")  # no autouse: only DB-backed tests pay for it
-def create_tables(_guard_test_environment):
+@pytest.fixture(scope="session")
+def create_tables(_guard_test_environment: None) -> Iterator[None]:
     sync_engine = create_engine(SYNC_DB_URL)
 
-    with sync_engine.connect() as conn:
-        conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+    try:
+        with sync_engine.begin() as conn:
+            db_name = conn.scalar(text("SELECT current_database()"))
 
-        conn.commit()
+            if not (db_name or "").endswith("_test"):
+                pytest.exit(
+                    f"Refusing to reset database '{db_name}': name must end with '_test'",
+                    returncode=2,
+                )
 
-    ImmutableBase.metadata.drop_all(sync_engine)  # clear leftovers from a crashed run
-    ImmutableBase.metadata.create_all(sync_engine)
+            conn.execute(text("DROP SCHEMA public CASCADE"))
+            conn.execute(text("CREATE SCHEMA public"))
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
 
-    yield
+            ImmutableBase.metadata.create_all(conn)
 
-    ImmutableBase.metadata.drop_all(sync_engine)
-    sync_engine.dispose()
+        yield
+
+    finally:
+        sync_engine.dispose()
 
 
-@pytest_asyncio.fixture(scope="function")
-async def test_session(create_tables):
+@pytest_asyncio.fixture
+async def test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
     async with test_engine.connect() as conn:
-        await conn.begin()
+        outer = await conn.begin()
 
         session = AsyncSession(
             bind=conn,
@@ -86,7 +96,7 @@ async def test_session(create_tables):
             join_transaction_mode="create_savepoint",
         )
 
-        async def override_get_session():
+        async def override_get_session() -> AsyncIterator[AsyncSession]:
             yield session
 
         app.dependency_overrides[get_session] = override_get_session
@@ -95,15 +105,10 @@ async def test_session(create_tables):
             yield session
 
         finally:
-            try:
-                await session.close()
-                await conn.rollback()
+            app.dependency_overrides.pop(get_session, None)
 
-            except Exception as e:
-                print(f"Teardown error: {e}")
-
-            finally:
-                app.dependency_overrides.clear()
+            await session.close()
+            await outer.rollback()
 
 
 @pytest_asyncio.fixture(scope="function")
