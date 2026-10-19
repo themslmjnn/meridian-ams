@@ -67,7 +67,7 @@ def create_tables(_guard_test_environment: None) -> Iterator[None]:
         with sync_engine.begin() as conn:
             db_name = conn.scalar(text("SELECT current_database()"))
 
-            if not (db_name or "").endswith("_test"):
+            if not (db_name.lower() or "").endswith("_test"):
                 pytest.exit(
                     f"Refusing to reset database '{db_name}': "
                     "name must end with '_test'",
