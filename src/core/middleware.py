@@ -89,7 +89,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         start = time.perf_counter()
 
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+
+        except Exception:
+            self._log(request, 500, start)
+
+            raise
 
         self._log(request, response.status_code, start)
 
