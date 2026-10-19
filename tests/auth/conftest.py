@@ -10,10 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.service import AuthService
 from src.auth.tokens import sha256
+from src.core.security import generate_token
+from src.emails.models import Email
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
 from src.users.models.login_history import LoginHistory
 from src.users.models.login_lockout import UserLoginLockout
+from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 from src.users.utils.enums import UserStatus
 from tests.auth.constants import PASSWORD, RAW_ACTIVATION_TOKEN
@@ -197,3 +200,48 @@ async def pending_user(test_session):
     await test_session.flush()
 
     return teacher
+
+
+async def get_reset(session: AsyncSession, credentials_id: int):
+    result = await session.execute(
+        select(UserPasswordReset)
+        .where(UserPasswordReset.credentials_id == credentials_id)
+        .execution_options(populate_existing=True)
+    )
+
+    return result.scalars().all()
+
+
+async def get_emails(session: AsyncSession, recipient_email: str):
+    result = await session.execute(
+        select(Email).where(Email.recipient_email == recipient_email)
+    )
+
+    return result.scalars().all()
+
+
+async def count_all_resets(session: AsyncSession) -> int:
+    result = await session.execute(select(UserPasswordReset))
+
+    return len(result.scalars().all())
+
+
+async def count_all_emails(session: AsyncSession) -> int:
+    result = await session.execute(select(Email))
+
+    return len(result.scalars().all())
+
+
+async def seed_reset(session: AsyncSession, credentials_id: int):
+    raw_token, hashed_token = generate_token()
+
+    session.add(
+        UserPasswordReset(
+            credentials_id=credentials_id,
+            reset_password_token_hash=hashed_token,
+            reset_password_token_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        )
+    )
+    await session.flush()
+
+    return raw_token, hashed_token

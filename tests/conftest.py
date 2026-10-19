@@ -7,7 +7,7 @@ import redis.asyncio as aioredis
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.pool import NullPool
 
 import src.models  # noqa: F401  (registers every model on the metadata)
@@ -15,7 +15,7 @@ from src.auth.tokens import create_access_token
 from src.core.caching import get_redis
 from src.core.config import Settings, get_settings
 from src.core.dependencies import get_session
-from src.database.connection import ImmutableBase
+from src.database.connection import ImmutableBase, engine
 from src.main import app
 from src.users.models.credentials import UserCredentials
 from src.users.repository.session import UserSessionRepository
@@ -38,8 +38,6 @@ SYNC_DB_URL = URL.create(
     database=settings.DB_NAME,
 )
 
-test_engine = create_async_engine(url=settings.DATABASE_URL, poolclass=NullPool)
-
 
 @pytest.fixture(scope="session", autouse=True)
 def _guard_test_environment():
@@ -53,6 +51,9 @@ def _guard_test_environment():
 
     if settings.REDIS_DB != 1:
         problems.append(f"REDIS_DB is {settings.REDIS_DB}, expected 1 for tests")
+
+    if not isinstance(engine.sync_engine.pool, NullPool):
+        problems.append("app engine is pooled; tests require NullPool")
 
     if problems:
         pytest.exit("Refusing to run tests: " + "; ".join(problems), returncode=2)
@@ -86,7 +87,7 @@ def create_tables(_guard_test_environment: None) -> Iterator[None]:
 
 @pytest_asyncio.fixture
 async def test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
-    async with test_engine.connect() as conn:
+    async with engine.connect() as conn:
         outer = await conn.begin()
 
         session = AsyncSession(
