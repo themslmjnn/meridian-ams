@@ -12,9 +12,9 @@ from src.emails.utils.enums import EmailStatus
 class EmailRepository:
     @staticmethod
     async def get_pending_batch(
-        session: AsyncSession, *, limit: int = 20
+        db_session: AsyncSession, *, limit: int = 20
     ) -> list[Email]:
-        result = await session.execute(
+        query = (
             select(Email)
             .where(
                 Email.status == EmailStatus.PENDING,
@@ -24,7 +24,9 @@ class EmailRepository:
             .limit(limit)
         )
 
-        return list(result.scalars().all())
+        result = await db_session.execute(query)
+
+        return result.scalars().all()
 
     @staticmethod
     async def mark_sent(record: Email) -> None:
@@ -54,10 +56,13 @@ class EmailRepository:
 
         if filters.status is not None:
             base_query = base_query.where(Email.status == filters.status)
+
         if filters.email_type is not None:
             base_query = base_query.where(Email.email_type == filters.email_type)
+
         if filters.triggered_by is not None:
             base_query = base_query.where(Email.triggered_by == filters.triggered_by)
+
         if filters.recipient_email is not None:
             base_query = base_query.where(
                 Email.recipient_email.cast(String).ilike(f"%{filters.recipient_email}%")
@@ -67,7 +72,7 @@ class EmailRepository:
 
     @staticmethod
     async def get_emails(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: SearchEmail | None = None,
         limit: int = 20,
@@ -78,7 +83,7 @@ class EmailRepository:
         query = EmailRepository.apply_filters(query, filters)
 
         return await paginate(
-            session,
+            db_session,
             query,
             model=Email,
             limit=limit,
@@ -87,19 +92,19 @@ class EmailRepository:
         )
 
     @staticmethod
-    async def get_by_id(session: AsyncSession, email_id: int) -> Email | None:
+    async def get_by_id(db_session: AsyncSession, email_id: int) -> Email | None:
         query = select(Email).where(Email.id == email_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
     async def get_by_triggered_by(
-        session: AsyncSession, credentials_id: int
+        db_session: AsyncSession, credentials_id: int
     ) -> list[Email]:
         query = select(Email).where(Email.triggered_by == credentials_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalars().all()

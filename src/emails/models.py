@@ -25,13 +25,15 @@ class Email(MutableBase):
         default=EmailStatus.PENDING,
         index=True,
     )
+
     retry_count: Mapped[int] = mapped_column(nullable=False, default=0)
     max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
+
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-
     triggered_by: Mapped[int | None] = mapped_column(
         ForeignKey("user_credentials.id", ondelete="SET NULL"),
         nullable=True,
