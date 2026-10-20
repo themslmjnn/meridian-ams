@@ -27,27 +27,6 @@ def clear_refresh_token_cookie(response: Response) -> None:
     )
 
 
-def set_refresh_token_family_cookie(
-    response: Response, raw_refresh_token_family: str
-) -> None:
-    response.set_cookie(
-        key="refresh_token_family",
-        value=raw_refresh_token_family,
-        httponly=True,
-        secure=settings.COOKIE_SECURE,
-        samesite="strict",
-        max_age=settings.REFRESH_TOKEN_EXPIRES_DAYS * 24 * 60 * 60,
-        path=_COOKIE_PATH_REFRESH,
-    )
-
-
-def clear_refresh_token_family_cookie(response: Response) -> None:
-    response.delete_cookie(
-        key="refresh_token_family",
-        path=_COOKIE_PATH_REFRESH,
-    )
-
-
 def set_device_id_cookie(response: Response, device_id: str) -> None:
     response.set_cookie(
         key="device_id",
