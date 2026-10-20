@@ -4,9 +4,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from src.core.dependencies import (
+    db_session_dependency,
     redis_dependency,
     require_system_admin,
-    session_dependency,
 )
 from src.core.idempotency.service import make_idempotency_key_dependency
 from src.core.limiter import user_limiter
@@ -41,7 +41,7 @@ router = APIRouter(
 async def register_user(
     request: Request,
     response: Response,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     payload: CreateUserRequest,
@@ -60,7 +60,7 @@ async def register_user(
 async def update_profile(
     request: Request,
     response: Response,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -79,7 +79,7 @@ async def update_profile(
 async def update_credentials(
     request: Request,
     response: Response,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -98,7 +98,7 @@ async def update_credentials(
 async def deactivate_user(
     request: Request,
     response: Response,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -115,7 +115,7 @@ async def deactivate_user(
 @user_limiter.limit("7/minute")
 async def activate_user(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -132,7 +132,7 @@ async def activate_user(
 @user_limiter.limit("5/minute")
 async def create_reset_password_request(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -154,7 +154,7 @@ async def create_reset_password_request(
 @user_limiter.limit("5/minute")
 async def resend_activation_token(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -178,7 +178,7 @@ async def resend_activation_token(
 async def get_staff(
     request: Request,
     response: Response,
-    session: session_dependency,
+    session: db_session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -202,7 +202,7 @@ async def get_staff(
 @user_limiter.limit("30/minute")
 async def get_staff_by_public_id(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
@@ -218,7 +218,7 @@ async def get_staff_by_public_id(
 @user_limiter.limit("30/minute")
 async def get_guardians(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -242,7 +242,7 @@ async def get_guardians(
 @user_limiter.limit("30/minute")
 async def get_guardian_by_public_id(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,

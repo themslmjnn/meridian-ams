@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
 from src.core.email.service import send_email
-from src.database.connection import session_factory
+from src.database.connection import async_session_factory
 from src.emails.models import Email
 from src.emails.repository import EmailRepository
 from src.emails.utils.enums import EmailStatus
@@ -75,7 +75,7 @@ async def _run_sweep() -> None:
     batch_size = get_settings().EMAIL_WORKER_BATCH_SIZE
 
     while True:
-        async with session_factory() as session:
+        async with async_session_factory() as session:
             batch = await EmailRepository.get_pending_batch(session, limit=batch_size)
 
             if not batch:

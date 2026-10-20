@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request, status
 
 from src.core.dependencies import (
     current_user_dependency,
+    db_session_dependency,
     redis_dependency,
-    session_dependency,
 )
 from src.core.limiter import user_limiter
 from src.users.schemas.shared import (
@@ -22,7 +22,7 @@ router = APIRouter(
 
 @router.get("/me", response_model=UserResponseSelf, status_code=status.HTTP_200_OK)
 async def get_my_profile(
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
 ):
@@ -36,7 +36,7 @@ async def get_my_profile(
 @user_limiter.limit("5/minute")
 async def update_me_credentials(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
     payload: UpdateUserCredentials,
@@ -51,7 +51,7 @@ async def update_me_credentials(
 @user_limiter.limit("5/minute")
 async def confirm_email_change(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
     confirm_request: ConfirmEmailChange,
@@ -68,7 +68,7 @@ async def confirm_email_change(
 @user_limiter.limit("5/minute")
 async def update_me_password(
     request: Request,
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
     payload: UpdateMePassword,

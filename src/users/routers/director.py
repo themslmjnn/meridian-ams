@@ -3,7 +3,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
 
-from src.core.dependencies import redis_dependency, require_director, session_dependency
+from src.core.dependencies import (
+    db_session_dependency,
+    redis_dependency,
+    require_director,
+)
 from src.core.pagination import CursorPage
 from src.users.schemas.director import UserResponseDirectorDetailed
 from src.users.schemas.system_admin import SearchUserBase
@@ -22,7 +26,7 @@ router = APIRouter(
     status_code=status.HTTP_200_OK,
 )
 async def get_staff(
-    session: session_dependency,
+    session: db_session_dependency,
     _current_user: require_director,
     filters: Annotated[SearchUserBase, Depends()],
     limit: int = Query(default=20, ge=1, le=100),
@@ -44,7 +48,7 @@ async def get_staff(
     status_code=status.HTTP_200_OK,
 )
 async def get_staff_by_public_id(
-    session: session_dependency,
+    session: db_session_dependency,
     redis: redis_dependency,
     _current_user: require_director,
     public_id: uuid.UUID,

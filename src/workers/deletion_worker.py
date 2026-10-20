@@ -5,7 +5,7 @@ import asyncio
 import structlog
 
 from src.core.config import get_settings
-from src.database.connection import session_factory
+from src.database.connection import async_session_factory
 from src.users.repository.credentials import UserCredentialsRepository
 from src.users.repository.identity import UserIdentityRepository
 
@@ -35,7 +35,7 @@ async def _run_deletion_sweep() -> None:
     skipped_ids: list[int] = []
     failed_ids: list[int] = []
 
-    async with session_factory() as session:
+    async with async_session_factory() as session:
         try:
             batch = await UserCredentialsRepository.get_due_for_deletion(
                 session, limit=_BATCH_SIZE
