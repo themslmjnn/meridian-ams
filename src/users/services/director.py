@@ -20,7 +20,7 @@ logger = structlog.get_logger(__name__)
 class UserServiceDirector:
     @staticmethod
     async def get_staff(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: SearchUserBase | None = None,
         limit: int = 20,
@@ -28,7 +28,7 @@ class UserServiceDirector:
         prev_cursor: str | None = None,
     ) -> CursorPage[UserResponseBase]:
         page = await UserRepositoryBase.get_users(
-            session,
+            db_session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
@@ -45,7 +45,9 @@ class UserServiceDirector:
 
     @staticmethod
     async def get_staff_by_public_id(
-        session: AsyncSession, redis: Redis, public_id: uuid.UUID
+        db_session: AsyncSession,
+        redis: Redis,
+        public_id: uuid.UUID,
     ) -> UserResponseDirectorDetailed:
         cache_key = UserCacheKey.user_detail_key_staff(public_id)
 
@@ -55,7 +57,7 @@ class UserServiceDirector:
             return UserResponseDirectorDetailed.model_validate(cached_data)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
-            session, public_id, allowed_roles=TEACHER_ROLE
+            db_session, public_id, allowed_roles=TEACHER_ROLE
         )
         if staff is None:
             raise UserNotFoundError()
