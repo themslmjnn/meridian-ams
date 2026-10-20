@@ -11,7 +11,7 @@ from src.utils.cache_keys import EmailCacheKey
 class EmailService:
     @staticmethod
     async def get_emails(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: SearchEmail | None = None,
         limit: int = 20,
@@ -19,7 +19,7 @@ class EmailService:
         prev_cursor: str | None = None,
     ) -> CursorPage[EmailResponseBase]:
         emails = await EmailRepository.get_emails(
-            session,
+            db_session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
@@ -35,8 +35,7 @@ class EmailService:
 
     @staticmethod
     async def get_email_by_id(
-        session: AsyncSession,
-        email_id: int,
+        db_session: AsyncSession, email_id: int
     ) -> EmailResponseDetailed:
         cache_key = EmailCacheKey.email_detail_key(email_id)
         cached_data = await get_cache(cache_key)
@@ -44,7 +43,7 @@ class EmailService:
         if cached_data is not None:
             return EmailResponseDetailed.model_validate(cached_data)
 
-        email = await EmailRepository.get_by_id(session, email_id)
+        email = await EmailRepository.get_by_id(db_session, email_id)
         if email is None:
             raise EmailNotFoundError()
 
@@ -55,14 +54,11 @@ class EmailService:
         return response
 
     @staticmethod
-    async def retry_failed_email(
-        session: AsyncSession,
-        email_id: int,
-    ) -> None:
-        failed_email = await EmailRepository.get_by_id(session, email_id)
+    async def retry_failed_email(db_session: AsyncSession, email_id: int) -> None:
+        failed_email = await EmailRepository.get_by_id(db_session, email_id)
         if failed_email is None:
             raise EmailNotFoundError()
 
         await EmailRepository.reset_for_retry(failed_email)
 
-        await session.commit()
+        await db_session.commit()
