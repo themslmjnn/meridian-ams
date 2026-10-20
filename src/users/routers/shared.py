@@ -4,15 +4,17 @@ from src.core.dependencies import (
     current_user_dependency,
     db_session_dependency,
     redis_dependency,
+    require_admin_and_guardian,
 )
 from src.core.limiter import user_limiter
 from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,
-    UpdateUserCredentials,
+    UpdateMeProfile,
     UserResponseSelf,
 )
 from src.users.services.shared import UserServiceSelf
+from src.users.utils.schemas import UpdateCredentials
 
 router = APIRouter(
     prefix="/api/v1/users",
@@ -44,7 +46,7 @@ async def update_me_credentials(
     db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
-    payload: UpdateUserCredentials,
+    payload: UpdateCredentials,
 ):
     await UserServiceSelf.update_me_credentials(
         db_session, redis, current_user, payload
@@ -81,3 +83,16 @@ async def update_me_password(
     payload: UpdateMePassword,
 ):
     await UserServiceSelf.update_me_password(db_session, redis, current_user, payload)
+
+
+@router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
+@user_limiter.limit("10/minute")
+async def update_me_profile(
+    request: Request,
+    response: Response,
+    db_session: db_session_dependency,
+    redis: redis_dependency,
+    current_user: require_admin_and_guardian,
+    payload: UpdateMeProfile,
+):
+    await UserServiceSelf.update_me_profile(db_session, redis, current_user, payload)

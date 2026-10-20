@@ -21,10 +21,12 @@ from src.emails.utils.enums import EmailType
 from src.users.models.email_change import UserEmailChange
 from src.users.repository.base import UserRepositoryBase
 from src.users.repository.credentials import UserCredentialsRepository
+from src.users.repository.identity import UserIdentityRepository
 from src.users.repository.session import UserSessionRepository
 from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,
+    UpdateMeProfile,
     UserResponseSelf,
 )
 from src.users.utils.constants import STUDENT_ROLE
@@ -45,6 +47,7 @@ from src.users.utils.helpers import check_contact_limit
 from src.users.utils.schemas import LoadOptionsSchema, UpdateCredentials
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import NoChangesDetectedError, raise_unhandled_integrity_error
+from src.utils.helpers import update_object
 
 logger = structlog.get_logger(__name__)
 
@@ -375,3 +378,77 @@ class UserServiceSelf:
             credentials_id=current_user.public_id,
             method="self_service",
         )
+
+    @staticmethod
+    async def update_me_profile(
+        db_session: AsyncSession,
+        redis: Redis,
+        current_user: CurrentUser,
+        payload: UpdateMeProfile,
+    ) -> None:
+        credentials = await UserCredentialsRepository.get_by_public_id(
+            db_session, current_user.public_id
+        )
+        if credentials is None:
+            raise CredentialsNotFoundError()
+
+        identity = await UserIdentityRepository.get_by_id(
+            db_session, credentials.identity_id
+        )
+
+        is_phone_number_changing = (
+            payload.phone_number is not None
+            and payload.phone_number != identity.phone_number
+        )
+
+        if is_phone_number_changing:
+            await acquire_contact_locks(
+                db_session,
+                phone_number=payload.phone_number,
+                email=None,
+            )
+
+            await check_contact_limit(
+                db_session,
+                current_user.credentials_id,
+                username=credentials.username,
+                phone_number=payload.phone_number,
+                email=None,
+                resolved_role=credentials.role,
+                account_type=AccountType.PERSONAL,
+                exclude_credentials_id=credentials.id,
+            )
+
+        try:
+            update_object(identity, payload)
+
+            await db_session.commit()
+
+            send_email_in_background(
+                account.send_profile_updated_confirmation(credentials.email),
+                email_type=EmailType.SELF_PROFILE_UPDATING,
+            )
+
+            await delete_cache(
+                redis,
+                UserCacheKey.user_detail_key_admin(current_user.public_id),
+                UserCacheKey.user_detail_key_self(current_user.public_id),
+            )
+
+            logger.info(
+                "user_profile_updated",
+                public_id=current_user.public_id,
+                method="self_update",
+            )
+
+        except IntegrityError as exc:
+            await db_session.rollback()
+
+            logger.error(
+                "profile_update_failed",
+                public_id=current_user.public_id,
+                reason=str(exc.orig),
+            )
+
+            handle_non_student_unique_contact_error(exc)
+            raise_unhandled_integrity_error(exc)
