@@ -14,7 +14,7 @@ import src.users.utils.exceptions as exceptions
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
-from src.core.email.service import send_email_safe
+from src.core.email.service import send_email_in_background, send_email_safe
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
@@ -52,7 +52,7 @@ logger = structlog.get_logger(__name__)
 class UserService:
     @staticmethod
     async def register_user(
-        session: AsyncSession,
+        db_session: AsyncSession,
         actor_id: int,
         payload: schemas.CreateUserRequest,
     ) -> schemas.UserResponseDetailed:
@@ -86,13 +86,13 @@ class UserService:
         phone_number = None if is_existing_identity else payload.phone_number
 
         await acquire_contact_locks(
-            session,
+            db_session,
             phone_number=phone_number,
             email=payload.email,
         )
 
         await check_contact_limit(
-            session,
+            db_session,
             actor_id,
             username=payload.username,
             phone_number=phone_number,
@@ -102,7 +102,6 @@ class UserService:
         )
 
         raw_activation_token, hashed_activation_token = generate_token()
-
         activation_token_expires_at = datetime.now(UTC) + timedelta(
             hours=settings.ACTIVATION_TOKEN_EXPIRES_HOURS
         )
@@ -110,13 +109,13 @@ class UserService:
         try:
             if is_existing_identity:
                 guardian_identity = await UserIdentityRepository.get_by_id(
-                    session, payload.existing_identity_id
+                    db_session, payload.existing_identity_id
                 )
                 if guardian_identity is None:
                     raise exceptions.IdentityNotFoundError()
 
                 guardian_credentials = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
-                    session, guardian_identity.id
+                    db_session, guardian_identity.id
                 )
                 if guardian_credentials is not None:
                     raise exceptions.GuardianAccountAlreadyExistsError()
@@ -132,8 +131,8 @@ class UserService:
                     address=payload.address if is_student else None,
                 )
 
-                session.add(identity)
-                await session.flush()
+                db_session.add(identity)
+                await db_session.flush()
 
                 identity_id = identity.id
 
@@ -146,22 +145,22 @@ class UserService:
                 status=UserStatus.PENDING_ACTIVATION,
             )
 
-            session.add(credentials)
-            await session.flush()
+            db_session.add(credentials)
+            await db_session.flush()
 
             subject, html_body = emails.build_activation_email(
                 raw_activation_token, payload.username
             )
 
-            session.add(
+            db_session.add(
                 UserActivation(
                     credentials_id=credentials.id,
                     activation_token_hash=hashed_activation_token,
                     activation_token_expires_at=activation_token_expires_at,
                 )
             )
-            session.add(UserLoginLockout(credentials_id=credentials.id))
-            session.add(
+            db_session.add(UserLoginLockout(credentials_id=credentials.id))
+            db_session.add(
                 Email(
                     recipient_email=payload.email,
                     subject=subject,
@@ -171,7 +170,7 @@ class UserService:
                 )
             )
 
-            await session.flush()
+            await db_session.flush()
 
             logger.info(
                 "user_registered",
@@ -183,11 +182,11 @@ class UserService:
             )
 
             return await UserResponseRepository.get_registered_user_response(
-                session, credentials.public_id
+                db_session, credentials.public_id
             )
 
         except IntegrityError as exc:
-            await session.rollback()
+            await db_session.rollback()
 
             logger.warning(
                 "user_registration_failed",
@@ -203,14 +202,14 @@ class UserService:
 
     @staticmethod
     async def update_profile(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        actor_id: int,
         public_id: uuid.UUID,
         payload: schemas.UpdateUserRequest,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
         )
@@ -218,7 +217,7 @@ class UserService:
             raise exceptions.CredentialsNotFoundError()
 
         identity = await UserIdentityRepository.get_by_id(
-            session, credentials.identity_id
+            db_session, credentials.identity_id
         )
 
         match payload:
@@ -242,7 +241,7 @@ class UserService:
                 public_id=public_id,
                 user_role=credentials.role.value,
                 submitted_type=payload.type,
-                actor_user_id=current_user_id,
+                actor_user_id=actor_id,
             )
 
             raise exceptions.UpdatePayloadMismatchError()
@@ -254,14 +253,14 @@ class UserService:
 
         if is_phone_number_changing:
             await acquire_contact_locks(
-                session,
+                db_session,
                 phone_number=payload.phone_number,
                 email=None,
             )
 
             await check_contact_limit(
-                session,
-                current_user_id,
+                db_session,
+                actor_id,
                 username=credentials.username,
                 phone_number=payload.phone_number,
                 email=None,
@@ -273,13 +272,11 @@ class UserService:
         try:
             update_object(identity, payload)
 
-            await session.commit()
+            await db_session.commit()
 
-            asyncio.create_task(
-                send_email_safe(
+            send_email_in_background(
                     emails.send_admin_profile_override_email(credentials.email),
                     email_type=EmailType.ADMIN_PROFILE_OVERRIDE,
-                )
             )
 
             await delete_cache(
@@ -292,17 +289,17 @@ class UserService:
             logger.info(
                 "user_profile_updated",
                 public_id=public_id,
-                updated_by=current_user_id,
+                updated_by=actor_id,
                 method="admin_update",
             )
 
         except IntegrityError as exc:
-            await session.rollback()
+            await db_session.rollback()
 
             logger.error(
                 "update_profile_failed",
                 public_id=public_id,
-                requested_by=current_user_id,
+                requested_by=actor_id,
                 failure_reason=str(exc.orig),
                 method="admin_update",
             )

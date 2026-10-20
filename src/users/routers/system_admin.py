@@ -41,14 +41,14 @@ router = APIRouter(
 async def register_user(
     request: Request,
     response: Response,
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     payload: CreateUserRequest,
     idempotency_key: Annotated[str, Depends(make_idempotency_key_dependency())],
 ):
     return await RegisterUserUseCase.execute(
-        session, redis, current_user.credentials_id, payload, idempotency_key
+        db_session, redis, current_user.credentials_id, payload, idempotency_key
     )
 
 
@@ -60,14 +60,14 @@ async def register_user(
 async def update_profile(
     request: Request,
     response: Response,
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateProfileRequest,
 ):
     await UserService.update_profile(
-        session, redis, current_user.credentials_id, public_id, payload
+        db_session, redis, current_user.credentials_id, public_id, payload
     )
 
 
