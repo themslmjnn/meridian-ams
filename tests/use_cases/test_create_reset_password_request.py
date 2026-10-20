@@ -12,7 +12,7 @@ from src.core.idempotency.service import _CachedResponseSignal
 from src.core.idempotency.utils.enums import IdempotencyOperation
 from src.core.idempotency.utils.exceptions import IdempotencyPayloadMismatch
 from src.users.models.credentials import UserCredentials
-from src.users.use_cases.create_reset_password_request import (
+from src.users.use_cases.request_password_reset_public import (
     CreateResetPasswordRequestUseCase,
 )
 

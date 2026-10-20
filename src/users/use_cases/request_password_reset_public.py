@@ -18,12 +18,13 @@ from src.users.services.system_admin import UserService
 logger = structlog.get_logger(__name__)
 
 
-class CreateResetPasswordRequestUseCase:
+class RequestPasswordResetPublicUseCase:
     @staticmethod
     async def execute(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        *,
+        actor_id: int,
         public_id: uuid.UUID,
         idempotency_key: str,
     ) -> None:
@@ -34,37 +35,37 @@ class CreateResetPasswordRequestUseCase:
         )
 
         await acquire_idempotency_lock(
-            session,
+            db_session,
             redis,
             operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
-            actor_id=current_user_id,
+            actor_id=actor_id,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
         )
 
-        await UserService.create_reset_password_request(
-            session=session,
-            current_user_id=current_user_id,
+        await UserService.request_password_reset_public(
+            session=db_session,
+            current_user_id=actor_id,
             public_id=public_id,
         )
 
         await complete_idempotency_record(
-            session,
+            db_session,
             operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
-            actor_id=current_user_id,
+            actor_id=actor_id,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             http_status=status.HTTP_204_NO_CONTENT,
             body=None,
         )
 
-        await session.commit()
+        await db_session.commit()
 
         try:
             await mirror_complete_to_redis_after_commit(
                 redis,
                 operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
-                actor_id=current_user_id,
+                actor_id=actor_id,
                 idempotency_key=idempotency_key,
                 payload_hash=payload_hash,
                 http_status=status.HTTP_204_NO_CONTENT,
@@ -74,7 +75,7 @@ class CreateResetPasswordRequestUseCase:
         except RedisError as exc:
             logger.warning(
                 "idempotency_redis_mirror_failed",
-                actor_id=current_user_id,
+                actor_id=actor_id,
                 operation=IdempotencyOperation.ADMIN_RESET_PASSWORD,
                 error=str(exc),
             )
