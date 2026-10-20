@@ -14,7 +14,7 @@ import src.models  # noqa: F401  (registers every model on the metadata)
 from src.auth.tokens import create_access_token
 from src.core.caching import close_redis, init_redis
 from src.core.config import Settings, get_settings
-from src.core.dependencies import get_session
+from src.core.dependencies import get_db_session
 from src.database.connection import ImmutableBase, engine
 from src.main import app
 from src.users.models.credentials import UserCredentials
@@ -87,7 +87,7 @@ def create_tables(_guard_test_environment: None) -> Iterator[None]:
 
 
 @pytest_asyncio.fixture
-async def test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
+async def db_test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
     async with engine.connect() as conn:
         outer = await conn.begin()
 
@@ -98,16 +98,17 @@ async def test_session(create_tables: None) -> AsyncIterator[AsyncSession]:
             join_transaction_mode="create_savepoint",
         )
 
-        async def override_get_session() -> AsyncIterator[AsyncSession]:
+        async def override_get_db_session() -> AsyncIterator[AsyncSession]:
             yield session
 
-        app.dependency_overrides[get_session] = override_get_session
+        app.dependency_overrides[get_db_session] = override_get_db_session
 
         try:
             yield session
 
         finally:
-            app.dependency_overrides.pop(get_session, None)
+            app.dependency_overrides.pop(get_db_session, None)
+
             await session.close()
             await outer.rollback()
 
@@ -133,7 +134,7 @@ async def redis_client() -> AsyncIterator[aioredis.Redis]:
 
 @pytest_asyncio.fixture
 async def integration_client(
-    test_session: AsyncSession, redis_client: aioredis.Redis
+    db_test_session: AsyncSession, redis_client: aioredis.Redis
 ) -> AsyncIterator[AsyncClient]:
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://localhost"
@@ -197,10 +198,10 @@ def make_settings(monkeypatch):
 
 
 async def make_auth_header(
-    test_session: AsyncSession, credentials: UserCredentials
+    db_test_session: AsyncSession, credentials: UserCredentials
 ) -> dict:
     user_session = await UserSessionRepository.get_by_credentials_id(
-        test_session, credentials.id
+        db_test_session, credentials.id
     )
 
     access_token = create_access_token(
@@ -215,25 +216,25 @@ async def make_auth_header(
 
 
 @pytest_asyncio.fixture
-async def system_admin(test_session):
-    return await make_system_admin(test_session)
+async def system_admin(db_test_session):
+    return await make_system_admin(db_test_session)
 
 
 @pytest_asyncio.fixture
-async def director(test_session):
-    return await make_director(test_session)
+async def director(db_test_session):
+    return await make_director(db_test_session)
 
 
 @pytest_asyncio.fixture
-async def teacher(test_session):
-    return await make_teacher(test_session)
+async def teacher(db_test_session):
+    return await make_teacher(db_test_session)
 
 
 @pytest_asyncio.fixture
-async def student(test_session):
-    return await make_student(test_session)
+async def student(db_test_session):
+    return await make_student(db_test_session)
 
 
 @pytest_asyncio.fixture
-async def guardian(test_session):
-    return await make_guardian(test_session)
+async def guardian(db_test_session):
+    return await make_guardian(db_test_session)

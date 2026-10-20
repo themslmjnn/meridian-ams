@@ -24,7 +24,7 @@ def _next() -> int:
 
 
 async def make_user(
-    test_session: AsyncSession,
+    db_test_session: AsyncSession,
     *,
     role: UserRole = UserRole.STUDENT,
     account_type: AccountType = AccountType.STUDENT,
@@ -54,8 +54,8 @@ async def make_user(
         address=address,
     )
 
-    test_session.add(identity)
-    await test_session.flush()
+    db_test_session.add(identity)
+    await db_test_session.flush()
 
     credentials = UserCredentials(
         identity_id=identity.id,
@@ -68,8 +68,8 @@ async def make_user(
         status=status,
     )
 
-    test_session.add(credentials)
-    await test_session.flush()
+    db_test_session.add(credentials)
+    await db_test_session.flush()
 
     _, hashed_activation_token = generate_token()
 
@@ -83,10 +83,10 @@ async def make_user(
             ),
         )
 
-        test_session.add(new_activation)
+        db_test_session.add(new_activation)
 
-    test_session.add(UserSession(credentials_id=credentials.id))
-    test_session.add(
+    db_test_session.add(UserSession(credentials_id=credentials.id))
+    db_test_session.add(
         UserLoginLockout(
             credentials_id=credentials.id,
             failed_attempts=failed_attempts,
@@ -94,53 +94,53 @@ async def make_user(
         )
     )
 
-    await test_session.commit()
-    await test_session.refresh(credentials)
+    await db_test_session.commit()
+    await db_test_session.refresh(credentials)
 
     return credentials
 
 
-async def make_system_admin(test_session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_system_admin(db_test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session,
+        db_test_session,
         role=UserRole.SYSTEM_ADMIN,
         account_type=AccountType.WORK,
         **kwargs,
     )
 
 
-async def make_director(test_session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_director(db_test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session,
+        db_test_session,
         role=UserRole.DIRECTOR,
         account_type=AccountType.WORK,
         **kwargs,
     )
 
 
-async def make_teacher(test_session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_teacher(db_test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session,
+        db_test_session,
         role=UserRole.TEACHER,
         account_type=AccountType.WORK,
         **kwargs,
     )
 
 
-async def make_student(test_session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_student(db_test_session: AsyncSession, **kwargs) -> UserCredentials:
     kwargs.setdefault("date_of_birth", date(2008, 1, 1))
 
     return await make_user(
-        test_session,
+        db_test_session,
         role=UserRole.STUDENT,
         account_type=AccountType.STUDENT,
         **kwargs,
     )
 
 
-async def make_guardian(test_session: AsyncSession, **kwargs) -> UserCredentials:
+async def make_guardian(db_test_session: AsyncSession, **kwargs) -> UserCredentials:
     return await make_user(
-        test_session,
+        db_test_session,
         role=UserRole.GUARDIAN,
         account_type=AccountType.PERSONAL,
         **kwargs,
@@ -148,7 +148,7 @@ async def make_guardian(test_session: AsyncSession, **kwargs) -> UserCredentials
 
 
 async def make_idempotency_record(
-    test_session: AsyncSession,
+    db_test_session: AsyncSession,
     *,
     actor_id: int,
     operation: str,
@@ -169,7 +169,7 @@ async def make_idempotency_record(
         expires_at=datetime.now(UTC) + timedelta(hours=24),
     )
 
-    test_session.add(record)
-    await test_session.flush()
+    db_test_session.add(record)
+    await db_test_session.flush()
 
     return record
