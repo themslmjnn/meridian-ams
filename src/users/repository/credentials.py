@@ -48,7 +48,7 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_by_id(
-        session: AsyncSession,
+        db_session: AsyncSession,
         credentials_id: int,
         *,
         account_type: AccountType | None = None,
@@ -61,13 +61,13 @@ class UserCredentialsRepository:
 
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
     async def get_by_public_id(
-        session: AsyncSession,
+        db_session: AsyncSession,
         public_id: uuid.UUID,
         *,
         account_type: AccountType | None = None,
@@ -88,7 +88,7 @@ class UserCredentialsRepository:
 
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
@@ -107,19 +107,19 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_personal_accounts_by_identity_id(
-        session: AsyncSession, identity_id: int
+        db_session: AsyncSession, identity_id: int
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(
             UserCredentials.identity_id == identity_id,
             UserCredentials.account_type == AccountType.PERSONAL,
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def count_credentials(session: AsyncSession, identity_id: int) -> int:
+    async def count_credentials(db_session: AsyncSession, identity_id: int) -> int:
         """
         Count how many credentials rows reference this identity.
         Used by the deletion worker to decide whether to also delete
@@ -132,13 +132,13 @@ class UserCredentialsRepository:
             .where(UserCredentials.identity_id == identity_id)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one()
 
     @staticmethod
     async def count_by_phone_and_account_type(
-        session: AsyncSession,
+        db_session: AsyncSession,
         phone_number: str,
         account_type: AccountType,
         *,
@@ -162,13 +162,13 @@ class UserCredentialsRepository:
         if exclude_credentials_id is not None:
             query = query.where(UserCredentials.id != exclude_credentials_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one()
 
     @staticmethod
     async def count_by_email_and_account_type(
-        session: AsyncSession,
+        db_session: AsyncSession,
         email: str,
         account_type: AccountType,
         *,
@@ -186,12 +186,14 @@ class UserCredentialsRepository:
         if exclude_credentials_id is not None:
             query = query.where(UserCredentials.id != exclude_credentials_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one()
 
     @staticmethod
-    async def get_due_for_deletion(session: AsyncSession, limit: int = 50) -> list[int]:
+    async def get_due_for_deletion(
+        db_session: AsyncSession, limit: int = 50
+    ) -> list[int]:
         """
         Returns a batch of credentials IDs due for hard deletion.
         Returns IDs only — the worker re-verifies each row individually
@@ -208,13 +210,13 @@ class UserCredentialsRepository:
             .limit(limit)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return list(result.scalars().all())
 
     @staticmethod
     async def get_credentials_if_due(
-        session: AsyncSession, credentials_id: int
+        db_session: AsyncSession, credentials_id: int
     ) -> UserCredentials | None:
         """
         Re-verify a single row is still due for deletion before acting on it.
@@ -230,6 +232,6 @@ class UserCredentialsRepository:
             UserCredentials.deletion_scheduled_for <= datetime.now(UTC),
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()

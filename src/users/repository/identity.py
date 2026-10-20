@@ -8,15 +8,17 @@ from src.users.models.identity import UserIdentity
 
 class UserIdentityRepository:
     @staticmethod
-    async def get_by_id(session: AsyncSession, identity_id: int) -> UserIdentity | None:
+    async def get_by_id(
+        db_session: AsyncSession, identity_id: int
+    ) -> UserIdentity | None:
         query = select(UserIdentity).where(UserIdentity.id == identity_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def count_identities(session: AsyncSession, identity_id: int) -> int:
+    async def count_identities(db_session: AsyncSession, identity_id: int) -> int:
         """
         Count how many credentials rows reference this identity.
         Used by the deletion worker to decide whether to also delete
@@ -29,6 +31,6 @@ class UserIdentityRepository:
             .where(UserIdentity.id == identity_id)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one()

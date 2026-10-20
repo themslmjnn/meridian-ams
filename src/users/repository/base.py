@@ -79,7 +79,7 @@ class UserRepositoryBase:
 
     @staticmethod
     async def _paginate_mapped(
-        session: AsyncSession,
+        db_session: AsyncSession,
         query: Select,
         *,
         limit: int,
@@ -139,7 +139,7 @@ class UserRepositoryBase:
 
             direction = "forward"
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
         rows = list(result.mappings().all())
 
         has_more = len(rows) > limit
@@ -190,7 +190,7 @@ class UserRepositoryBase:
 
     @staticmethod
     async def get_users(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: SearchUserBase | None = None,
         limit: int = 20,
@@ -216,7 +216,7 @@ class UserRepositoryBase:
         query = UserRepositoryBase._apply_filters(query, filters=filters)
 
         return await UserRepositoryBase._paginate_mapped(
-            session,
+            db_session,
             query,
             limit=limit,
             next_cursor=next_cursor,
@@ -225,7 +225,7 @@ class UserRepositoryBase:
 
     @staticmethod
     async def get_user_by_public_id(
-        session: AsyncSession,
+        db_session: AsyncSession,
         public_id: uuid.UUID,
         allowed_roles: frozenset[UserRole] | None = None,
         excluded_roles: frozenset[UserRole] | None = None,
@@ -239,7 +239,7 @@ class UserRepositoryBase:
         if excluded_roles is not None:
             query = query.where(UserCredentials.role.not_in(excluded_roles))
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.mappings().one_or_none()
 
@@ -254,12 +254,12 @@ class UserResponseRepository:
 
     @staticmethod
     async def get_registered_user_response(
-        session: AsyncSession, public_id: uuid.UUID
+        db_session: AsyncSession, public_id: uuid.UUID
     ) -> RowMapping | None:
         base_join = UserRepositoryBase.get_base_join(_USER_MAPPED_COLUMNS_DETAILED)
 
         query = base_join.where(UserCredentials.public_id == public_id)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.mappings().one_or_none()

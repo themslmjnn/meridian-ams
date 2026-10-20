@@ -23,7 +23,7 @@ class UserSessionRepository:
 
     @staticmethod
     async def get_by_credentials_id(
-        session: AsyncSession, credentials_id: int
+        db_session: AsyncSession, credentials_id: int
     ) -> UserSession | None:
         query = (
             select(UserSession)
@@ -32,7 +32,7 @@ class UserSessionRepository:
             .limit(1)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
