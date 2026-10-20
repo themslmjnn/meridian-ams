@@ -705,6 +705,76 @@ class UserService:
         )
 
     @staticmethod
+    async def request_guardian_deletion_admin(
+        db_session: AsyncSession,
+        redis: Redis,
+        actor_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        credentials = await UserCredentialsRepository.get_by_public_id(
+            db_session,
+            public_id,
+            allowed_roles=constants.GUARDIAN_ROLE,
+            load_options=LoadOptionsSchema(load_sessions=True),
+        )
+        if credentials is None:
+            raise exceptions.CredentialsNotFoundError()
+
+        if credentials.status == UserStatus.PENDING_DELETION:
+            logger.warning(
+                "guardian_deletion_denied",
+                actor_user_id=actor_id,
+                public_id=public_id,
+                denial_reason="guardian_already_pending_deletion",
+            )
+
+            raise exceptions.GuardianAlreadyPendingDeletionError()
+
+        if credentials.status not in (
+            UserStatus.ACTIVE,
+            UserStatus.DEACTIVATED,
+            UserStatus.PENDING_ACTIVATION,
+        ):
+            raise exceptions.InvalidStatusTransitionError()
+
+        user_email = credentials.email
+        deletion_scheduled_for = datetime.now(UTC) + timedelta(
+            days=constants.DELETION_GRACE_PERIOD_DAYS
+        )
+
+        credentials.pre_transition_status = credentials.status
+        credentials.status = UserStatus.PENDING_DELETION
+        credentials.deletion_scheduled_for = deletion_scheduled_for
+
+        session_ids = [s.id for s in credentials.sessions]
+
+        await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
+
+        await delete_cache_critical(
+            redis,
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
+        )
+
+        await db_session.commit()
+
+        send_email_in_background(
+            emails.send_admin_guardian_deletion_email(user_email),
+            email_type=EmailType.ADMIN_ACCOUNT_DELETION,
+        )
+
+        logger.info(
+            "guardian_deletion_scheduled",
+            actor_user_id=actor_id,
+            public_id=public_id,
+            deletion_scheduled_for=deletion_scheduled_for.isoformat(),
+        )
+
+    @staticmethod
     async def get_staff(
         db_session: AsyncSession,
         *,

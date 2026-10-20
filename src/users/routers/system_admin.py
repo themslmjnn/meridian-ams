@@ -172,6 +172,24 @@ async def resend_activation_token(
     )
 
 
+@router.post(
+    "guardians/{public_id}/deletion-request",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+@user_limiter.limit("3/minute")
+async def request_guardian_deletion_admin(
+    request: Request,
+    response: Response,
+    db_session: db_session_dependency,
+    redis: redis_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+):
+    await UserService.request_guardian_deletion_admin(
+        db_session, redis, current_user.credentials_id, public_id
+    )
+
+
 @router.get(
     "/staff",
     response_model=CursorPage[UserResponseBase],
