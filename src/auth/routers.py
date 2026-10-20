@@ -34,12 +34,14 @@ async def login(
     request: Request,
     response: Response,
     session: session_dependency,
+    redis: redis_dependency,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     return await AuthService.login(
         request,
         response,
         session,
+        redis,
         form_data=form_data,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),

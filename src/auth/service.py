@@ -61,6 +61,7 @@ class AuthService:
         request: Request,
         response: Response,
         db_session: AsyncSession,
+        redis: Redis,
         form_data: OAuth2PasswordRequestForm,
         ip_address: str | None,
         user_agent: str | None,
@@ -239,6 +240,7 @@ class AuthService:
 
         incoming_device_id = request.cookies.get("device_id")
         existing_session = None
+        evicted_session_id = None
 
         if incoming_device_id:
             existing_session = await AuthRepository.get_session_by_device_id(
@@ -272,7 +274,9 @@ class AuthService:
                 db_session, credentials.id
             )
             if session_count >= settings.MAX_SESSIONS_PER_USER:
-                await AuthRepository.evict_oldest_session(db_session, credentials.id)
+                evicted_session_id = await AuthRepository.evict_oldest_session(
+                    db_session, credentials.id
+                )
 
                 logger.info(
                     "session_evicted",
@@ -321,6 +325,11 @@ class AuthService:
         )
 
         await db_session.commit()
+
+        if evicted_session_id is not None:
+            await delete_cache(
+                redis, SessionCacheKey.access_token_version_key(evicted_session_id)
+            )
 
         if should_send_account_reactivation_email:
             send_email_in_background(
