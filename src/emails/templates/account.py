@@ -888,7 +888,7 @@ async def send_email_changed_confirmation_email(old_email: str, new_email: str) 
     )
 
 
-async def send_admin_guardian_deletion_email(to_email: str) -> None:
+async def send_guardian_deletion_email(to_email: str) -> None:
     login_link = f"{settings.APP_URL}/auth/login"
 
     subject = "Your Meridian account is scheduled for deletion"
@@ -1024,7 +1024,7 @@ async def send_admin_guardian_deletion_email(to_email: str) -> None:
     )
 
 
-async def send_account_deletion_cancellation_email(to_email: str) -> None:
+async def send_admin_account_deletion_cancellation_email(to_email: str) -> None:
     login_link = f"{settings.APP_URL}/auth/login"
 
     subject = "Your Meridian account deletion has been canceled"

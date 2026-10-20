@@ -763,7 +763,7 @@ class UserService:
         await db_session.commit()
 
         send_email_in_background(
-            emails.send_admin_guardian_deletion_email(user_email),
+            emails.send_guardian_deletion_email(user_email),
             email_type=EmailType.ADMIN_ACCOUNT_DELETION,
         )
 
