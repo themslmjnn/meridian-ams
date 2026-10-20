@@ -15,7 +15,7 @@ from src.auth.tokens import decode_access_token
 from src.core.caching import get_cache_critical, get_redis, set_cache_critical
 from src.core.config import get_settings
 from src.core.exceptions import AppException
-from src.database.connection import session_factory
+from src.database.connection import async_session_factory
 from src.users.models.credentials import UserCredentials
 from src.users.repository.credentials import UserCredentialsRepository
 from src.users.repository.session import UserSessionRepository
@@ -29,8 +29,8 @@ logger = structlog.get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with session_factory() as session:
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with async_session_factory() as session:
         try:
             yield session
 
@@ -40,7 +40,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
-session_dependency = Annotated[AsyncSession, Depends(get_session)]
+db_session_dependency = Annotated[AsyncSession, Depends(get_db_session)]
 redis_dependency = Annotated[Redis, Depends(get_redis)]
 
 
@@ -73,7 +73,7 @@ async def _read_atv_cache(
 
 async def get_current_user(
     request: Request,
-    session: session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     access_token: Annotated[str | None, Depends(oauth2_scheme)],
 ) -> CurrentUser:
@@ -113,7 +113,7 @@ async def get_current_user(
 
         return current_user
 
-    user_session = await UserSessionRepository.get_by_id(session, session_id)
+    user_session = await UserSessionRepository.get_by_id(db_session, session_id)
 
     if user_session is None:
         raise exceptions.InvalidAccessTokenError(
@@ -121,7 +121,7 @@ async def get_current_user(
         )
 
     credentials = await UserCredentialsRepository.get_by_id(
-        session, user_session.credentials_id
+        db_session, user_session.credentials_id
     )
 
     if credentials is None or credentials.public_id != public_id:
@@ -134,8 +134,6 @@ async def get_current_user(
 
     settings = get_settings()
 
-    # Short TTL bounds how long a missed invalidation (revoked session, changed
-    # status or role) can stay unnoticed on the cache-hit path.
     await set_cache_critical(
         redis,
         atv_key,
