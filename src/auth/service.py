@@ -1,4 +1,3 @@
-import secrets
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -386,6 +385,40 @@ class AuthService:
             "user_logged_out",
             credentials_id=current_user.credentials_id,
             session_id=current_user.session_id,
+        )
+
+    @staticmethod
+    async def logout_all(
+        response: Response,
+        db_session: AsyncSession,
+        redis: Redis,
+        current_user: CurrentUser,
+    ) -> None:
+        session_ids = await AuthRepository.get_session_ids(
+            db_session, current_user.credentials_id
+        )
+
+        await AuthRepository.delete_all_sessions(
+            db_session, current_user.credentials_id
+        )
+
+        await delete_cache_critical(
+            redis,
+            *[
+                SessionCacheKey.access_token_version_key(session_id)
+                for session_id in session_ids
+            ],
+        )
+
+        await db_session.commit()
+
+        cookies.clear_refresh_cookie(response)
+        cookies.clear_device_id_cookie(response)
+
+        logger.info(
+            "logout_all",
+            credentials_id=current_user.credentials_id,
+            sessions_revoked=len(session_ids),
         )
 
     @staticmethod
