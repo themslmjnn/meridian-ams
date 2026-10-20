@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, Request, Response, status
 
 from src.core.dependencies import (
     current_user_dependency,
@@ -20,13 +20,17 @@ router = APIRouter(
 )
 
 
-@router.get("/me", response_model=UserResponseSelf, status_code=status.HTTP_200_OK)
+@router.get(
+    "/me",
+    response_model=UserResponseSelf,
+    status_code=status.HTTP_200_OK,
+)
 async def get_my_profile(
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
 ):
-    return await UserServiceSelf.get_my_profile(session, redis, current_user)
+    return await UserServiceSelf.get_my_profile(db_session, redis, current_user)
 
 
 @router.patch(
@@ -36,12 +40,15 @@ async def get_my_profile(
 @user_limiter.limit("5/minute")
 async def update_me_credentials(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
     payload: UpdateUserCredentials,
 ):
-    await UserServiceSelf.update_me_credentials(session, redis, current_user, payload)
+    await UserServiceSelf.update_me_credentials(
+        db_session, redis, current_user, payload
+    )
 
 
 @router.post(
@@ -51,14 +58,13 @@ async def update_me_credentials(
 @user_limiter.limit("5/minute")
 async def confirm_email_change(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
-    confirm_request: ConfirmEmailChange,
+    payload: ConfirmEmailChange,
 ):
-    await UserServiceSelf.confirm_email_change(
-        session, redis, current_user, confirm_request
-    )
+    await UserServiceSelf.confirm_email_change(db_session, redis, current_user, payload)
 
 
 @router.patch(
@@ -68,9 +74,10 @@ async def confirm_email_change(
 @user_limiter.limit("5/minute")
 async def update_me_password(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
     payload: UpdateMePassword,
 ):
-    await UserServiceSelf.update_me_password(session, redis, current_user, payload)
+    await UserServiceSelf.update_me_password(db_session, redis, current_user, payload)

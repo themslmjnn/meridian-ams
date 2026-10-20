@@ -1,4 +1,3 @@
-import asyncio
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -10,14 +9,14 @@ from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
-from src.core.email.service import send_email_safe
+from src.core.email.service import send_email_in_background
 from src.core.security import (
     generate_email_change_code,
     hash_password,
     verify_email_change_code,
     verify_password,
 )
-from src.emails.templates import account
+from src.emails.templates import account, security
 from src.emails.utils.enums import EmailType
 from src.users.models.email_change import UserEmailChange
 from src.users.repository.base import UserRepositoryBase
@@ -54,7 +53,7 @@ logger = structlog.get_logger(__name__)
 class UserServiceSelf:
     @staticmethod
     async def get_my_profile(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
     ) -> UserResponseSelf:
@@ -65,7 +64,7 @@ class UserServiceSelf:
             return UserResponseSelf.model_validate(cached_data)
 
         user = await UserRepositoryBase.get_user_by_public_id(
-            session,
+            db_session,
             current_user.public_id,
             excluded_roles=STUDENT_ROLE,
         )
@@ -80,13 +79,13 @@ class UserServiceSelf:
 
     @staticmethod
     async def update_me_credentials(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
         payload: UpdateUserCredentials,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             current_user.public_id,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
@@ -120,7 +119,7 @@ class UserServiceSelf:
                     email_change_token_expires_at=code_expires_at,
                 )
 
-                session.add(new_email_change)
+                db_session.add(new_email_change)
             else:
                 pending_still_active = (
                     credentials.email_change.email_change_code_expires_at is not None
@@ -153,14 +152,12 @@ class UserServiceSelf:
                     credentials.sessions
                 )
 
-            await session.commit()
+            await db_session.commit()
 
             if email_requested:
-                asyncio.create_task(
-                    send_email_safe(
-                        account.send_email_change_verification(payload.email, raw_code),
-                        email_type=EmailType.EMAIL_CHANGE_CODE,
-                    )
+                send_email_in_background(
+                    account.send_email_change_email(payload.email, raw_code),
+                    email_type=EmailType.EMAIL_CHANGE,
                 )
 
             keys_to_delete = [
@@ -196,7 +193,7 @@ class UserServiceSelf:
                 )
 
         except IntegrityError as exc:
-            await session.rollback()
+            await db_session.rollback()
 
             logger.error(
                 "credentials_update_failed",
@@ -210,13 +207,13 @@ class UserServiceSelf:
 
     @staticmethod
     async def confirm_email_change(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
-        confirm_request: ConfirmEmailChange,
+        payload: ConfirmEmailChange,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             current_user.public_id,
             load_options=LoadOptionsSchema(
                 load_sessions=True,
@@ -236,7 +233,7 @@ class UserServiceSelf:
             raise EmailChangeCodeExpiredError()
 
         if not verify_email_change_code(
-            confirm_request.code, credentials.email_change.email_change_token_hash
+            payload.code, credentials.email_change.email_change_token_hash
         ):
             logger.warning(
                 "email_change_confirmation_denied",
@@ -250,13 +247,13 @@ class UserServiceSelf:
         is_student = credentials.account_type == AccountType.STUDENT
 
         await acquire_contact_locks(
-            session,
+            db_session,
             phone_number=None,
             email=new_email,
         )
 
         await check_contact_limit(
-            session,
+            db_session,
             current_user.credentials_id,
             username=credentials.username,
             phone_number=None,
@@ -270,22 +267,11 @@ class UserServiceSelf:
             old_email = credentials.email
             credentials.email = new_email
 
-            await session.delete(credentials.email_change)
+            await db_session.delete(credentials.email_change)
 
             session_ids = [s.id for s in credentials.sessions]
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
-
-            await session.commit()
-
-            asyncio.create_task(
-                send_email_safe(
-                    account.send_email_changed_notification(
-                        old_email, credentials.email
-                    ),
-                    email_type=EmailType.EMAIL_CHANGED,
-                )
-            )
 
             await delete_cache(
                 redis,
@@ -298,6 +284,15 @@ class UserServiceSelf:
                 UserCacheKey.user_detail_key_self(current_user.public_id),
             )
 
+            await db_session.commit()
+
+            send_email_in_background(
+                account.send_email_changed_confirmation_email(
+                    old_email, credentials.email
+                ),
+                email_type=EmailType.EMAIL_CHANGE_CONFIRMATION,
+            )
+
             logger.info(
                 "email_changed",
                 credentials_id=current_user.public_id,
@@ -305,7 +300,7 @@ class UserServiceSelf:
             )
 
         except IntegrityError as exc:
-            await session.rollback()
+            await db_session.rollback()
 
             logger.error(
                 "email_change_confirmation_failed",
@@ -320,13 +315,13 @@ class UserServiceSelf:
 
     @staticmethod
     async def update_me_password(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
         payload: UpdateMePassword,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             current_user.public_id,
             load_options=LoadOptionsSchema(load_sessions=True),
         )
@@ -361,21 +356,19 @@ class UserServiceSelf:
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-        await session.commit()
-
-        asyncio.create_task(
-            send_email_safe(
-                account.send_password_changed_notification(credentials.email),
-                email_type=EmailType.PASSWORD_CHANGED,
-            )
-        )
-
         await delete_cache(
             redis,
             *[
                 SessionCacheKey.access_token_version_key(session_id)
                 for session_id in session_ids
             ],
+        )
+
+        await db_session.commit()
+
+        send_email_in_background(
+            security.send_password_changed_confirmation(credentials.email),
+            email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
         )
 
         logger.info(
