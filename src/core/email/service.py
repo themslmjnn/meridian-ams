@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Awaitable
 from typing import Any
 
@@ -9,6 +10,9 @@ from src.core.email.providers import send_via_mailtrap, send_via_resend
 logger = structlog.get_logger(__name__)
 
 settings = get_settings()
+
+
+_background_tasks: set[asyncio.Task[None]] = set()
 
 
 async def send_email(subject: str, to_email: str, html_body: str) -> None:
@@ -25,7 +29,7 @@ async def send_email(subject: str, to_email: str, html_body: str) -> None:
 
 async def send_email_safe(email_operation: Awaitable[Any], **log_context: Any) -> None:
     """
-    Fire-and-forget send. Swallows all exceptions and logs them as warnings.
+    Fire-and-forget send. Swallows all exceptions and logs them as errors.
     Use for informational emails where delivery failure is acceptable
     and no retry or DB record is needed.
 
@@ -43,3 +47,20 @@ async def send_email_safe(email_operation: Awaitable[Any], **log_context: Any) -
             error_type=type(exc).__name__,
             **log_context,
         )
+
+
+def send_email_in_background(
+    email_operation: Awaitable[Any], **log_context: Any
+) -> None:
+    """
+    Schedule a fire-and-forget informational email.
+
+    Wraps send_email_safe and keeps a strong reference to the task so it
+    isn't garbage-collected mid-run. Failures are logged, never raised.
+    """
+
+    task = asyncio.create_task(send_email_safe(email_operation, **log_context))
+
+    _background_tasks.add(task)
+
+    task.add_done_callback(_background_tasks.discard)
