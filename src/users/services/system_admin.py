@@ -12,7 +12,7 @@ import src.users.schemas.system_admin as schemas
 import src.users.utils.constants as constants
 import src.users.utils.exceptions as exceptions
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache, get_cache, set_cache
+from src.core.caching import delete_cache, delete_cache_critical, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.email.service import send_email_in_background, send_email_safe
 from src.core.pagination import CursorPage
@@ -431,9 +431,7 @@ class UserService:
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-            await db_session.commit()
-
-            await delete_cache(
+            await delete_cache_critical(
                 redis,
                 *[
                     SessionCacheKey.access_token_version_key(session_id)
@@ -443,6 +441,8 @@ class UserService:
                 UserCacheKey.user_detail_key_staff(public_id),
                 UserCacheKey.user_detail_key_self(public_id),
             )
+
+            await db_session.commit()
 
             logger.info(
                 "user_credentials_updated",
