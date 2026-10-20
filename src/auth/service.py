@@ -1,4 +1,3 @@
-import asyncio
 import secrets
 from datetime import UTC, datetime, timedelta
 
@@ -23,10 +22,10 @@ from src.auth.tokens import (
     create_refresh_token,
     decode_refresh_token,
 )
-from src.core.caching import delete_cache, delete_cache_critical
+from src.core.caching import delete_cache_critical
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
-from src.core.email.service import send_email_in_background, send_email_safe
+from src.core.email.service import send_email_in_background
 from src.core.security import (
     generate_token,
     hash_password,
