@@ -52,7 +52,7 @@ else:
 
 engine: AsyncEngine = create_async_engine(**_engine_kwargs)
 
-session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
+async_session_factory: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
     expire_on_commit=False,
