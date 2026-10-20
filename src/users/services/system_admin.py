@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import assert_never
@@ -14,7 +13,7 @@ import src.users.utils.exceptions as exceptions
 from src.core.advisory_locks import acquire_contact_locks
 from src.core.caching import delete_cache, delete_cache_critical, get_cache, set_cache
 from src.core.config import get_settings
-from src.core.email.service import send_email_in_background, send_email_safe
+from src.core.email.service import send_email_in_background
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
@@ -707,7 +706,7 @@ class UserService:
 
     @staticmethod
     async def get_staff(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: schemas.SearchUserBase | None = None,
         limit: int = 20,
@@ -715,7 +714,7 @@ class UserService:
         prev_cursor: str | None = None,
     ) -> CursorPage[schemas.UserResponseBase]:
         page = await UserRepositoryBase.get_users(
-            session,
+            db_session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
@@ -732,7 +731,9 @@ class UserService:
 
     @staticmethod
     async def get_staff_by_public_id(
-        session: AsyncSession, redis: Redis, public_id: uuid.UUID
+        db_session: AsyncSession,
+        redis: Redis,
+        public_id: uuid.UUID,
     ) -> schemas.UserResponseDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
@@ -742,7 +743,7 @@ class UserService:
             return schemas.UserResponseDetailed.model_validate(cached_data)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
-            session, public_id, allowed_roles=constants.STAFF_ROLES
+            db_session, public_id, allowed_roles=constants.STAFF_ROLES
         )
         if staff is None:
             raise exceptions.UserNotFoundError()
@@ -755,7 +756,7 @@ class UserService:
 
     @staticmethod
     async def get_guardians(
-        session: AsyncSession,
+        db_session: AsyncSession,
         *,
         filters: schemas.SearchUserBase | None = None,
         limit: int = 20,
@@ -763,7 +764,7 @@ class UserService:
         prev_cursor: str | None = None,
     ) -> CursorPage[schemas.UserResponseBase]:
         page = await UserRepositoryBase.get_users(
-            session,
+            db_session,
             filters=filters,
             limit=limit,
             next_cursor=next_cursor,
@@ -780,7 +781,9 @@ class UserService:
 
     @staticmethod
     async def get_guardian_by_public_id(
-        session: AsyncSession, redis: Redis, public_id: uuid.UUID
+        db_session: AsyncSession,
+        redis: Redis,
+        public_id: uuid.UUID,
     ) -> schemas.UserResponseDetailed:
         cache_key = UserCacheKey.user_detail_key_admin(public_id)
 
@@ -790,7 +793,7 @@ class UserService:
             return schemas.UserResponseDetailed.model_validate(cached_data)
 
         guardian = await UserRepositoryBase.get_user_by_public_id(
-            session, public_id, allowed_roles=constants.GUARDIAN_ROLE
+            db_session, public_id, allowed_roles=constants.GUARDIAN_ROLE
         )
         if guardian is None:
             raise exceptions.UserNotFoundError()

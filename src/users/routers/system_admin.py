@@ -181,7 +181,7 @@ async def resend_activation_token(
 async def get_staff(
     request: Request,
     response: Response,
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -189,7 +189,7 @@ async def get_staff(
     prev_cursor: Annotated[str | None, Query()] = None,
 ):
     return await UserService.get_staff(
-        session,
+        db_session,
         filters=filters,
         limit=limit,
         next_cursor=next_cursor,
@@ -205,12 +205,13 @@ async def get_staff(
 @user_limiter.limit("30/minute")
 async def get_staff_by_public_id(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserService.get_staff_by_public_id(session, redis, public_id)
+    return await UserService.get_staff_by_public_id(db_session, redis, public_id)
 
 
 @router.get(
@@ -221,7 +222,8 @@ async def get_staff_by_public_id(
 @user_limiter.limit("30/minute")
 async def get_guardians(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     _current_user: require_system_admin,
     filters: Annotated[SearchUserBase, Depends()],
     limit: Annotated[int, Query(ge=1, le=100)] = 20,
@@ -229,7 +231,7 @@ async def get_guardians(
     prev_cursor: Annotated[str | None, Query()] = None,
 ):
     return await UserService.get_guardians(
-        session,
+        db_session,
         filters=filters,
         limit=limit,
         next_cursor=next_cursor,
@@ -245,9 +247,10 @@ async def get_guardians(
 @user_limiter.limit("30/minute")
 async def get_guardian_by_public_id(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     _current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await UserService.get_guardian_by_public_id(session, redis, public_id)
+    return await UserService.get_guardian_by_public_id(db_session, redis, public_id)
