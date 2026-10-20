@@ -275,8 +275,8 @@ class UserService:
             await db_session.commit()
 
             send_email_in_background(
-                    emails.send_admin_profile_override_email(credentials.email),
-                    email_type=EmailType.ADMIN_PROFILE_OVERRIDE,
+                emails.send_admin_profile_override_email(credentials.email),
+                email_type=EmailType.ADMIN_PROFILE_OVERRIDE,
             )
 
             await delete_cache(
