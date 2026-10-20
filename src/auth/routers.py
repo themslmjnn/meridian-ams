@@ -12,8 +12,8 @@ from src.auth.schemas import (
 from src.auth.service import AuthService
 from src.core.dependencies import (
     current_user_dependency,
+    db_session_dependency,
     redis_dependency,
-    session_dependency,
 )
 from src.core.limiter import ip_limiter
 from src.utils.exceptions import InvalidRefreshTokenError
@@ -33,7 +33,7 @@ router = APIRouter(
 async def login(
     request: Request,
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
@@ -54,7 +54,7 @@ async def login(
 )
 async def logout(
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
 ):
@@ -70,7 +70,7 @@ async def logout(
 async def refresh_token(
     request: Request,
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     refresh_token: str | None = Cookie(default=None),
 ):
@@ -89,7 +89,7 @@ async def refresh_token(
 async def activate_account(
     request: Request,
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     payload: ActivateAccount,
 ):
     return await AuthService.activate_account(
@@ -109,7 +109,7 @@ async def activate_account(
 async def request_password_reset(
     request: Request,
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     payload: PasswordResetRequestPublic,
 ):
     await AuthService.request_password_reset(db_session, payload)
@@ -123,7 +123,7 @@ async def request_password_reset(
 async def reset_password(
     request: Request,
     response: Response,
-    db_session: session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     payload: ResetPassword,
 ):
