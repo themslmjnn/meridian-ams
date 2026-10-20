@@ -502,7 +502,7 @@ class UserService:
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-        await delete_cache(
+        await delete_cache_critical(
             redis,
             *[
                 SessionCacheKey.access_token_version_key(session_id)
