@@ -59,7 +59,7 @@ class AuthService:
     async def login(
         request: Request,
         response: Response,
-        session: AsyncSession,
+        db_session: AsyncSession,
         form_data: OAuth2PasswordRequestForm,
         ip_address: str | None,
         user_agent: str | None,
@@ -67,7 +67,7 @@ class AuthService:
         settings = get_settings()
 
         credentials = await UserCredentialsRepository.get_by_username(
-            session,
+            db_session,
             form_data.username,
             load_options=LoadOptionsSchema(
                 load_identity=True,
@@ -91,7 +91,7 @@ class AuthService:
         lockout = credentials.login_lockout
 
         if lockout.locked_until and datetime.now(UTC) < lockout.locked_until:
-            session.add(
+            db_session.add(
                 LoginHistory(
                     credentials_id=credentials.id,
                     success=False,
@@ -101,7 +101,7 @@ class AuthService:
                 )
             )
 
-            await session.commit()
+            await db_session.commit()
 
             logger.warning(
                 "login_failed",
@@ -115,7 +115,7 @@ class AuthService:
             )
 
         if credentials.status == UserStatus.PENDING_ACTIVATION:
-            session.add(
+            db_session.add(
                 LoginHistory(
                     credentials_id=credentials.id,
                     success=False,
@@ -125,7 +125,7 @@ class AuthService:
                 )
             )
 
-            await session.commit()
+            await db_session.commit()
 
             logger.warning(
                 "login_failed",
@@ -139,7 +139,7 @@ class AuthService:
             UserStatus.ACTIVE,
             UserStatus.PENDING_DELETION,
         ):
-            session.add(
+            db_session.add(
                 LoginHistory(
                     credentials_id=credentials.id,
                     success=False,
@@ -149,7 +149,7 @@ class AuthService:
                 )
             )
 
-            await session.commit()
+            await db_session.commit()
 
             logger.warning(
                 "login_failed",
@@ -177,7 +177,7 @@ class AuthService:
                     locked_until=lockout.locked_until.isoformat(),
                 )
 
-            session.add(
+            db_session.add(
                 LoginHistory(
                     credentials_id=credentials.id,
                     success=False,
@@ -187,7 +187,7 @@ class AuthService:
                 )
             )
 
-            await session.commit()
+            await db_session.commit()
 
             logger.warning(
                 "login_failed",
@@ -205,7 +205,7 @@ class AuthService:
                 credentials.deletion_scheduled_for is None
                 or credentials.deletion_scheduled_for <= datetime.now(UTC)
             ):
-                session.add(
+                db_session.add(
                     LoginHistory(
                         credentials_id=credentials.id,
                         success=False,
@@ -215,7 +215,7 @@ class AuthService:
                     )
                 )
 
-                await session.commit()
+                await db_session.commit()
 
                 raise exceptions.InvalidCredentialsError()
 
@@ -240,7 +240,7 @@ class AuthService:
 
         if incoming_device_id:
             existing_session = await AuthRepository.get_session_by_device_id(
-                session,
+                db_session,
                 credentials_id=credentials.id,
                 device_id=incoming_device_id,
             )
@@ -263,16 +263,16 @@ class AuthService:
             existing_session.user_agent = user_agent
             existing_session.last_active_at = datetime.now(UTC)
 
-            await session.flush()
+            await db_session.flush()
 
             user_session = existing_session
 
         else:
             session_count = await AuthRepository.get_session_count(
-                session, credentials.id
+                db_session, credentials.id
             )
             if session_count >= settings.MAX_SESSIONS_PER_USER:
-                await AuthRepository.evict_oldest_session(session, credentials.id)
+                await AuthRepository.evict_oldest_session(db_session, credentials.id)
 
                 logger.info(
                     "session_evicted",
@@ -295,8 +295,8 @@ class AuthService:
                 device_id=device_id,
             )
 
-            session.add(user_session)
-            await session.flush()
+            db_session.add(user_session)
+            await db_session.flush()
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 public_id=credentials.public_id,
@@ -313,7 +313,7 @@ class AuthService:
             access_token_version=user_session.access_token_version,
         )
 
-        session.add(
+        db_session.add(
             LoginHistory(
                 credentials_id=credentials.id,
                 success=True,
@@ -322,7 +322,7 @@ class AuthService:
             )
         )
 
-        await session.commit()
+        await db_session.commit()
 
         if should_send_account_reactivation_email:
             asyncio.create_task(

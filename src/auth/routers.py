@@ -29,7 +29,7 @@ router = APIRouter(
     response_model=LoginResponse,
     status_code=status.HTTP_200_OK,
 )
-@ip_limiter.limit("5/minute")
+@ip_limiter.limit("10/minute")
 async def login(
     request: Request,
     response: Response,
