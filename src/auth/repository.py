@@ -26,7 +26,7 @@ class AuthRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def get_session_count(session: AsyncSession, credentials_id: int) -> int:
+    async def get_session_count(db_session: AsyncSession, credentials_id: int) -> int:
         query = (
             select(func.count())
             .select_from(UserSession)
@@ -35,17 +35,19 @@ class AuthRepository:
             )
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one()
 
     @staticmethod
-    async def get_session_ids(session: AsyncSession, credentials_id: int) -> list[int]:
+    async def get_session_ids(
+        db_session: AsyncSession, credentials_id: int
+    ) -> list[int]:
         query = select(UserSession.id).where(
             UserSession.credentials_id == credentials_id
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalars().all()
 
@@ -81,16 +83,18 @@ class AuthRepository:
         return evicted_id
 
     @staticmethod
-    async def delete_all_sessions(session: AsyncSession, credentials_id: int) -> None:
+    async def delete_all_sessions(
+        db_session: AsyncSession, credentials_id: int
+    ) -> None:
         query = delete(UserSession).where(UserSession.credentials_id == credentials_id)
 
-        await session.execute(query)
+        await db_session.execute(query)
 
-        await session.flush()
+        await db_session.flush()
 
     @staticmethod
     async def get_credentials_by_activation_token_hash(
-        session: AsyncSession, activation_token_hash: str
+        db_session: AsyncSession, activation_token_hash: str
     ) -> UserCredentials | None:
         query = (
             select(UserCredentials)
@@ -104,13 +108,13 @@ class AuthRepository:
             )
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
     async def get_credentials_by_reset_password_token_hash(
-        session: AsyncSession, token_hash: str
+        db_session: AsyncSession, token_hash: str
     ) -> UserCredentials | None:
         query = (
             select(UserCredentials)
@@ -125,25 +129,25 @@ class AuthRepository:
             )
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
     @staticmethod
     async def delete_reset_password_record(
-        session: AsyncSession, credentials_id: int
+        db_session: AsyncSession, credentials_id: int
     ) -> None:
         query = delete(UserPasswordReset).where(
             UserPasswordReset.credentials_id == credentials_id
         )
 
-        await session.execute(query)
+        await db_session.execute(query)
 
-        await session.flush()
+        await db_session.flush()
 
     @staticmethod
     async def claim_activation_token(
-        session: AsyncSession, credentials_id: int
+        db_session: AsyncSession, credentials_id: int
     ) -> bool:
         """
         Atomically delete the UserActivation row using DELETE ... RETURNING.
@@ -156,9 +160,9 @@ class AuthRepository:
             .returning(UserActivation.id)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
-        await session.flush()
+        await db_session.flush()
 
         return result.scalar_one_or_none() is not None
 
