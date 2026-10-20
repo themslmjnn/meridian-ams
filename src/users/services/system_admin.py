@@ -775,6 +775,60 @@ class UserService:
         )
 
     @staticmethod
+    async def cancel_guardian_deletion_request(
+        db_session: AsyncSession,
+        redis: Redis,
+        actor_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        credentials = await UserCredentialsRepository.get_by_public_id(
+            db_session,
+            public_id,
+        )
+        if credentials is None:
+            raise exceptions.CredentialsNotFoundError()
+
+        user_email = credentials.email
+
+        if credentials.status != UserStatus.PENDING_DELETION:
+            raise exceptions.GuardianNotPendingDeletionError()
+
+        reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
+            db_session, public_id, credentials.pre_transition_status
+        )
+
+        if not reactivated:
+            await db_session.rollback()
+
+            logger.warning(
+                "guardian_deletion_cancel_lost_race",
+                actor_user_id=actor_id,
+                public_id=public_id,
+                denial_reason="user_hard_deleted_before_cancel_committed",
+            )
+
+            raise exceptions.CredentialsNotFoundError()
+
+        await db_session.commit()
+
+        send_email_in_background(
+            emails.send_admin_account_deletion_cancellation_email(user_email),
+            email_type=EmailType.ADMIN_ACCOUNT_DELETION_CANCELLATION,
+        )
+
+        await delete_cache(
+            redis,
+            UserCacheKey.user_detail_key_admin(public_id),
+            UserCacheKey.user_detail_key_self(public_id),
+        )
+
+        logger.info(
+            "guardian_deletion_cancelled",
+            actor_user_id=actor_id,
+            public_id=public_id,
+        )
+
+    @staticmethod
     async def get_staff(
         db_session: AsyncSession,
         *,
