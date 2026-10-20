@@ -114,7 +114,9 @@ class AuthService:
         if not await verify_password(
             form_data.password, credentials.password_hash or ""
         ):
-            fresh_lockout = await AuthRepository.get_login_lockout_by_credentials_id(db_session, credentials.id)
+            fresh_lockout = await AuthRepository.get_login_lockout_by_credentials_id(
+                db_session, credentials.id
+            )
 
             fresh_lockout.failed_attempts += 1
             fresh_lockout.last_failed_at = datetime.now(UTC)
@@ -246,7 +248,6 @@ class AuthService:
 
         if existing_session is not None:
             device_id = incoming_device_id
-            raw_refresh_token_family, hashed_refresh_token_family = generate_token()
 
             raw_refresh_token, hashed_refresh_token = create_refresh_token(
                 public_id=credentials.public_id,
@@ -254,7 +255,6 @@ class AuthService:
             )
 
             existing_session.refresh_token_hash = hashed_refresh_token
-            existing_session.refresh_token_family_hash = hashed_refresh_token_family
             existing_session.refresh_token_expires_at = datetime.now(UTC) + timedelta(
                 days=settings.REFRESH_TOKEN_EXPIRES_DAYS
             )
@@ -281,12 +281,10 @@ class AuthService:
                 )
 
             device_id = secrets.token_urlsafe(32)
-            raw_refresh_token_family, hashed_refresh_token_family = generate_token()
 
             user_session = UserSession(
                 credentials_id=credentials.id,
                 refresh_token_hash="",  # set below after flush gives us session.id
-                refresh_token_family_hash=hashed_refresh_token_family,
                 refresh_token_expires_at=datetime.now(UTC)
                 + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
                 user_agent=user_agent,
@@ -356,7 +354,6 @@ class AuthService:
         )
 
         cookies.set_refresh_token_cookie(response, raw_refresh_token)
-        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
         cookies.set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
