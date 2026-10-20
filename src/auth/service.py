@@ -383,7 +383,7 @@ class AuthService:
     @staticmethod
     async def refresh_token(
         response: Response,
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         raw_refresh_token: str,
     ) -> LoginResponse:
@@ -404,7 +404,7 @@ class AuthService:
 
         # Row lock: concurrent refreshes for one session are serialised.
         user_session = await UserSessionRepository.get_by_id(
-            session, session_id, for_update=True
+            db_session, session_id, for_update=True
         )
         if (
             user_session is None
@@ -435,7 +435,7 @@ class AuthService:
         if not matches_current:
             await UserSessionRepository.invalidate_session(user_session)
 
-            await session.commit()
+            await db_session.commit()
 
             await delete_cache(
                 redis, SessionCacheKey.access_token_version_key(session_id)
@@ -451,7 +451,7 @@ class AuthService:
             raise exceptions.InvalidRefreshTokenError()
 
         credentials = await UserCredentialsRepository.get_by_id(
-            session, user_session.credentials_id
+            db_session, user_session.credentials_id
         )
         if credentials is None:
             raise exceptions.InvalidRefreshTokenError()
@@ -476,7 +476,7 @@ class AuthService:
             access_token_version=user_session.access_token_version,
         )
 
-        await session.commit()
+        await db_session.commit()
 
         logger.info(
             "refresh_token_rotated",
