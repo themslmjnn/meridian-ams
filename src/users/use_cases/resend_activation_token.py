@@ -23,7 +23,6 @@ class ResendActivationTokenUseCase:
     async def execute(
         db_session: AsyncSession,
         redis: Redis,
-        *,
         actor_id: int,
         public_id: uuid.UUID,
         idempotency_key: str,

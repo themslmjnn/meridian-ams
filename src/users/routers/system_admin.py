@@ -143,9 +143,9 @@ async def request_password_reset_public(
     await RequestPasswordResetPublicUseCase.execute(
         db_session,
         redis,
-        current_user_id=current_user.credentials_id,
-        public_id=public_id,
-        idempotency_key=idempotency_key,
+        current_user.credentials_id,
+        public_id,
+        idempotency_key,
     )
 
 
@@ -166,9 +166,9 @@ async def resend_activation_token(
     await ResendActivationTokenUseCase.execute(
         db_session,
         redis,
-        actor_id=current_user.credentials_id,
-        public_id=public_id,
-        idempotency_key=idempotency_key,
+        current_user.credentials_id,
+        public_id,
+        idempotency_key,
     )
 
 
