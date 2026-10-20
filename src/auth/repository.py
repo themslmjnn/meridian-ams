@@ -12,7 +12,7 @@ from src.users.models.session import UserSession
 class AuthRepository:
     @staticmethod
     async def get_session_by_device_id(
-        session: AsyncSession,
+        db_session: AsyncSession,
         credentials_id: int,
         device_id: str,
     ) -> UserSession | None:
@@ -21,7 +21,7 @@ class AuthRepository:
             UserSession.device_id == device_id,
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
@@ -54,6 +54,7 @@ class AuthRepository:
         db_session: AsyncSession, credentials_id: int
     ) -> int | None:
         """Delete the user's oldest session and return its ID, or None if none exist."""
+
         query = (
             select(UserSession)
             .where(UserSession.credentials_id == credentials_id)
