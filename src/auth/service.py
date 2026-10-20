@@ -75,10 +75,7 @@ class AuthService:
             ),
         )
         if credentials is None:
-            await verify_password(
-                form_data.password,
-                "$2b$12$placeholder.hash.to.keep.timing.consistent.x",
-            )
+            await verify_password(form_data.password, hashed_password=None)
 
             logger.warning(
                 "login_failed",
@@ -113,6 +110,45 @@ class AuthService:
             raise exceptions.AccountLockedError(
                 detail=f"Account locked until {lockout.locked_until.strftime('%H:%M UTC')}"
             )
+
+        if not await verify_password(
+            form_data.password, credentials.password_hash or ""
+        ):
+            lockout.failed_attempts += 1
+            lockout.last_failed_at = datetime.now(UTC)
+
+            if lockout.failed_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                lockout.locked_until = datetime.now(UTC) + timedelta(
+                    minutes=settings.LOCKOUT_DURATION_MINUTES
+                )
+
+                logger.warning(
+                    "account_locked",
+                    credentials_id=credentials.id,
+                    failed_attempts=lockout.failed_attempts,
+                    locked_until=lockout.locked_until.isoformat(),
+                )
+
+            db_session.add(
+                LoginHistory(
+                    credentials_id=credentials.id,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    failure_reason="invalid_password",
+                )
+            )
+
+            await db_session.commit()
+
+            logger.warning(
+                "login_failed",
+                credentials_id=credentials.id,
+                failed_attempts=lockout.failed_attempts,
+                failure_reason="invalid_password",
+            )
+
+            raise exceptions.InvalidCredentialsError()
 
         if credentials.status == UserStatus.PENDING_ACTIVATION:
             db_session.add(
@@ -158,45 +194,6 @@ class AuthService:
             )
 
             raise exceptions.AccessDeniedError()
-
-        if not await verify_password(
-            form_data.password, credentials.password_hash or ""
-        ):
-            lockout.failed_attempts += 1
-            lockout.last_failed_at = datetime.now(UTC)
-
-            if lockout.failed_attempts >= settings.MAX_LOGIN_ATTEMPTS:
-                lockout.locked_until = datetime.now(UTC) + timedelta(
-                    minutes=settings.LOCKOUT_DURATION_MINUTES
-                )
-
-                logger.warning(
-                    "account_locked",
-                    credentials_id=credentials.id,
-                    failed_attempts=lockout.failed_attempts,
-                    locked_until=lockout.locked_until.isoformat(),
-                )
-
-            db_session.add(
-                LoginHistory(
-                    credentials_id=credentials.id,
-                    success=False,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    failure_reason="invalid_password",
-                )
-            )
-
-            await db_session.commit()
-
-            logger.warning(
-                "login_failed",
-                credentials_id=credentials.id,
-                failed_attempts=lockout.failed_attempts,
-                failure_reason="invalid_password",
-            )
-
-            raise exceptions.InvalidCredentialsError()
 
         should_send_account_reactivation_email = False
 
