@@ -89,12 +89,12 @@ async def refresh_token(
 async def activate_account(
     request: Request,
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     payload: ActivateAccount,
 ):
     return await AuthService.activate_account(
         response,
-        session,
+        db_session,
         payload,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("User-Agent"),

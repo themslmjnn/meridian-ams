@@ -37,6 +37,7 @@ from src.core.security import (
 from src.emails.models import Email
 from src.emails.templates.authentication import (
     build_reset_password_email,
+    send_account_activated_email,
     send_guardian_account_reactivated_email,
     send_new_login_notification_email,
 )
@@ -498,7 +499,7 @@ class AuthService:
     @staticmethod
     async def activate_account(
         response: Response,
-        session: AsyncSession,
+        db_session: AsyncSession,
         payload: ActivateAccount,
         ip_address: str | None,
         user_agent: str | None,
@@ -508,7 +509,7 @@ class AuthService:
         activation_token_hash = sha256(payload.activation_token)
 
         credentials = await AuthRepository.get_credentials_by_activation_token_hash(
-            session, activation_token_hash
+            db_session, activation_token_hash
         )
         if credentials is None or credentials.activation is None:
             logger.warning(
@@ -537,7 +538,9 @@ class AuthService:
 
             raise UserNotPendingActivationError()
 
-        claimed = await AuthRepository.claim_activation_token(session, credentials.id)
+        claimed = await AuthRepository.claim_activation_token(
+            db_session, credentials.id
+        )
 
         if not claimed:
             logger.warning(
@@ -551,13 +554,11 @@ class AuthService:
         credentials.password_hash = await hash_password(payload.new_password)
         credentials.status = UserStatus.ACTIVE
 
-        raw_refresh_token_family, hashed_refresh_token_family = generate_token()
         device_id = secrets.token_urlsafe(32)
 
         user_session = UserSession(
             credentials_id=credentials.id,
             refresh_token_hash="",
-            refresh_token_family_hash=hashed_refresh_token_family,
             refresh_token_expires_at=datetime.now(UTC)
             + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
             user_agent=user_agent,
@@ -565,8 +566,8 @@ class AuthService:
             device_id=device_id,
         )
 
-        session.add(user_session)
-        await session.flush()
+        db_session.add(user_session)
+        await db_session.flush()
 
         raw_refresh_token, hashed_refresh_token = create_refresh_token(
             public_id=credentials.public_id,
@@ -582,7 +583,12 @@ class AuthService:
             access_token_version=user_session.access_token_version,
         )
 
-        await session.commit()
+        await db_session.commit()
+
+        send_email_in_background(
+            send_account_activated_email(to_email=credentials.email),
+            email_type=EmailType.ACCOUNT_ACTIVATED,
+        )
 
         logger.info(
             "account_activated",
@@ -592,7 +598,6 @@ class AuthService:
         )
 
         cookies.set_refresh_token_cookie(response, raw_refresh_token)
-        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
         cookies.set_device_id_cookie(response, device_id)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
