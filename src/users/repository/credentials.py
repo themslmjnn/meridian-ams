@@ -94,14 +94,14 @@ class UserCredentialsRepository:
 
     @staticmethod
     async def get_by_username(
-        session: AsyncSession,
+        db_session: AsyncSession,
         username: str,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.username == username)
         query = UserCredentialsRepository._build_load_options(query, load_options)
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
