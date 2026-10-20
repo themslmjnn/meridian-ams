@@ -50,24 +50,34 @@ class AuthRepository:
         return result.scalars().all()
 
     @staticmethod
-    async def evict_oldest_session(session: AsyncSession, credentials_id: int) -> None:
+    async def evict_oldest_session(
+        db_session: AsyncSession, credentials_id: int
+    ) -> int | None:
+        """Delete the user's oldest session and return its ID, or None if none exist."""
         query = (
             select(UserSession)
             .where(UserSession.credentials_id == credentials_id)
             .order_by(
+                UserSession.refresh_token_hash.is_(None).desc(),
                 UserSession.last_active_at.asc().nulls_first(),
                 UserSession.created_at.asc(),
             )
             .limit(1)
         )
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         oldest = result.scalar_one_or_none()
 
-        if oldest is not None:
-            await session.delete(oldest)
-            await session.flush()
+        if oldest is None:
+            return None
+
+        evicted_id = oldest.id
+
+        await db_session.delete(oldest)
+        await db_session.flush()
+
+        return evicted_id
 
     @staticmethod
     async def delete_all_sessions(session: AsyncSession, credentials_id: int) -> None:
