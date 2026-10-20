@@ -23,7 +23,7 @@ from src.auth.tokens import (
     create_refresh_token,
     decode_refresh_token,
 )
-from src.core.caching import delete_cache
+from src.core.caching import delete_cache, delete_cache_critical
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
 from src.core.email.service import send_email_in_background, send_email_safe
@@ -437,14 +437,13 @@ class AuthService:
 
             await db_session.commit()
 
-            await delete_cache(
+            await delete_cache_critical(
                 redis, SessionCacheKey.access_token_version_key(session_id)
             )
 
             logger.warning(
                 "refresh_security_violation",
                 session_id=session_id,
-                token_matches_current=matches_current,
                 action="session_invalidated",
             )
 
