@@ -98,13 +98,13 @@ async def update_credentials(
 async def deactivate_user(
     request: Request,
     response: Response,
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
 ):
     await UserService.deactivate_user(
-        session, redis, current_user.credentials_id, public_id
+        db_session, redis, current_user.credentials_id, public_id
     )
 
 

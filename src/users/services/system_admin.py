@@ -469,13 +469,13 @@ class UserService:
 
     @staticmethod
     async def deactivate_user(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        actor_id: int,
         public_id: uuid.UUID,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_sessions=True),
@@ -487,7 +487,7 @@ class UserService:
             logger.warning(
                 "user_deactivation_failed",
                 public_id=public_id,
-                requested_by=current_user_id,
+                requested_by=actor_id,
                 failure_reason="user_is_already_deactivated",
             )
 
@@ -503,15 +503,6 @@ class UserService:
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-        await session.commit()
-
-        asyncio.create_task(
-            send_email_safe(
-                emails.send_admin_account_deactivation_email(credentials.email),
-                email_type=EmailType.ADMIN_ACCOUNT_DEACTIVATION,
-            )
-        )
-
         await delete_cache(
             redis,
             *[
@@ -523,9 +514,16 @@ class UserService:
             UserCacheKey.user_detail_key_self(public_id),
         )
 
+        await db_session.commit()
+
+        send_email_in_background(
+            emails.send_admin_account_deactivation_email(credentials.email),
+            email_type=EmailType.ADMIN_ACCOUNT_DEACTIVATION,
+        )
+
         logger.info(
             "user_deactivated",
-            deactivated_by=current_user_id,
+            deactivated_by=actor_id,
             public_id=public_id,
         )
 
