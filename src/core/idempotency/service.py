@@ -58,7 +58,7 @@ def make_idempotency_key_dependency():
 
 
 async def acquire_idempotency_lock(
-    session: AsyncSession,
+    db_session: AsyncSession,
     redis: Redis,
     *,
     actor_id: int,
@@ -87,7 +87,10 @@ async def acquire_idempotency_lock(
         return
 
     existing = await IdempotencyRepository.get_record(
-        session, operation=operation, actor_id=actor_id, idempotency_key=idempotency_key
+        db_session,
+        operation=operation,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
     )
 
     if existing is not None:
@@ -141,17 +144,17 @@ async def acquire_idempotency_lock(
             + timedelta(seconds=get_settings().IDEMPOTENCY_KEY_TTL),
         )
 
-        session.add(record)
-        await session.flush()
+        db_session.add(record)
+        await db_session.flush()
 
     except IntegrityError as exc:
-        await session.rollback()
+        await db_session.rollback()
 
         raise IdempotencyRequestInProgress() from exc
 
 
 async def complete_idempotency_record(
-    session: AsyncSession,
+    db_session: AsyncSession,
     *,
     actor_id: int,
     operation: str,
@@ -172,7 +175,7 @@ async def complete_idempotency_record(
     """
 
     result = await IdempotencyRepository.update_record(
-        session,
+        db_session,
         operation=operation,
         actor_id=actor_id,
         idempotency_key=idempotency_key,
