@@ -327,7 +327,7 @@ class AuthService:
         await db_session.commit()
 
         if evicted_session_id is not None:
-            await delete_cache(
+            await delete_cache_critical(
                 redis, SessionCacheKey.access_token_version_key(evicted_session_id)
             )
 
