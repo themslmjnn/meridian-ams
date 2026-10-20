@@ -310,16 +310,16 @@ class UserService:
 
     @staticmethod
     async def update_credentials(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        actor_id: int,
         public_id: uuid.UUID,
         payload: UpdateCredentials,
     ) -> None:
         settings = get_settings()
 
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(
@@ -342,14 +342,14 @@ class UserService:
 
         if is_email_changing:
             await acquire_contact_locks(
-                session,
+                db_session,
                 phone_number=None,
                 email=payload.email,
             )
 
             await check_contact_limit(
-                session,
-                current_user_id,
+                db_session,
+                actor_id,
                 username=credentials.username,
                 phone_number=None,
                 email=payload.email,
@@ -365,7 +365,7 @@ class UserService:
             update_object(credentials, payload)
 
             if credentials.email_change is not None:
-                await session.delete(credentials.email_change)
+                await db_session.delete(credentials.email_change)
 
             if should_reissue_activation_token:
                 if credentials.activation is None:
@@ -391,13 +391,13 @@ class UserService:
                     raw_activation_token, credentials.username
                 )
 
-                session.add(
+                db_session.add(
                     Email(
                         recipient_email=credentials.email,
                         subject=subject,
                         html_body=html_body,
                         email_type=EmailType.ACCOUNT_ACTIVATION,
-                        triggered_by=current_user_id,
+                        triggered_by=actor_id,
                     )
                 )
 
@@ -417,13 +417,13 @@ class UserService:
                     notify_new_email,
                 )
 
-                session.add(
+                db_session.add(
                     Email(
                         recipient_email=old_email,
                         subject=subject,
                         html_body=html_body,
                         email_type=EmailType.ADMIN_CREDENTIALS_OVERRIDE,
-                        triggered_by=current_user_id,
+                        triggered_by=actor_id,
                     )
                 )
 
@@ -431,7 +431,7 @@ class UserService:
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-            await session.commit()
+            await db_session.commit()
 
             await delete_cache(
                 redis,
@@ -447,17 +447,17 @@ class UserService:
             logger.info(
                 "user_credentials_updated",
                 public_id=public_id,
-                updated_by=current_user_id,
+                updated_by=actor_id,
                 method="admin_update",
             )
 
         except IntegrityError as exc:
-            await session.rollback()
+            await db_session.rollback()
 
             logger.error(
                 "update_credentials_failed",
                 public_id=public_id,
-                requested_by=current_user_id,
+                requested_by=actor_id,
                 failurereason=str(exc.orig),
                 method="admin_update",
             )

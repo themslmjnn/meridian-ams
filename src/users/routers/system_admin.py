@@ -79,14 +79,14 @@ async def update_profile(
 async def update_credentials(
     request: Request,
     response: Response,
-    session: db_session_dependency,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
     payload: UpdateCredentials,
 ):
     await UserService.update_credentials(
-        session, redis, current_user.credentials_id, public_id, payload
+        db_session, redis, current_user.credentials_id, public_id, payload
     )
 
 
