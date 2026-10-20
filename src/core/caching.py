@@ -135,3 +135,10 @@ async def set_cache_critical(
     ex: int | None = None,
 ) -> None:
     await redis.set(key, value, ex=ex)
+
+
+async def delete_cache_critical(redis: Redis, *keys: str) -> None:
+    if not keys:
+        return
+
+    await redis.delete(*keys)
