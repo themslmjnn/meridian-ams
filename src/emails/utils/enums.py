@@ -17,6 +17,7 @@ class EmailType(StrEnum):
     EMAIL_CHANGE_CONFIRMATION = "email_change_confirmation"
     PASSWORD_CHANGE_CONFIRMATION = "password_change_confirmation"
     GUARDIAN_ACCOUNT_REACTIVATED = "guardian_account_reactivated"
+    SELF_ACCOUNT_DELETION = "self_account_deletion"
 
 
 class EmailStatus(StrEnum):
