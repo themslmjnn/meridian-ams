@@ -553,7 +553,7 @@ class AuthService:
         credentials.password_hash = await hash_password(payload.new_password)
         credentials.status = UserStatus.ACTIVE
 
-        device_id = secrets.token_urlsafe(32)
+        device_id, _ = generate_token()
 
         user_session = UserSession(
             credentials_id=credentials.id,
@@ -739,19 +739,19 @@ class AuthService:
             )
         )
 
-        await db_session.commit()
-
-        send_email_in_background(
-            send_password_changed_confirmation(credentials.email),
-            email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
-        )
-
         await delete_cache_critical(
             redis,
             *[
                 SessionCacheKey.access_token_version_key(session_id)
                 for session_id in session_ids
             ],
+        )
+
+        await db_session.commit()
+
+        send_email_in_background(
+            send_password_changed_confirmation(credentials.email),
+            email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
         )
 
         logger.info(
