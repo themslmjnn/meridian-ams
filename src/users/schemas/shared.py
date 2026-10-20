@@ -44,3 +44,43 @@ class UpdateMePassword(BaseModel):
             raise ValueError("New password must differ from current password")
 
         return self
+
+
+class UpdateMeProfile(BaseModel):
+    firstname: str | None = Field(min_length=3, max_length=50, default=None)
+    lastname: str | None = Field(min_length=3, max_length=50, default=None)
+    middlename: str | None = Field(min_length=3, max_length=50, default=None)
+
+    phone_number: str | None = None
+
+    @field_validator("firstname")
+    @classmethod
+    def _validate_firstname(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_firstname(v)
+
+    @field_validator("lastname")
+    @classmethod
+    def _validate_lastname(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_lastname(v)
+
+    @field_validator("middlename")
+    @classmethod
+    def _validate_middlename(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_middlename(v)
+
+    @field_validator("phone_number", mode="after")
+    @classmethod
+    def _validate_phone_number(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+
+        return validators.validate_phone_number(v)
