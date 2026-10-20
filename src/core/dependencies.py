@@ -201,3 +201,6 @@ require_system_admin = Annotated[
 ]
 require_director = Annotated[CurrentUser, Depends(require_roles(UserRole.DIRECTOR))]
 require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIAN))]
+require_admin_and_guardian = Annotated[
+    CurrentUser, Depends(require_roles(UserRole.SYSTEM_ADMIN, UserRole.GUARDIAN))
+]
