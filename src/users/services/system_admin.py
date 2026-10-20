@@ -529,13 +529,13 @@ class UserService:
 
     @staticmethod
     async def activate_user(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        actor_id: int,
         public_id: uuid.UUID,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_login_lockout=True),
@@ -547,7 +547,7 @@ class UserService:
             logger.warning(
                 "user_activation_failed",
                 public_id=public_id,
-                requested_by=current_user_id,
+                requested_by=actor_id,
                 reason="user_is_already_activated",
             )
 
@@ -562,13 +562,11 @@ class UserService:
             credentials.login_lockout.failed_attempts = 0
             credentials.login_lockout.locked_until = None
 
-        await session.commit()
+        await db_session.commit()
 
-        asyncio.create_task(
-            send_email_safe(
-                emails.send_admin_account_activation_email(credentials.email),
-                email_type=EmailType.ADMIN_ACCOUNT_ACTIVATION,
-            )
+        send_email_in_background(
+            emails.send_admin_account_activation_email(credentials.email),
+            email_type=EmailType.ADMIN_ACCOUNT_ACTIVATION,
         )
 
         await delete_cache(
@@ -580,7 +578,7 @@ class UserService:
 
         logger.info(
             "user_activated",
-            activated_by=current_user_id,
+            activated_by=actor_id,
             public_id=public_id,
         )
 
