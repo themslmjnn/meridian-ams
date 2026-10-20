@@ -4,6 +4,7 @@ from sqlalchemy.orm import joinedload
 
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials
+from src.users.models.login_lockout import UserLoginLockout
 from src.users.models.password_reset import UserPasswordReset
 from src.users.models.session import UserSession
 
@@ -149,3 +150,18 @@ class AuthRepository:
         await session.flush()
 
         return result.scalar_one_or_none() is not None
+
+    @staticmethod
+    async def get_login_lockout_by_credentials_id(
+        db_session: AsyncSession, credentials_id: int
+    ) -> UserLoginLockout:
+        query = (
+            select(UserLoginLockout)
+            .where(UserLoginLockout.credentials_id == credentials_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one()
