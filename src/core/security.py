@@ -9,9 +9,7 @@ from src.core.config import get_settings
 
 _BCRYPT_MAX_BYTES = 72
 
-# Verified against when there is no real hash, so "user not found" and
-# "wrong password" cost the same. Computed once at import (~250 ms).
-_DUMMY_HASH = bcrypt.hashpw(b"dummy-password", bcrypt.gensalt()).decode()
+_DUMMY_HASH = bcrypt.hashpw(b"StrongPassword_123!", bcrypt.gensalt()).decode()
 
 
 def sha256(value: str) -> str:
@@ -19,7 +17,6 @@ def sha256(value: str) -> str:
 
 
 def _keyed_hash(value: str) -> str:
-    """HMAC-SHA256 with a server secret, for low-entropy values such as codes."""
     key = get_settings().JWT_SECRET_KEY.get_secret_value().encode()
 
     return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()
@@ -45,14 +42,13 @@ def _hash_password_sync(password: str) -> str:
 
 def _verify_password_sync(plain_password: str, hashed_password: str | None) -> bool:
     encoded = plain_password.encode()
-    # Over-long input can never match; still do the work to keep timing flat.
     too_long = len(encoded) > _BCRYPT_MAX_BYTES
     target = hashed_password or _DUMMY_HASH
 
     try:
         matched = bcrypt.checkpw(encoded[:_BCRYPT_MAX_BYTES], target.encode())
 
-    except ValueError:  # malformed stored hash
+    except ValueError:
         return False
 
     return matched and not too_long and hashed_password is not None
