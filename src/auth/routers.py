@@ -71,14 +71,11 @@ async def refresh_token(
     session: session_dependency,
     redis: redis_dependency,
     refresh_token: str | None = Cookie(default=None),
-    refresh_token_family: str | None = Cookie(default=None),
 ):
-    if refresh_token is None or refresh_token_family is None:
+    if refresh_token is None:
         raise InvalidRefreshTokenError()
 
-    return await AuthService.refresh_token(
-        response, session, redis, refresh_token, refresh_token_family
-    )
+    return await AuthService.refresh_token(response, session, redis, refresh_token)
 
 
 @router.post(

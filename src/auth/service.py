@@ -386,7 +386,6 @@ class AuthService:
         session: AsyncSession,
         redis: Redis,
         raw_refresh_token: str,
-        raw_refresh_token_family: str,
     ) -> LoginResponse:
         settings = get_settings()
 
@@ -410,7 +409,6 @@ class AuthService:
         if (
             user_session is None
             or user_session.refresh_token_hash is None
-            or user_session.refresh_token_family_hash is None
             or user_session.refresh_token_expires_at is None
         ):
             logger.warning(
@@ -430,14 +428,11 @@ class AuthService:
 
             raise exceptions.ExpiredRefreshTokenError()
 
-        family_valid = verify_token(
-            raw_refresh_token_family, user_session.refresh_token_family_hash
-        )
         matches_current = verify_token(
             raw_refresh_token, user_session.refresh_token_hash
         )
 
-        if not family_valid or not matches_current:
+        if not matches_current:
             await UserSessionRepository.invalidate_session(user_session)
 
             await session.commit()
@@ -449,7 +444,6 @@ class AuthService:
             logger.warning(
                 "refresh_security_violation",
                 session_id=session_id,
-                family_valid=family_valid,
                 token_matches_current=matches_current,
                 action="session_invalidated",
             )
@@ -491,7 +485,6 @@ class AuthService:
         )
 
         cookies.set_refresh_token_cookie(response, new_raw_refresh_token)
-        cookies.set_refresh_token_family_cookie(response, raw_refresh_token_family)
 
         return LoginResponse(access_token=access_token, token_type="bearer")
 
