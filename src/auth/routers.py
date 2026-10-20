@@ -109,10 +109,10 @@ async def activate_account(
 async def request_password_reset(
     request: Request,
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     payload: PasswordResetRequestPublic,
 ):
-    await AuthService.request_password_reset(session, payload)
+    await AuthService.request_password_reset(db_session, payload)
 
 
 @router.post(

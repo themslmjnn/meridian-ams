@@ -604,7 +604,7 @@ class AuthService:
 
     @staticmethod
     async def request_password_reset(
-        session: AsyncSession,
+        db_session: AsyncSession,
         payload: PasswordResetRequestPublic,
     ) -> None:
         settings = get_settings()
@@ -612,7 +612,7 @@ class AuthService:
         raw_reset_password_token, hashed_reset_password_token = generate_token()
 
         credentials = await UserCredentialsRepository.get_by_username(
-            session,
+            db_session,
             payload.username,
             load_options=LoadOptionsSchema(
                 load_login_lockout=True,
@@ -648,7 +648,7 @@ class AuthService:
                 + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
             )
 
-            session.add(new_password_reset)
+            db_session.add(new_password_reset)
         else:
             credentials.password_reset.reset_password_token_hash = (
                 hashed_reset_password_token
@@ -659,7 +659,7 @@ class AuthService:
 
         subject, html_body = build_reset_password_email(raw_reset_password_token)
 
-        session.add(
+        db_session.add(
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
@@ -668,7 +668,7 @@ class AuthService:
             )
         )
 
-        await session.commit()
+        await db_session.commit()
 
         logger.info(
             "password_reset_requested",
