@@ -367,12 +367,11 @@ class AuthService:
             await session.delete(user_session)
             await session.commit()
 
-        await delete_cache(
+        await delete_cache_critical(
             redis, SessionCacheKey.access_token_version_key(current_user.session_id)
         )
 
         cookies.clear_refresh_token_cookie(response)
-        cookies.clear_refresh_token_family_cookie(response)
 
         logger.info(
             "user_logged_out",
