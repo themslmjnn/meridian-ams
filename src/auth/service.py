@@ -8,6 +8,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.auth.helpers import describe_user_agent
 import src.utils.exceptions as exceptions
 from src.auth import cookies
 from src.auth.repository import AuthRepository
@@ -337,7 +338,7 @@ class AuthService:
                 send_email_safe(
                     send_new_login_notification_email(
                         to_email=credentials.email,
-                        user_agent=user_agent,
+                        user_agent=describe_user_agent(user_agent),
                         login_time=login_time,
                         password_reset_link=password_reset_link,
                     ),
