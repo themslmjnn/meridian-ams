@@ -7,7 +7,7 @@ from src.users.models.session import UserSession
 class UserSessionRepository:
     @staticmethod
     async def get_by_id(
-        session: AsyncSession,
+        db_session: AsyncSession,
         session_id: int,
         *,
         for_update: bool = False,
@@ -17,7 +17,7 @@ class UserSessionRepository:
         if for_update:
             query = query.with_for_update()
 
-        result = await session.execute(query)
+        result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
 
