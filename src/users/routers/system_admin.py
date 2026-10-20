@@ -156,16 +156,17 @@ async def request_password_reset_public(
 @user_limiter.limit("5/minute")
 async def resend_activation_token(
     request: Request,
-    session: db_session_dependency,
+    response: Response,
+    db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_system_admin,
     public_id: uuid.UUID,
     idempotency_key: Annotated[str, Depends(make_idempotency_key_dependency())],
 ):
     await ResendActivationTokenUseCase.execute(
-        session=session,
-        redis=redis,
-        current_user_id=current_user.credentials_id,
+        db_session,
+        redis,
+        actor_id=current_user.credentials_id,
         public_id=public_id,
         idempotency_key=idempotency_key,
     )

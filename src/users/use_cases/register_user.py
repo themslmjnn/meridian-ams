@@ -24,7 +24,7 @@ class RegisterUserUseCase:
 
     @staticmethod
     async def execute(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         actor_id: int,
         payload: CreateUserRequest,
@@ -44,7 +44,7 @@ class RegisterUserUseCase:
         payload_hash = hash_payload(payload.model_dump(mode="json"))
 
         await acquire_idempotency_lock(
-            session,
+            db_session,
             redis,
             actor_id=actor_id,
             operation=IdempotencyOperation.REGISTER_USER,
@@ -52,12 +52,12 @@ class RegisterUserUseCase:
             payload_hash=payload_hash,
         )
 
-        result = await UserService.register_user(session, actor_id, payload)
+        result = await UserService.register_user(db_session, actor_id, payload)
 
         response = UserResponseDetailed.model_validate(result)
 
         await complete_idempotency_record(
-            session,
+            db_session,
             actor_id=actor_id,
             operation=IdempotencyOperation.REGISTER_USER,
             idempotency_key=idempotency_key,
@@ -66,7 +66,7 @@ class RegisterUserUseCase:
             body=response.model_dump(mode="json"),
         )
 
-        await session.commit()
+        await db_session.commit()
 
         try:
             await mirror_complete_to_redis_after_commit(

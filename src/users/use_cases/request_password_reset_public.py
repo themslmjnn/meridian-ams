@@ -44,9 +44,9 @@ class RequestPasswordResetPublicUseCase:
         )
 
         await UserService.request_password_reset_public(
-            db_session=db_session,
-            actor_id=actor_id,
-            public_id=public_id,
+            db_session,
+            actor_id,
+            public_id,
         )
 
         await complete_idempotency_record(

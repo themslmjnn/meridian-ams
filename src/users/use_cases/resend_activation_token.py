@@ -21,9 +21,10 @@ logger = structlog.get_logger(__name__)
 class ResendActivationTokenUseCase:
     @staticmethod
     async def execute(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
-        current_user_id: int,
+        *,
+        actor_id: int,
         public_id: uuid.UUID,
         idempotency_key: str,
     ) -> None:
@@ -34,37 +35,33 @@ class ResendActivationTokenUseCase:
         )
 
         await acquire_idempotency_lock(
-            session,
+            db_session,
             redis,
             operation=IdempotencyOperation.RESEND_ACTIVATION_TOKEN,
-            actor_id=current_user_id,
+            actor_id=actor_id,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
         )
 
-        await UserService.resend_activation_token(
-            session=session,
-            current_user_id=current_user_id,
-            public_id=public_id,
-        )
+        await UserService.resend_activation_token(db_session, actor_id, public_id)
 
         await complete_idempotency_record(
-            session,
+            db_session,
             operation=IdempotencyOperation.RESEND_ACTIVATION_TOKEN,
-            actor_id=current_user_id,
+            actor_id=actor_id,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             http_status=status.HTTP_204_NO_CONTENT,
             body=None,
         )
 
-        await session.commit()
+        await db_session.commit()
 
         try:
             await mirror_complete_to_redis_after_commit(
                 redis,
                 operation=IdempotencyOperation.RESEND_ACTIVATION_TOKEN,
-                actor_id=current_user_id,
+                actor_id=actor_id,
                 idempotency_key=idempotency_key,
                 payload_hash=payload_hash,
                 http_status=status.HTTP_204_NO_CONTENT,
@@ -74,7 +71,7 @@ class ResendActivationTokenUseCase:
         except RedisError as exc:
             logger.warning(
                 "idempotency_redis_mirror_failed",
-                actor_id=current_user_id,
+                actor_id=actor_id,
                 operation=IdempotencyOperation.RESEND_ACTIVATION_TOKEN,
                 error=str(exc),
             )

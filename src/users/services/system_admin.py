@@ -641,14 +641,14 @@ class UserService:
 
     @staticmethod
     async def resend_activation_token(
-        session: AsyncSession,
-        current_user_id: int,
+        db_session: AsyncSession,
+        actor_id: int,
         public_id: uuid.UUID,
     ) -> None:
         settings = get_settings()
 
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_activation=True),
@@ -660,7 +660,7 @@ class UserService:
             logger.warning(
                 "activation_token_resend_denied",
                 public_id=public_id,
-                actor_user_id=current_user_id,
+                actor_user_id=actor_id,
                 denial_reason="user_not_pending_activation",
             )
 
@@ -687,22 +687,22 @@ class UserService:
             raw_activation_token, credentials.username
         )
 
-        session.add(
+        db_session.add(
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
                 html_body=html_body,
                 email_type=EmailType.ACCOUNT_ACTIVATION,
-                triggered_by=current_user_id,
+                triggered_by=actor_id,
             )
         )
 
-        await session.flush()
+        await db_session.flush()
 
         logger.info(
             "activation_token_resent",
             public_id=public_id,
-            actor_user_id=current_user_id,
+            actor_user_id=actor_id,
         )
 
     @staticmethod
