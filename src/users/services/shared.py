@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.advisory_locks import acquire_contact_locks
-from src.core.caching import delete_cache, get_cache, set_cache
+from src.core.caching import delete_cache, delete_cache_critical, get_cache, set_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
 from src.core.email.service import send_email_in_background
@@ -176,7 +176,7 @@ class UserServiceSelf:
                     ]
                 )
 
-            await delete_cache(redis, *keys_to_delete)
+            await delete_cache_critical(redis, *keys_to_delete)
 
             if username_changing:
                 logger.info(
@@ -275,7 +275,7 @@ class UserServiceSelf:
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-            await delete_cache(
+            await delete_cache_critical(
                 redis,
                 *[
                     SessionCacheKey.access_token_version_key(session_id)
@@ -358,7 +358,7 @@ class UserServiceSelf:
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
-        await delete_cache(
+        await delete_cache_critical(
             redis,
             *[
                 SessionCacheKey.access_token_version_key(session_id)
