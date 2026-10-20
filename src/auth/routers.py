@@ -33,14 +33,14 @@ router = APIRouter(
 async def login(
     request: Request,
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     redis: redis_dependency,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
 ):
     return await AuthService.login(
         request,
         response,
-        session,
+        db_session,
         redis,
         form_data=form_data,
         ip_address=request.client.host if request.client else None,
@@ -54,11 +54,11 @@ async def login(
 )
 async def logout(
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     redis: redis_dependency,
     current_user: current_user_dependency,
 ):
-    await AuthService.logout(response, session, redis, current_user)
+    await AuthService.logout(response, db_session, redis, current_user)
 
 
 @router.post(
@@ -70,14 +70,14 @@ async def logout(
 async def refresh_token(
     request: Request,
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     redis: redis_dependency,
     refresh_token: str | None = Cookie(default=None),
 ):
     if refresh_token is None:
         raise InvalidRefreshTokenError()
 
-    return await AuthService.refresh_token(response, session, redis, refresh_token)
+    return await AuthService.refresh_token(response, db_session, redis, refresh_token)
 
 
 @router.post(
