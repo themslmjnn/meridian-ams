@@ -1024,7 +1024,7 @@ async def send_admin_guardian_deletion_email(to_email: str) -> None:
     )
 
 
-async def send_admin_account_deletion_cancellation_email(to_email: str) -> None:
+async def send_account_deletion_cancellation_email(to_email: str) -> None:
     login_link = f"{settings.APP_URL}/auth/login"
 
     subject = "Your Meridian account deletion has been canceled"
