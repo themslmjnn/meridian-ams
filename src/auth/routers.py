@@ -123,8 +123,8 @@ async def request_password_reset(
 async def reset_password(
     request: Request,
     response: Response,
-    session: session_dependency,
+    db_session: session_dependency,
     redis: redis_dependency,
     payload: ResetPassword,
 ):
-    await AuthService.reset_password(session, redis, payload)
+    await AuthService.reset_password(db_session, redis, payload)

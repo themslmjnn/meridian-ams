@@ -677,14 +677,14 @@ class AuthService:
 
     @staticmethod
     async def reset_password(
-        session: AsyncSession,
+        db_session: AsyncSession,
         redis: Redis,
         payload: ResetPassword,
     ) -> None:
         reset_password_token_hash = sha256(payload.reset_password_token)
 
         credentials = await AuthRepository.get_credentials_by_reset_password_token_hash(
-            session, reset_password_token_hash
+            db_session, reset_password_token_hash
         )
         if credentials is None or credentials.password_reset is None:
             logger.warning(
@@ -718,10 +718,10 @@ class AuthService:
 
             raise exceptions.InvalidResetPasswordTokenError()
 
-        session_ids = await AuthRepository.get_session_ids(session, credentials.id)
+        session_ids = await AuthRepository.get_session_ids(db_session, credentials.id)
 
-        await AuthRepository.delete_all_sessions(session, credentials.id)
-        await AuthRepository.delete_reset_password_record(session, credentials.id)
+        await AuthRepository.delete_all_sessions(db_session, credentials.id)
+        await AuthRepository.delete_reset_password_record(db_session, credentials.id)
 
         credentials.password_hash = await hash_password(payload.new_password)
 
@@ -730,7 +730,7 @@ class AuthService:
             credentials.login_lockout.locked_until = None
             credentials.login_lockout.last_failed_at = None
 
-        session.add(
+        db_session.add(
             LoginHistory(
                 credentials_id=credentials.id,
                 success=True,
@@ -740,16 +740,14 @@ class AuthService:
             )
         )
 
-        await session.commit()
+        await db_session.commit()
 
-        asyncio.create_task(
-            send_email_safe(
-                send_password_changed_confirmation(credentials.email),
-                email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
-            )
+        send_email_in_background(
+            send_password_changed_confirmation(credentials.email),
+            email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
         )
 
-        await delete_cache(
+        await delete_cache_critical(
             redis,
             *[
                 SessionCacheKey.access_token_version_key(session_id)
