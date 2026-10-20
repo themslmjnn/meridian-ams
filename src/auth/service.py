@@ -285,7 +285,7 @@ class AuthService:
                     max_cap=settings.MAX_SESSIONS_PER_USER,
                 )
 
-            device_id = secrets.token_urlsafe(32)
+            device_id, _ = generate_token()
 
             user_session = UserSession(
                 credentials_id=credentials.id,
@@ -324,12 +324,12 @@ class AuthService:
             )
         )
 
-        await db_session.commit()
-
         if evicted_session_id is not None:
             await delete_cache_critical(
                 redis, SessionCacheKey.access_token_version_key(evicted_session_id)
             )
+
+        await db_session.commit()
 
         if should_send_account_reactivation_email:
             send_email_in_background(
