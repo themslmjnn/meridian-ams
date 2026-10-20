@@ -44,8 +44,8 @@ class RequestPasswordResetPublicUseCase:
         )
 
         await UserService.request_password_reset_public(
-            session=db_session,
-            current_user_id=actor_id,
+            db_session=db_session,
+            actor_id=actor_id,
             public_id=public_id,
         )
 

@@ -583,20 +583,19 @@ class UserService:
         )
 
     @staticmethod
-    async def create_reset_password_request(
-        session: AsyncSession,
-        current_user_id: int,
+    async def request_password_reset_public(
+        db_session: AsyncSession,
+        actor_id: int,
         public_id: uuid.UUID,
     ) -> None:
         settings = get_settings()
 
         credentials = await UserCredentialsRepository.get_by_public_id(
-            session,
+            db_session,
             public_id,
             excluded_roles=constants.SYSTEM_ADMIN_ROLE,
             load_options=LoadOptionsSchema(load_password_reset=True),
         )
-
         if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
@@ -613,7 +612,7 @@ class UserService:
                 + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
             )
 
-            session.add(new_password_reset)
+            db_session.add(new_password_reset)
         else:
             credentials.password_reset.reset_password_token_hash = hashed_reset_token
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
@@ -622,22 +621,22 @@ class UserService:
 
         subject, html_body = build_reset_password_email(raw_reset_token)
 
-        session.add(
+        db_session.add(
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
                 html_body=html_body,
                 email_type=EmailType.PASSWORD_RESET_ADMIN,
-                triggered_by=current_user_id,
+                triggered_by=actor_id,
             )
         )
 
-        await session.flush()
+        await db_session.flush()
 
         logger.info(
             "reset_password_request_created",
             public_id=public_id,
-            created_by=current_user_id,
+            created_by=actor_id,
         )
 
     @staticmethod
