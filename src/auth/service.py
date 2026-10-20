@@ -114,19 +114,21 @@ class AuthService:
         if not await verify_password(
             form_data.password, credentials.password_hash or ""
         ):
-            lockout.failed_attempts += 1
-            lockout.last_failed_at = datetime.now(UTC)
+            fresh_lockout = await AuthRepository.get_login_lockout_by_credentials_id(db_session, credentials.id)
 
-            if lockout.failed_attempts >= settings.MAX_LOGIN_ATTEMPTS:
-                lockout.locked_until = datetime.now(UTC) + timedelta(
+            fresh_lockout.failed_attempts += 1
+            fresh_lockout.last_failed_at = datetime.now(UTC)
+
+            if fresh_lockout.failed_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                fresh_lockout.locked_until = datetime.now(UTC) + timedelta(
                     minutes=settings.LOCKOUT_DURATION_MINUTES
                 )
 
                 logger.warning(
                     "account_locked",
                     credentials_id=credentials.id,
-                    failed_attempts=lockout.failed_attempts,
-                    locked_until=lockout.locked_until.isoformat(),
+                    failed_attempts=fresh_lockout.failed_attempts,
+                    locked_until=fresh_lockout.locked_until.isoformat(),
                 )
 
             db_session.add(
@@ -144,7 +146,7 @@ class AuthService:
             logger.warning(
                 "login_failed",
                 credentials_id=credentials.id,
-                failed_attempts=lockout.failed_attempts,
+                failed_attempts=fresh_lockout.failed_attempts,
                 failure_reason="invalid_password",
             )
 
