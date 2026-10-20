@@ -8,9 +8,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.auth.helpers import describe_user_agent
 import src.utils.exceptions as exceptions
 from src.auth import cookies
+from src.auth.helpers import describe_user_agent
 from src.auth.repository import AuthRepository
 from src.auth.schemas import (
     ActivateAccount,
@@ -26,7 +26,7 @@ from src.auth.tokens import (
 from src.core.caching import delete_cache
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
-from src.core.email.service import send_email_safe
+from src.core.email.service import send_email_in_background, send_email_safe
 from src.core.security import (
     generate_token,
     hash_password,
@@ -323,27 +323,21 @@ class AuthService:
         await db_session.commit()
 
         if should_send_account_reactivation_email:
-            asyncio.create_task(
-                send_email_safe(
-                    send_guardian_account_reactivated_email(to_email=credentials.email),
-                    email_type=EmailType.GUARDIAN_ACCOUNT_REACTIVATED,
-                )
+            send_email_in_background(
+                send_guardian_account_reactivated_email(to_email=credentials.email),
+                email_type=EmailType.GUARDIAN_ACCOUNT_REACTIVATED,
             )
 
         if not existing_session:
             login_time = datetime.now(UTC).strftime("%B %d, %Y at %H:%M UTC")
-            password_reset_link = f"{settings.APP_URL}/api/v1/auth/password-reset"
 
-            asyncio.create_task(
-                send_email_safe(
-                    send_new_login_notification_email(
-                        to_email=credentials.email,
-                        user_agent=describe_user_agent(user_agent),
-                        login_time=login_time,
-                        password_reset_link=password_reset_link,
-                    ),
-                    email_type=EmailType.NEW_LOGIN,
-                )
+            send_email_in_background(
+                send_new_login_notification_email(
+                    to_email=credentials.email,
+                    user_agent=describe_user_agent(user_agent),
+                    login_time=login_time,
+                ),
+                email_type=EmailType.NEW_LOGIN,
             )
 
         logger.info(
