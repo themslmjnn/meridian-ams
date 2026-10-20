@@ -25,7 +25,6 @@ from src.users.repository.session import UserSessionRepository
 from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,
-    UpdateUserCredentials,
     UserResponseSelf,
 )
 from src.users.utils.constants import STUDENT_ROLE
@@ -43,7 +42,7 @@ from src.users.utils.exceptions import (
     handle_username_integrity_error,
 )
 from src.users.utils.helpers import check_contact_limit
-from src.users.utils.schemas import LoadOptionsSchema
+from src.users.utils.schemas import LoadOptionsSchema, UpdateCredentials
 from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 from src.utils.exceptions import NoChangesDetectedError, raise_unhandled_integrity_error
 
@@ -82,7 +81,7 @@ class UserServiceSelf:
         db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
-        payload: UpdateUserCredentials,
+        payload: UpdateCredentials,
     ) -> None:
         credentials = await UserCredentialsRepository.get_by_public_id(
             db_session,
