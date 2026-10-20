@@ -1,3 +1,5 @@
+from html import escape
+
 from src.core.config import get_settings
 from src.core.email.service import send_email
 
@@ -8,7 +10,6 @@ def build_new_login_notification_email(
     *,
     user_agent: str,
     login_time: str,
-    password_reset_link: str,
 ) -> tuple[str, str]:
     subject = "New login to your Meridian account"
 
@@ -83,7 +84,7 @@ def build_new_login_notification_email(
                                     color:#374151;
                                     line-height:1.5;
                                 ">
-                                    {login_time}
+                                    {escape(login_time)}
                                 </td>
                             </tr>
                             <tr>
@@ -100,7 +101,7 @@ def build_new_login_notification_email(
                                     line-height:1.5;
                                     word-break:break-word;
                                 ">
-                                    {user_agent}
+                                    {escape(user_agent)}
                                 </td>
                             </tr>
                         </table>
@@ -121,22 +122,6 @@ def build_new_login_notification_email(
                         immediately and contact your administrator.
                     </p>
 
-                    <div style="text-align:center;margin:32px 0;">
-                        <a
-                            href="{password_reset_link}"
-                            style="
-                                display:inline-block;
-                                background-color:#2563eb;
-                                color:#ffffff;
-                                padding:13px 26px;
-                                border-radius:6px;
-                                text-decoration:none;
-                                font-weight:bold;
-                            "
-                        >
-                            Reset password
-                        </a>
-                    </div>
                 </div>
 
                 <p style="
@@ -160,12 +145,10 @@ async def send_new_login_notification_email(
     to_email: str,
     user_agent: str,
     login_time: str,
-    password_reset_link: str,
 ) -> None:
     subject, html_body = build_new_login_notification_email(
         user_agent=user_agent,
         login_time=login_time,
-        password_reset_link=password_reset_link,
     )
 
     await send_email(
