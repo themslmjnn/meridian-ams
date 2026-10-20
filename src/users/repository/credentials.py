@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -235,3 +235,26 @@ class UserCredentialsRepository:
         result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def reactivate_pending_deletion_user(
+        db_session: AsyncSession,
+        public_id: uuid.UUID,
+        pre_transition_status: UserRole,
+    ) -> bool:
+        query = (
+            update(UserCredentials)
+            .where(
+                UserCredentials.public_id == public_id,
+                UserCredentials.account_type == AccountType.PERSONAL,
+                UserCredentials.status == UserStatus.PENDING_DELETION,
+            )
+            .values(
+                status=pre_transition_status,
+                deletion_scheduled_for=None,
+            )
+        )
+
+        result = await db_session.execute(query)
+
+        return result.rowcount > 0
