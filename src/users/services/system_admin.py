@@ -17,7 +17,6 @@ from src.core.email.service import send_email_in_background
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
-from src.emails.templates import account as emails
 from src.emails.templates.authentication import (
     build_account_activation_email,
     build_reset_password_email,
@@ -147,7 +146,7 @@ class UserService:
             db_session.add(credentials)
             await db_session.flush()
 
-            subject, html_body = emails.build_activation_email(
+            subject, html_body = build_account_activation_email(
                 raw_activation_token, payload.username
             )
 

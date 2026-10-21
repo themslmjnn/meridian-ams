@@ -159,7 +159,7 @@ async def send_new_login_notification_email(
 
 
 def build_account_activation_email(
-    *, raw_activation_token: str, username: str
+    raw_activation_token: str, username: str
 ) -> tuple[str, str]:
     activation_link = f"{settings.APP_URL}/auth/activation?token={raw_activation_token}"
 
