@@ -111,10 +111,10 @@ class UserServiceSelf:
             raise NoChangesDetectedError()
 
         if is_email_requested:
-            raw_email_change_code, hashed_email_change_code = (
+            raw_email_change_token, hashed_email_change_token = (
                 generate_email_change_code()
             )
-            email_change_code_expires_at = datetime.now(UTC) + timedelta(
+            email_change_token_expires_at = datetime.now(UTC) + timedelta(
                 minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRES_MINUTES
             )
 
@@ -123,14 +123,14 @@ class UserServiceSelf:
                     UserEmailChange(
                         credentials_id=credentials.id,
                         new_email=payload.email,
-                        email_change_token_hash=hashed_email_change_code,
-                        email_change_token_expires_at=email_change_code_expires_at,
+                        email_change_token_hash=hashed_email_change_token,
+                        email_change_token_expires_at=email_change_token_expires_at,
                     )
                 )
             else:
                 pending_still_active = (
-                    credentials.email_change.email_change_code_expires_at is not None
-                    and credentials.email_change.email_change_code_expires_at
+                    credentials.email_change.email_change_token_expires_at is not None
+                    and credentials.email_change.email_change_token_expires_at
                     > datetime.now(UTC)
                 )
 
@@ -148,10 +148,10 @@ class UserServiceSelf:
 
                 credentials.email_change.new_email = payload.email
                 credentials.email_change.email_change_token_hash = (
-                    hashed_email_change_code
+                    hashed_email_change_token
                 )
                 credentials.email_change.email_change_token_expires_at = (
-                    email_change_code_expires_at
+                    email_change_token_expires_at
                 )
 
         try:
@@ -185,7 +185,7 @@ class UserServiceSelf:
             if is_email_requested:
                 send_email_in_background(
                     account.send_email_change_email(
-                        payload.email, raw_email_change_code
+                        payload.email, raw_email_change_token
                     ),
                     email_type=EmailType.EMAIL_CHANGE,
                 )
