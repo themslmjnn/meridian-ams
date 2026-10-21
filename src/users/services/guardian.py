@@ -23,9 +23,9 @@ from src.utils.cache_keys import SessionCacheKey, UserCacheKey
 logger = structlog.get_logger(__name__)
 
 
-class UserServiceGuardian:
+class UserService:
     @staticmethod
-    async def create_guardian_self_deletion_request(
+    async def request_guardian_deletion_me(
         db_session: AsyncSession,
         redis: Redis,
         actor_id: int,
@@ -58,9 +58,11 @@ class UserServiceGuardian:
         credentials.status = UserStatus.PENDING_DELETION
         credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        session_ids = [s.id for s in credentials.sessions]
+        session_ids = [session.id for session in credentials.sessions]
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
+
+        await db_session.commit()
 
         await delete_cache(
             redis,
@@ -71,8 +73,6 @@ class UserServiceGuardian:
             UserCacheKey.user_detail_key_admin(actor_id),
             UserCacheKey.user_detail_key_self(actor_id),
         )
-
-        await db_session.commit()
 
         send_email_in_background(
             account.send_guardian_deletion_email(credentials.email),

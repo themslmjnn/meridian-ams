@@ -6,7 +6,7 @@ from src.core.dependencies import (
     require_guardian,
 )
 from src.core.limiter import user_limiter
-from src.users.services.guardian import UserServiceGuardian
+from src.users.services.guardian import UserService
 
 router = APIRouter(
     prefix="/api/v1/users/me",
@@ -16,13 +16,13 @@ router = APIRouter(
 
 @router.post("/deletion-request", status_code=status.HTTP_204_NO_CONTENT)
 @user_limiter.limit("3/minute")
-async def create_guardian_self_deletion_request(
+async def request_guardian_deletion_me(
     request: Request,
     response: Response,
     db_session: db_session_dependency,
     redis: redis_dependency,
     current_user: require_guardian,
 ):
-    await UserServiceGuardian.create_guardian_self_deletion_request(
+    await UserService.request_guardian_deletion_me(
         db_session, redis, current_user.credentials_id
     )
