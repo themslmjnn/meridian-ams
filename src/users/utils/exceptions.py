@@ -11,16 +11,16 @@ class UpdatePayloadMismatchError(AppException):
     error_code = "UPDATE_PAYLOAD_MISMATCH"
 
 
-class InvalidEmailChangeCodeError(AppException):
+class InvalidEmailChangeTokenError(AppException):
     status_code = 400
-    detail = HTTP400.INVALID_EMAIL_CHANGE_CODE
-    error_code = "INVALID_EMAIL_CHANGE_CODE"
+    detail = HTTP400.INVALID_EMAIL_CHANGE_TOKEN
+    error_code = "INVALID_EMAIL_CHANGE_TOKEN"
 
 
-class EmailChangeCodeExpiredError(AppException):
+class EmailChangeTokenExpiredError(AppException):
     status_code = 400
-    detail = HTTP400.EXPIRED_EMAIL_CHANGE_CODE
-    error_code = "EXPIRED_EMAIL_CHANGE_CODE"
+    detail = HTTP400.EXPIRED_EMAIL_CHANGE_TOKEN
+    error_code = "EXPIRED_EMAIL_CHANGE_TOKEN"
 
 
 class IncorrectPasswordError(AppException):

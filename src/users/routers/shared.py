@@ -13,7 +13,7 @@ from src.users.schemas.shared import (
     UpdateMeProfile,
     UserResponseDetailed,
 )
-from src.users.services.shared import UserServiceSelf
+from src.users.services.shared import UserService
 from src.users.utils.schemas import UpdateCredentials
 
 router = APIRouter(
@@ -32,7 +32,7 @@ async def get_my_profile(
     redis: redis_dependency,
     current_user: current_user_dependency,
 ):
-    return await UserServiceSelf.get_my_profile(db_session, redis, current_user)
+    return await UserService.get_my_profile(db_session, redis, current_user)
 
 
 @router.patch(
@@ -48,9 +48,7 @@ async def update_me_credentials(
     current_user: current_user_dependency,
     payload: UpdateCredentials,
 ):
-    await UserServiceSelf.update_me_credentials(
-        db_session, redis, current_user, payload
-    )
+    await UserService.update_me_credentials(db_session, redis, current_user, payload)
 
 
 @router.post(
@@ -66,7 +64,7 @@ async def confirm_email_change(
     current_user: current_user_dependency,
     payload: ConfirmEmailChange,
 ):
-    await UserServiceSelf.confirm_email_change(db_session, redis, current_user, payload)
+    await UserService.confirm_email_change(db_session, redis, current_user, payload)
 
 
 @router.patch(
@@ -82,7 +80,7 @@ async def update_me_password(
     current_user: current_user_dependency,
     payload: UpdateMePassword,
 ):
-    await UserServiceSelf.update_me_password(db_session, redis, current_user, payload)
+    await UserService.update_me_password(db_session, redis, current_user, payload)
 
 
 @router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
@@ -95,4 +93,4 @@ async def update_me_profile(
     current_user: require_admin_and_guardian,
     payload: UpdateMeProfile,
 ):
-    await UserServiceSelf.update_me_profile(db_session, redis, current_user, payload)
+    await UserService.update_me_profile(db_session, redis, current_user, payload)

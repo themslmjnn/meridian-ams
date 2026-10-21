@@ -588,10 +588,7 @@ async def send_admin_account_activation_email(to_email: str) -> None:
     )
 
 
-async def send_email_change_email(
-    new_email: str,
-    raw_email_change_token: str,
-) -> None:
+async def send_email_change_email(new_email: str, raw_email_change_token: str) -> None:
     email_change_page_link = (
         f"{settings.APP_URL}/users/me/credentials/confirm-email"
         f"?token={raw_email_change_token}"

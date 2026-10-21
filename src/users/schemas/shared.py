@@ -66,7 +66,7 @@ class UpdateMeProfile(BaseModel):
 
 
 class ConfirmEmailChange(BaseModel):
-    code: str
+    email_change_token: str
 
 
 class UpdateMePassword(BaseModel):

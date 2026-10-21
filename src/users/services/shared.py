@@ -11,13 +11,14 @@ from src.core.config import get_settings
 from src.core.dependencies import CurrentUser
 from src.core.email.service import send_email_in_background
 from src.core.security import (
-    generate_email_change_code,
+    generate_token,
     hash_password,
-    verify_email_change_code,
     verify_password,
+    verify_token,
 )
 from src.emails.templates import account, security
 from src.emails.utils.enums import EmailType
+from src.users.models.credentials import UserCredentials
 from src.users.models.email_change import UserEmailChange
 from src.users.repository.base import UserRepositoryBase
 from src.users.repository.credentials import UserCredentialsRepository
@@ -34,9 +35,9 @@ from src.users.utils.enums import AccountType
 from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     DuplicateEmailChangeRequestError,
-    EmailChangeCodeExpiredError,
+    EmailChangeTokenExpiredError,
     IncorrectPasswordError,
-    InvalidEmailChangeCodeError,
+    InvalidEmailChangeTokenError,
     NoPendingEmailChangeError,
     SamePasswordError,
     UserNotFoundError,
@@ -52,7 +53,7 @@ from src.utils.helpers import update_object
 logger = structlog.get_logger(__name__)
 
 
-class UserServiceSelf:
+class UserService:
     @staticmethod
     async def get_my_profile(
         db_session: AsyncSession,
@@ -79,6 +80,29 @@ class UserServiceSelf:
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
         return response
+
+    @staticmethod
+    async def _assert_email_available(
+        db_session: AsyncSession,
+        credentials: UserCredentials,
+        email: str,
+    ) -> None:
+        await acquire_contact_locks(
+            db_session,
+            phone_number=None,
+            email=email,
+        )
+
+        await check_contact_limit(
+            db_session,
+            credentials.id,
+            username=credentials.username,
+            phone_number=None,
+            email=email,
+            resolved_role=credentials.role,
+            account_type=credentials.account_type,
+            exclude_credentials_id=credentials.id,
+        )
 
     @staticmethod
     async def update_me_credentials(
@@ -110,10 +134,15 @@ class UserServiceSelf:
         if not is_username_changing and not is_email_requested:
             raise NoChangesDetectedError()
 
+        raw_email_change_token: str | None = None
+        session_ids: list[int] = []
+
         if is_email_requested:
-            raw_email_change_token, hashed_email_change_token = (
-                generate_email_change_code()
+            await UserService._assert_email_available(
+                db_session, credentials, payload.email
             )
+
+            raw_email_change_token, hashed_email_change_token = generate_token()
             email_change_token_expires_at = datetime.now(UTC) + timedelta(
                 minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRES_MINUTES
             )
@@ -140,10 +169,9 @@ class UserServiceSelf:
                 ):
                     logger.warning(
                         "email_change_request_denied",
-                        public_id=current_user.public_id,
+                        public_id=str(current_user.public_id),
                         denial_reason="duplicate_pending_request",
                     )
-
                     raise DuplicateEmailChangeRequestError()
 
                 credentials.email_change.new_email = payload.email
@@ -164,47 +192,21 @@ class UserServiceSelf:
                     credentials.sessions
                 )
 
+            await db_session.commit()
+
+            print(raw_email_change_token)
+
             keys_to_delete = [
                 UserCacheKey.user_detail_key_admin(current_user.public_id),
                 UserCacheKey.user_detail_key_staff(current_user.public_id),
                 UserCacheKey.user_detail_key_self(current_user.public_id),
+                *[
+                    SessionCacheKey.access_token_version_key(session_id)
+                    for session_id in session_ids
+                ],
             ]
 
-            if is_username_changing:
-                keys_to_delete.extend(
-                    [
-                        SessionCacheKey.access_token_version_key(session_id)
-                        for session_id in session_ids
-                    ]
-                )
-
             await delete_cache_critical(redis, *keys_to_delete)
-
-            await db_session.commit()
-
-            if is_email_requested:
-                send_email_in_background(
-                    account.send_email_change_email(
-                        payload.email, raw_email_change_token
-                    ),
-                    email_type=EmailType.EMAIL_CHANGE,
-                )
-
-            if is_username_changing:
-                logger.info(
-                    "username_updated",
-                    public_id=str(current_user.public_id),
-                    new_username=credentials.username,
-                    method="self_service",
-                )
-
-            if is_email_requested:
-                logger.info(
-                    "email_change_requested",
-                    public_id=str(current_user.public_id),
-                    new_email=payload.email,
-                    method="self_service",
-                )
 
         except IntegrityError as exc:
             await db_session.rollback()
@@ -218,6 +220,28 @@ class UserServiceSelf:
 
             handle_username_integrity_error(exc)
             raise_unhandled_integrity_error(exc)
+
+        # if is_email_requested and raw_email_change_token is not None:
+        #     send_email_in_background(
+        #         account.send_email_change_email(payload.email, raw_email_change_token),
+        #         email_type=EmailType.EMAIL_CHANGE,
+        #     )
+
+        if is_username_changing:
+            logger.info(
+                "username_updated",
+                public_id=str(current_user.public_id),
+                new_username=credentials.username,
+                method="self_service",
+            )
+
+        if is_email_requested:
+            logger.info(
+                "email_change_requested",
+                public_id=str(current_user.public_id),
+                new_email=payload.email,
+                method="self_service",
+            )
 
     @staticmethod
     async def confirm_email_change(
@@ -237,55 +261,53 @@ class UserServiceSelf:
         if credentials is None:
             raise CredentialsNotFoundError()
 
+        email_change = credentials.email_change
         if (
-            credentials.email_change.new_email is None
-            or credentials.email_change.email_change_token_hash is None
+            email_change is None
+            or email_change.new_email is None
+            or email_change.email_change_token_hash is None
         ):
             raise NoPendingEmailChangeError()
 
-        if credentials.email_change.email_change_token_expires_at < datetime.now(UTC):
-            raise EmailChangeCodeExpiredError()
-
-        if not verify_email_change_code(
-            payload.code, credentials.email_change.email_change_token_hash
+        if (
+            email_change.email_change_token_expires_at is None
+            or email_change.email_change_token_expires_at < datetime.now(UTC)
         ):
             logger.warning(
                 "email_change_confirmation_denied",
-                public_id=current_user.public_id,
-                denial_reason="invalid_code",
+                public_id=str(current_user.public_id),
+                denial_reason="expired_email_change_token",
             )
 
-            raise InvalidEmailChangeCodeError()
+            raise EmailChangeTokenExpiredError()
 
-        new_email = credentials.email_change.new_email
+        if not verify_token(
+            payload.email_change_token, email_change.email_change_token_hash
+        ):
+            logger.warning(
+                "email_change_confirmation_denied",
+                public_id=str(current_user.public_id),
+                denial_reason="invalid_email_change_token",
+            )
+
+            raise InvalidEmailChangeTokenError()
+
+        new_email = email_change.new_email
         is_student = credentials.account_type == AccountType.STUDENT
 
-        await acquire_contact_locks(
-            db_session,
-            phone_number=None,
-            email=new_email,
-        )
-
-        await check_contact_limit(
-            db_session,
-            current_user.credentials_id,
-            username=credentials.username,
-            phone_number=None,
-            email=new_email,
-            resolved_role=credentials.role,
-            account_type=credentials.account_type,
-            exclude_credentials_id=current_user.credentials_id,
-        )
+        await UserService._assert_email_available(db_session, credentials, new_email)
 
         try:
             old_email = credentials.email
             credentials.email = new_email
 
-            await db_session.delete(credentials.email_change)
+            await db_session.delete(email_change)
 
-            session_ids = [s.id for s in credentials.sessions]
+            session_ids = [session.id for session in credentials.sessions]
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
+
+            await db_session.commit()
 
             await delete_cache_critical(
                 redis,
@@ -298,34 +320,30 @@ class UserServiceSelf:
                 UserCacheKey.user_detail_key_self(current_user.public_id),
             )
 
-            await db_session.commit()
-
-            send_email_in_background(
-                account.send_email_changed_confirmation_email(
-                    old_email, credentials.email
-                ),
-                email_type=EmailType.EMAIL_CHANGE_CONFIRMATION,
-            )
-
-            logger.info(
-                "email_changed",
-                credentials_id=current_user.public_id,
-                method="self_service",
-            )
-
         except IntegrityError as exc:
             await db_session.rollback()
 
             logger.error(
                 "email_change_confirmation_failed",
-                credentials_id=current_user.public_id,
-                reason=str(exc.orig),
+                public_id=str(current_user.public_id),
+                failure_reason=str(exc.orig),
                 method="self_service",
             )
 
             if not is_student:
                 handle_non_student_unique_contact_error(exc)
             raise_unhandled_integrity_error(exc)
+
+        send_email_in_background(
+            account.send_email_changed_confirmation_email(old_email, new_email),
+            email_type=EmailType.EMAIL_CHANGE_CONFIRMATION,
+        )
+
+        logger.info(
+            "email_changed",
+            public_id=str(current_user.public_id),
+            method="self_service",
+        )
 
     @staticmethod
     async def update_me_password(

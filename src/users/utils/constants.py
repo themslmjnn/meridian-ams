@@ -19,8 +19,8 @@ class HTTP400:
     UPDATE_PAYLOAD_MISMATCH = (
         "Submitted update payload type does not match the target user's role"
     )
-    EXPIRED_EMAIL_CHANGE_CODE = "Email change code has expired"
-    INVALID_EMAIL_CHANGE_CODE = "Invalid email change code"
+    EXPIRED_EMAIL_CHANGE_TOKEN = "Email change token has expired"
+    INVALID_EMAIL_CHANGE_TOKEN = "Invalid email change token"
     INCORRECT_PASSWORD = "Incorrect password"
     SAME_PASSWORD = "Same password"
 
