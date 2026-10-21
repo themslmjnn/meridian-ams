@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
     EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(ge=1, le=60, default=15)
     RESET_PASSWORD_EXPIRES_MINUTES: int = Field(ge=1, le=120, default=60)
+    RESET_PASSWORD_COOLDOWN_SECONDS: int = Field(ge=60, le=300, default=120)
 
     IDEMPOTENCY_KEY_TTL: int = Field(ge=1, default=60 * 60 * 24)
     IDEMPOTENCY_PROCESSING_TTL: int = Field(ge=1, default=60 * 5)
