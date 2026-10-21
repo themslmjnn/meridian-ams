@@ -21,6 +21,7 @@ class HTTP400:
     )
     EXPIRED_EMAIL_CHANGE_TOKEN = "Email change token has expired"
     INVALID_EMAIL_CHANGE_TOKEN = "Invalid email change token"
+    INCORRECT_CURRENT_PASSWORD = "Incorrect current password"
     INCORRECT_PASSWORD = "Incorrect password"
     SAME_PASSWORD = "Same password"
 

@@ -29,6 +29,12 @@ class IncorrectPasswordError(AppException):
     error_code = "INCORRECT_PASSWORD"
 
 
+class IncorrectCurrentPasswordError(AppException):
+    status_code = 400
+    detail = HTTP400.INCORRECT_CURRENT_PASSWORD
+    error_code = "INCORRECT_CURRENT_PASSWORD"
+
+
 class SamePasswordError(AppException):
     status_code = 400
     detail = HTTP400.SAME_PASSWORD

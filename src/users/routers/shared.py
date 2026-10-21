@@ -83,7 +83,7 @@ async def update_me_password(
     await UserService.update_me_password(db_session, redis, current_user, payload)
 
 
-@router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/me/profile", status_code=status.HTTP_204_NO_CONTENT)
 @user_limiter.limit("10/minute")
 async def update_me_profile(
     request: Request,

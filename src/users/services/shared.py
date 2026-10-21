@@ -16,7 +16,8 @@ from src.core.security import (
     verify_password,
     verify_token,
 )
-from src.emails.templates import account, security
+from src.emails.templates import account
+from src.emails.templates.security import send_password_changed_confirmation
 from src.emails.utils.enums import EmailType
 from src.users.models.credentials import UserCredentials
 from src.users.models.email_change import UserEmailChange
@@ -36,6 +37,7 @@ from src.users.utils.exceptions import (
     CredentialsNotFoundError,
     DuplicateEmailChangeRequestError,
     EmailChangeTokenExpiredError,
+    IncorrectCurrentPasswordError,
     IncorrectPasswordError,
     InvalidEmailChangeTokenError,
     NoPendingEmailChangeError,
@@ -221,11 +223,11 @@ class UserService:
             handle_username_integrity_error(exc)
             raise_unhandled_integrity_error(exc)
 
-        # if is_email_requested and raw_email_change_token is not None:
-        #     send_email_in_background(
-        #         account.send_email_change_email(payload.email, raw_email_change_token),
-        #         email_type=EmailType.EMAIL_CHANGE,
-        #     )
+        if is_email_requested and raw_email_change_token is not None:
+            send_email_in_background(
+                account.send_email_change_email(payload.email, raw_email_change_token),
+                email_type=EmailType.EMAIL_CHANGE,
+            )
 
         if is_username_changing:
             logger.info(
@@ -375,7 +377,7 @@ class UserService:
                 method="self_service",
             )
 
-            raise IncorrectPasswordError()
+            raise IncorrectCurrentPasswordError()
 
         if payload.current_password == payload.new_password:
             raise SamePasswordError()
@@ -384,9 +386,11 @@ class UserService:
 
         credentials.password_hash = new_password_hash
 
-        session_ids = [s.id for s in credentials.sessions]
+        session_ids = [session.id for session in credentials.sessions]
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
+
+        await db_session.commit()
 
         await delete_cache_critical(
             redis,
@@ -396,10 +400,8 @@ class UserService:
             ],
         )
 
-        await db_session.commit()
-
         send_email_in_background(
-            security.send_password_changed_confirmation(credentials.email),
+            send_password_changed_confirmation(credentials.email),
             email_type=EmailType.PASSWORD_CHANGE_CONFIRMATION,
         )
 
@@ -445,7 +447,7 @@ class UserService:
                 phone_number=payload.phone_number,
                 email=None,
                 resolved_role=credentials.role,
-                account_type=AccountType.PERSONAL,
+                account_type=credentials.account_type,
                 exclude_credentials_id=credentials.id,
             )
 
