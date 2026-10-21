@@ -21,7 +21,7 @@ from src.auth.tokens import (
     create_refresh_token,
     decode_refresh_token,
 )
-from src.core.caching import delete_cache_critical
+from src.core.caching import delete_cache, delete_cache_critical
 from src.core.config import get_settings
 from src.core.dependencies import CurrentUser, verify_status
 from src.core.email.service import send_email_in_background
@@ -219,6 +219,12 @@ class AuthService:
 
                 await db_session.commit()
 
+                logger.warning(
+                    "login_failed",
+                    credentials_id=credentials.id,
+                    failure_reason="deletion_grace_expired",
+                )
+
                 raise exceptions.InvalidCredentialsError()
 
             credentials.pre_transition_status = credentials.status
@@ -288,7 +294,7 @@ class AuthService:
 
             user_session = UserSession(
                 credentials_id=credentials.id,
-                refresh_token_hash="",  # set below after flush gives us session.id
+                refresh_token_hash="",
                 refresh_token_expires_at=datetime.now(UTC)
                 + timedelta(days=settings.REFRESH_TOKEN_EXPIRES_DAYS),
                 user_agent=user_agent,
@@ -323,12 +329,12 @@ class AuthService:
             )
         )
 
+        await db_session.commit()
+
         if evicted_session_id is not None:
-            await delete_cache_critical(
+            await delete_cache(
                 redis, SessionCacheKey.access_token_version_key(evicted_session_id)
             )
-
-        await db_session.commit()
 
         if should_send_account_reactivation_email:
             send_email_in_background(
