@@ -17,9 +17,17 @@ from src.core.email.service import send_email_in_background
 from src.core.pagination import CursorPage
 from src.core.security import generate_token
 from src.emails.models import Email
+from src.emails.templates.account import (
+    build_admin_credentials_override_email,
+    send_admin_account_activation_email,
+    send_admin_account_deactivation_email,
+    send_admin_account_deletion_cancellation_email,
+    send_admin_profile_override_email,
+    send_guardian_deletion_email,
+)
 from src.emails.templates.authentication import (
     build_account_activation_email,
-    build_reset_password_email,
+    build_password_reset_email,
 )
 from src.emails.utils.enums import EmailType
 from src.users.models.activation import UserActivation
@@ -273,7 +281,7 @@ class UserService:
             await db_session.commit()
 
             send_email_in_background(
-                emails.send_admin_profile_override_email(credentials.email),
+                send_admin_profile_override_email(credentials.email),
                 email_type=EmailType.ADMIN_PROFILE_OVERRIDE,
             )
 
@@ -294,7 +302,7 @@ class UserService:
         except IntegrityError as exc:
             await db_session.rollback()
 
-            logger.error(
+            logger.warning(
                 "update_profile_failed",
                 public_id=public_id,
                 requested_by=actor_id,
@@ -367,7 +375,7 @@ class UserService:
 
             if should_reissue_activation_token:
                 if credentials.activation is None:
-                    logger.error(
+                    logger.warning(
                         "activation_row_missing",
                         public_id=public_id,
                         status=credentials.status,
@@ -408,7 +416,7 @@ class UserService:
                 notify_old_email = old_email if email_changed else None
                 notify_new_email = credentials.email if email_changed else None
 
-                subject, html_body = emails.build_admin_credentials_override_email(
+                subject, html_body = build_admin_credentials_override_email(
                     notify_old_username,
                     notify_new_username,
                     notify_old_email,
@@ -429,6 +437,8 @@ class UserService:
 
             await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
+            await db_session.commit()
+
             await delete_cache_critical(
                 redis,
                 *[
@@ -440,8 +450,6 @@ class UserService:
                 UserCacheKey.user_detail_key_self(public_id),
             )
 
-            await db_session.commit()
-
             logger.info(
                 "user_credentials_updated",
                 public_id=public_id,
@@ -452,7 +460,7 @@ class UserService:
         except IntegrityError as exc:
             await db_session.rollback()
 
-            logger.error(
+            logger.warning(
                 "update_credentials_failed",
                 public_id=public_id,
                 requested_by=actor_id,
@@ -501,6 +509,8 @@ class UserService:
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
 
+        await db_session.commit()
+
         await delete_cache_critical(
             redis,
             *[
@@ -512,10 +522,8 @@ class UserService:
             UserCacheKey.user_detail_key_self(public_id),
         )
 
-        await db_session.commit()
-
         send_email_in_background(
-            emails.send_admin_account_deactivation_email(credentials.email),
+            send_admin_account_deactivation_email(credentials.email),
             email_type=EmailType.ADMIN_ACCOUNT_DEACTIVATION,
         )
 
@@ -554,6 +562,7 @@ class UserService:
         if credentials.status != UserStatus.DEACTIVATED:
             raise exceptions.InvalidStatusTransitionError()
 
+        credentials.pre_transition_status = credentials.status
         credentials.status = UserStatus.ACTIVE
 
         if credentials.login_lockout is not None:
@@ -563,7 +572,7 @@ class UserService:
         await db_session.commit()
 
         send_email_in_background(
-            emails.send_admin_account_activation_email(credentials.email),
+            send_admin_account_activation_email(credentials.email),
             email_type=EmailType.ADMIN_ACCOUNT_ACTIVATION,
         )
 
@@ -600,31 +609,33 @@ class UserService:
         if credentials.status != UserStatus.ACTIVE:
             raise exceptions.InvalidStatusTransitionError()
 
-        raw_reset_token, hashed_reset_token = generate_token()
+        raw_reset_password_token, hashed_reset_password_token = generate_token()
 
         if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
                 credentials_id=credentials.id,
-                reset_password_token_hash=hashed_reset_token,
+                reset_password_token_hash=hashed_reset_password_token,
                 reset_password_token_expires_at=datetime.now(UTC)
                 + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
             )
 
             db_session.add(new_password_reset)
         else:
-            credentials.password_reset.reset_password_token_hash = hashed_reset_token
+            credentials.password_reset.reset_password_token_hash = (
+                hashed_reset_password_token
+            )
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
                 UTC
             ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
 
-        subject, html_body = build_reset_password_email(raw_reset_token)
+        subject, html_body = build_password_reset_email(raw_reset_password_token)
 
         db_session.add(
             Email(
                 recipient_email=credentials.email,
                 subject=subject,
                 html_body=html_body,
-                email_type=EmailType.PASSWORD_RESET_ADMIN,
+                email_type=EmailType.ADMIN_PASSWORD_RESET,
                 triggered_by=actor_id,
             )
         )
@@ -632,7 +643,7 @@ class UserService:
         await db_session.flush()
 
         logger.info(
-            "reset_password_request_created",
+            "password_reset_request_created",
             public_id=public_id,
             created_by=actor_id,
         )
@@ -736,7 +747,6 @@ class UserService:
         ):
             raise exceptions.InvalidStatusTransitionError()
 
-        user_email = credentials.email
         deletion_scheduled_for = datetime.now(UTC) + timedelta(
             days=constants.DELETION_GRACE_PERIOD_DAYS
         )
@@ -745,9 +755,11 @@ class UserService:
         credentials.status = UserStatus.PENDING_DELETION
         credentials.deletion_scheduled_for = deletion_scheduled_for
 
-        session_ids = [s.id for s in credentials.sessions]
+        session_ids = [session.id for session in credentials.sessions]
 
         await UserSessionRepository.invalidate_all_sessions(credentials.sessions)
+
+        await db_session.commit()
 
         await delete_cache_critical(
             redis,
@@ -759,10 +771,8 @@ class UserService:
             UserCacheKey.user_detail_key_self(public_id),
         )
 
-        await db_session.commit()
-
         send_email_in_background(
-            emails.send_guardian_deletion_email(user_email),
+            send_guardian_deletion_email(credentials.email),
             email_type=EmailType.ADMIN_ACCOUNT_DELETION,
         )
 
@@ -783,35 +793,34 @@ class UserService:
         credentials = await UserCredentialsRepository.get_by_public_id(
             db_session,
             public_id,
+            allowed_roles=constants.GUARDIAN_ROLE,
         )
         if credentials is None:
             raise exceptions.CredentialsNotFoundError()
 
-        user_email = credentials.email
-
         if credentials.status != UserStatus.PENDING_DELETION:
             raise exceptions.GuardianNotPendingDeletionError()
 
-        reactivated = await UserCredentialsRepository.reactivate_pending_deletion_user(
-            db_session, public_id, credentials.pre_transition_status
-        )
-
-        if not reactivated:
-            await db_session.rollback()
-
+        if (
+            credentials.deletion_scheduled_for is None
+            or datetime.now(UTC) > credentials.deletion_scheduled_for
+        ):
             logger.warning(
-                "guardian_deletion_cancel_lost_race",
-                actor_user_id=actor_id,
+                "deletion_grace_expired",
+                actor_id=actor_id,
                 public_id=public_id,
-                denial_reason="user_hard_deleted_before_cancel_committed",
+                denial_reason="deletion_grace_period_expired",
             )
 
-            raise exceptions.CredentialsNotFoundError()
+            raise exceptions.DeletionGracePeriodExpiredError()
+
+        credentials.deletion_scheduled_for = None
+        credentials.status = credentials.pre_transition_status
 
         await db_session.commit()
 
         send_email_in_background(
-            emails.send_admin_account_deletion_cancellation_email(user_email),
+            send_admin_account_deletion_cancellation_email(credentials.email),
             email_type=EmailType.ADMIN_ACCOUNT_DELETION_CANCELLATION,
         )
 

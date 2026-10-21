@@ -173,7 +173,7 @@ async def resend_activation_token(
 
 
 @router.post(
-    "guardians/{public_id}/deletion-request",
+    "/guardians/{public_id}/deletion-request",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 @user_limiter.limit("3/minute")
@@ -191,7 +191,7 @@ async def request_guardian_deletion_admin(
 
 
 @router.post(
-    "guardians/{public_id}/cancel-deletion",
+    "/guardians/{public_id}/cancel-deletion",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 @user_limiter.limit("3/minute")

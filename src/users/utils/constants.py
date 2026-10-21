@@ -54,3 +54,4 @@ class HTTP409:
     DUPLICATE_EMAIL_CHANGE_REQUEST = (
         "An identical email change request is already pending"
     )
+    DELETION_GRACE_EXPIRED = "Deletion grace period expired"

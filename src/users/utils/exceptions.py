@@ -113,7 +113,13 @@ class MaxStudentsPerEmailError(AppException):
 class GuardianAccountAlreadyExistsError(AppException):
     status_code = 409
     detail = HTTP409.DUPLICATE_GUARDIAN_ACCOUNT
-    error_code = "DUPLICATE_GUARDIAN_ACCOUNT"
+    error_code = "DUPLICATE_ALREADY_GUARDIAN_ACCOUNT"
+
+
+class DeletionGracePeriodExpiredError(AppException):
+    status_code = 409
+    detail = HTTP409.DELETION_GRACE_EXPIRED
+    error_code = "DELETION_GRACE_EXPIRED"
 
 
 class UserAlreadyInactiveError(AppException):
