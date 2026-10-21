@@ -449,7 +449,6 @@ class AuthService:
 
             raise exceptions.InvalidRefreshTokenError() from exc
 
-        # Row lock: concurrent refreshes for one session are serialised.
         user_session = await UserSessionRepository.get_by_id(
             db_session, session_id, for_update=True
         )
@@ -478,7 +477,6 @@ class AuthService:
         matches_current = verify_token(
             raw_refresh_token, user_session.refresh_token_hash
         )
-
         if not matches_current:
             await UserSessionRepository.invalidate_session(user_session)
 
@@ -552,7 +550,7 @@ class AuthService:
         if credentials is None or credentials.activation is None:
             logger.warning(
                 "activation_failed",
-                reason="activation_token_not_found",
+                failure_reason="activation_token_not_found",
             )
 
             raise exceptions.InvalidActivationTokenError()
@@ -642,12 +640,9 @@ class AuthService:
 
     @staticmethod
     async def request_password_reset(
-        db_session: AsyncSession,
-        payload: PasswordResetRequestPublic,
+        db_session: AsyncSession, payload: PasswordResetRequestPublic
     ) -> None:
         settings = get_settings()
-
-        raw_reset_password_token, hashed_reset_password_token = generate_token()
 
         credentials = await UserCredentialsRepository.get_by_username(
             db_session,
@@ -666,6 +661,17 @@ class AuthService:
 
             return
 
+        if credentials.password_reset is not None and (
+            datetime.now(UTC) - credentials.password_reset.updated_at
+            < timedelta(seconds=settings.RESET_PASSWORD_COOLDOWN_SECONDS)
+        ):
+            logger.info(
+                "password_reset_request_throttled",
+                credentials_id=credentials.id,
+            )
+
+            return
+
         if credentials.status not in (
             UserStatus.ACTIVE,
             UserStatus.PENDING_ACTIVATION,
@@ -677,6 +683,8 @@ class AuthService:
             )
 
             return
+
+        raw_reset_password_token, hashed_reset_password_token = generate_token()
 
         if credentials.password_reset is None:
             new_password_reset = UserPasswordReset(
@@ -718,6 +726,8 @@ class AuthService:
         db_session: AsyncSession,
         redis: Redis,
         payload: ResetPassword,
+        ip_address: str | None,
+        user_agent: str | None,
     ) -> None:
         reset_password_token_hash = sha256(payload.reset_password_token)
 
@@ -772,11 +782,13 @@ class AuthService:
             LoginHistory(
                 credentials_id=credentials.id,
                 success=True,
-                ip_address=None,
-                user_agent=None,
-                failure_reason="password_reset",
+                ip_address=ip_address,
+                user_agent=user_agent,
+                failure_reason=None,
             )
         )
+
+        await db_session.commit()
 
         await delete_cache_critical(
             redis,
@@ -785,8 +797,6 @@ class AuthService:
                 for session_id in session_ids
             ],
         )
-
-        await db_session.commit()
 
         send_email_in_background(
             send_password_changed_confirmation(credentials.email),

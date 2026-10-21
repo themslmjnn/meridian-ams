@@ -140,4 +140,10 @@ async def reset_password(
     redis: redis_dependency,
     payload: ResetPassword,
 ):
-    await AuthService.reset_password(db_session, redis, payload)
+    await AuthService.reset_password(
+        db_session,
+        redis,
+        payload,
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
