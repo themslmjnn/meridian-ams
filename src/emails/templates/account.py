@@ -588,7 +588,15 @@ async def send_admin_account_activation_email(to_email: str) -> None:
     )
 
 
-async def send_email_change_email(new_email: str, email_change_code: str) -> None:
+async def send_email_change_email(
+    new_email: str,
+    raw_email_change_token: str,
+) -> None:
+    email_change_page_link = (
+        f"{settings.APP_URL}/users/me/credentials/confirm-email"
+        f"?token={raw_email_change_token}"
+    )
+
     subject = "Confirm your new Meridian email address"
 
     html_body = f"""
@@ -640,40 +648,26 @@ async def send_email_change_email(new_email: str, email_change_code: str) -> Non
                     </h2>
 
                     <p style="line-height: 1.6; margin: 0 0 16px;">
-                        You requested to change your email address.
-                        Enter the verification code below to confirm
-                        your new address.
+                        You requested to change your email address to
+                        <strong>{new_email}</strong>.
+                        Confirm your new address using the button below.
                     </p>
 
-                    <div
-                        style="
-                            margin: 28px 0;
-                            padding: 24px;
-                            background-color: #f9fafb;
-                            border-radius: 8px;
-                            text-align: center;
-                        "
-                    >
-                        <div
+                    <div style="text-align: center; margin: 32px 0;">
+                        <a
+                            href="{email_change_page_link}"
                             style="
                                 display: inline-block;
-                                padding: 16px 32px;
-                                background-color: #f0f4ff;
-                                border: 2px solid #2563eb;
-                                border-radius: 8px;
+                                background-color: #2563eb;
+                                color: #ffffff;
+                                padding: 13px 26px;
+                                border-radius: 6px;
+                                text-decoration: none;
+                                font-weight: bold;
                             "
                         >
-                            <span
-                                style="
-                                    font-size: 32px;
-                                    font-weight: 700;
-                                    letter-spacing: 8px;
-                                    color: #2563eb;
-                                "
-                            >
-                                {email_change_code}
-                            </span>
-                        </div>
+                            Confirm email address
+                        </a>
                     </div>
 
                     <div
@@ -692,9 +686,9 @@ async def send_email_change_email(new_email: str, email_change_code: str) -> Non
                                 color: #6b7280;
                             "
                         >
-                            This verification code will expire in
+                            This confirmation link will expire in
                             <strong>
-                                {settings.EMAIL_CHANGE_CODE_EXPIRES_MINUTES}
+                                {settings.EMAIL_CHANGE_TOKEN_EXPIRES_MINUTES}
                                 minutes
                             </strong>.
                         </p>
