@@ -178,6 +178,7 @@ class UserService:
 
             await db_session.flush()
 
+            print(raw_activation_token)
             logger.info(
                 "user_registered",
                 identity_id=identity_id,

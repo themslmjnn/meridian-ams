@@ -10,9 +10,9 @@ from src.core.dependencies import (
 )
 from src.core.limiter import user_limiter
 from src.core.pagination import CursorPage
-from src.users.schemas.director import UserResponseDirectorDetailed
+from src.users.schemas.director import UserResponseDetailed
 from src.users.schemas.system_admin import SearchUserBase
-from src.users.services.director import UserServiceDirector
+from src.users.services.director import UserService
 from src.users.utils.schemas import UserResponseBase
 
 router = APIRouter(
@@ -37,7 +37,7 @@ async def get_staff(
     next_cursor: str | None = Query(default=None),
     prev_cursor: str | None = Query(default=None),
 ):
-    return await UserServiceDirector.get_staff(
+    return await UserService.get_staff(
         db_session,
         filters=filters,
         limit=limit,
@@ -48,7 +48,7 @@ async def get_staff(
 
 @router.get(
     "/staff/{public_id}",
-    response_model=UserResponseDirectorDetailed,
+    response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
 @user_limiter.limit("30/minute")
@@ -60,6 +60,4 @@ async def get_staff_by_public_id(
     _current_user: require_director,
     public_id: uuid.UUID,
 ):
-    return await UserServiceDirector.get_staff_by_public_id(
-        db_session, redis, public_id
-    )
+    return await UserService.get_staff_by_public_id(db_session, redis, public_id)

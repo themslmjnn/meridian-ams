@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.caching import get_cache, set_cache
 from src.core.pagination import CursorPage
 from src.users.repository.base import UserRepositoryBase
-from src.users.schemas.director import UserResponseDirectorDetailed
+from src.users.schemas.director import UserResponseDetailed
 from src.users.schemas.system_admin import SearchUserBase
 from src.users.utils.constants import TEACHER_ROLE
 from src.users.utils.exceptions import UserNotFoundError
@@ -17,7 +17,7 @@ from src.utils.cache_keys import UserCacheKey
 logger = structlog.get_logger(__name__)
 
 
-class UserServiceDirector:
+class UserService:
     @staticmethod
     async def get_staff(
         db_session: AsyncSession,
@@ -48,13 +48,13 @@ class UserServiceDirector:
         db_session: AsyncSession,
         redis: Redis,
         public_id: uuid.UUID,
-    ) -> UserResponseDirectorDetailed:
+    ) -> UserResponseDetailed:
         cache_key = UserCacheKey.user_detail_key_staff(public_id)
 
         cached_data = await get_cache(redis, cache_key)
 
         if cached_data is not None:
-            return UserResponseDirectorDetailed.model_validate(cached_data)
+            return UserResponseDetailed.model_validate(cached_data)
 
         staff = await UserRepositoryBase.get_user_by_public_id(
             db_session, public_id, allowed_roles=TEACHER_ROLE
@@ -62,7 +62,7 @@ class UserServiceDirector:
         if staff is None:
             raise UserNotFoundError()
 
-        response = UserResponseDirectorDetailed.model_validate(staff)
+        response = UserResponseDetailed.model_validate(staff)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 

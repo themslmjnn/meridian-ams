@@ -27,7 +27,7 @@ from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,
     UpdateMeProfile,
-    UserResponseSelf,
+    UserResponseDetailed,
 )
 from src.users.utils.constants import STUDENT_ROLE
 from src.users.utils.enums import AccountType
@@ -58,12 +58,13 @@ class UserServiceSelf:
         db_session: AsyncSession,
         redis: Redis,
         current_user: CurrentUser,
-    ) -> UserResponseSelf:
+    ) -> UserResponseDetailed:
         cache_key = UserCacheKey.user_detail_key_self(current_user.public_id)
+
         cached_data = await get_cache(redis, cache_key)
 
         if cached_data is not None:
-            return UserResponseSelf.model_validate(cached_data)
+            return UserResponseDetailed.model_validate(cached_data)
 
         user = await UserRepositoryBase.get_user_by_public_id(
             db_session,
@@ -73,7 +74,7 @@ class UserServiceSelf:
         if user is None:
             raise UserNotFoundError()
 
-        response = UserResponseSelf.model_validate(user)
+        response = UserResponseDetailed.model_validate(user)
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 

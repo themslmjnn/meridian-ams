@@ -11,7 +11,7 @@ from src.users.schemas.shared import (
     ConfirmEmailChange,
     UpdateMePassword,
     UpdateMeProfile,
-    UserResponseSelf,
+    UserResponseDetailed,
 )
 from src.users.services.shared import UserServiceSelf
 from src.users.utils.schemas import UpdateCredentials
@@ -24,7 +24,7 @@ router = APIRouter(
 
 @router.get(
     "/me",
-    response_model=UserResponseSelf,
+    response_model=UserResponseDetailed,
     status_code=status.HTTP_200_OK,
 )
 async def get_my_profile(

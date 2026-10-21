@@ -7,7 +7,7 @@ from src.users.utils import validators
 from src.utils.base_schema import BaseSchema
 
 
-class UserResponseSelf(BaseSchema):
+class UserResponseDetailed(BaseSchema):
     public_id: uuid.UUID
 
     username: str
