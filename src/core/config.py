@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT_IP: str = "60/minute"
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
-    EMAIL_CHANGE_CODE_EXPIRES_MINUTES: int = Field(ge=1, le=60, default=15)
+    EMAIL_CHANGE_TOKEN_EXPIRES_MINUTES: int = Field(ge=1, le=60, default=15)
     RESET_PASSWORD_EXPIRES_MINUTES: int = Field(ge=1, le=120, default=60)
     RESET_PASSWORD_COOLDOWN_SECONDS: int = Field(ge=60, le=300, default=120)
 

@@ -25,27 +25,6 @@ class UserResponseDetailed(BaseSchema):
     created_at: datetime
 
 
-class ConfirmEmailChange(BaseModel):
-    code: str
-
-
-class UpdateMePassword(BaseModel):
-    current_password: str
-    new_password: str = Field(min_length=8, max_length=100)
-
-    @field_validator("new_password")
-    @classmethod
-    def validate_password_strength(cls, v: str) -> str:
-        return validators.validate_password(v)
-
-    @model_validator(mode="after")
-    def _validate_passwords_differ(self) -> "UpdateMePassword":
-        if self.current_password == self.new_password:
-            raise ValueError("New password must differ from current password")
-
-        return self
-
-
 class UpdateMeProfile(BaseModel):
     firstname: str | None = Field(min_length=3, max_length=50, default=None)
     lastname: str | None = Field(min_length=3, max_length=50, default=None)
@@ -84,3 +63,24 @@ class UpdateMeProfile(BaseModel):
             return None
 
         return validators.validate_phone_number(v)
+
+
+class ConfirmEmailChange(BaseModel):
+    code: str
+
+
+class UpdateMePassword(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=100)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, v: str) -> str:
+        return validators.validate_password(v)
+
+    @model_validator(mode="after")
+    def _validate_passwords_differ(self) -> "UpdateMePassword":
+        if self.current_password == self.new_password:
+            raise ValueError("New password must differ from current password")
+
+        return self

@@ -87,6 +87,8 @@ class UserServiceSelf:
         current_user: CurrentUser,
         payload: UpdateCredentials,
     ) -> None:
+        settings = get_settings()
+
         credentials = await UserCredentialsRepository.get_by_public_id(
             db_session,
             current_user.public_id,
@@ -98,37 +100,40 @@ class UserServiceSelf:
         if credentials is None:
             raise CredentialsNotFoundError()
 
-        username_changing = (
+        is_username_changing = (
             payload.username is not None and payload.username != credentials.username
         )
-        email_requested = (
+        is_email_requested = (
             payload.email is not None and payload.email != credentials.email
         )
 
-        if not username_changing and not email_requested:
+        if not is_username_changing and not is_email_requested:
             raise NoChangesDetectedError()
 
-        if email_requested:
-            raw_code, hashed_code = generate_email_change_code()
-            code_expires_at = datetime.now(UTC) + timedelta(
-                minutes=get_settings().EMAIL_CHANGE_CODE_EXPIRES_MINUTES
+        if is_email_requested:
+            raw_email_change_code, hashed_email_change_code = (
+                generate_email_change_code()
+            )
+            email_change_code_expires_at = datetime.now(UTC) + timedelta(
+                minutes=settings.EMAIL_CHANGE_TOKEN_EXPIRES_MINUTES
             )
 
             if credentials.email_change is None:
-                new_email_change = UserEmailChange(
-                    credentials_id=credentials.id,
-                    new_email=payload.email,
-                    email_change_token_hash=hashed_code,
-                    email_change_token_expires_at=code_expires_at,
+                db_session.add(
+                    UserEmailChange(
+                        credentials_id=credentials.id,
+                        new_email=payload.email,
+                        email_change_token_hash=hashed_email_change_code,
+                        email_change_token_expires_at=email_change_code_expires_at,
+                    )
                 )
-
-                db_session.add(new_email_change)
             else:
                 pending_still_active = (
                     credentials.email_change.email_change_code_expires_at is not None
                     and credentials.email_change.email_change_code_expires_at
                     > datetime.now(UTC)
                 )
+
                 if (
                     credentials.email_change.new_email == payload.email
                     and pending_still_active
@@ -142,25 +147,21 @@ class UserServiceSelf:
                     raise DuplicateEmailChangeRequestError()
 
                 credentials.email_change.new_email = payload.email
-                credentials.email_change.email_change_token_hash = hashed_code
-                credentials.email_change.email_change_token_expires_at = code_expires_at
+                credentials.email_change.email_change_token_hash = (
+                    hashed_email_change_code
+                )
+                credentials.email_change.email_change_token_expires_at = (
+                    email_change_code_expires_at
+                )
 
         try:
-            if username_changing:
+            if is_username_changing:
                 credentials.username = payload.username
 
-                session_ids = [s.id for s in credentials.sessions]
+                session_ids = [session.id for session in credentials.sessions]
 
                 await UserSessionRepository.invalidate_all_sessions(
                     credentials.sessions
-                )
-
-            await db_session.commit()
-
-            if email_requested:
-                send_email_in_background(
-                    account.send_email_change_email(payload.email, raw_code),
-                    email_type=EmailType.EMAIL_CHANGE,
                 )
 
             keys_to_delete = [
@@ -169,17 +170,27 @@ class UserServiceSelf:
                 UserCacheKey.user_detail_key_self(current_user.public_id),
             ]
 
-            if username_changing:
+            if is_username_changing:
                 keys_to_delete.extend(
                     [
-                        SessionCacheKey.access_token_version_key(sid)
-                        for sid in session_ids
+                        SessionCacheKey.access_token_version_key(session_id)
+                        for session_id in session_ids
                     ]
                 )
 
             await delete_cache_critical(redis, *keys_to_delete)
 
-            if username_changing:
+            await db_session.commit()
+
+            if is_email_requested:
+                send_email_in_background(
+                    account.send_email_change_email(
+                        payload.email, raw_email_change_code
+                    ),
+                    email_type=EmailType.EMAIL_CHANGE,
+                )
+
+            if is_username_changing:
                 logger.info(
                     "username_updated",
                     public_id=str(current_user.public_id),
@@ -187,7 +198,7 @@ class UserServiceSelf:
                     method="self_service",
                 )
 
-            if email_requested:
+            if is_email_requested:
                 logger.info(
                     "email_change_requested",
                     public_id=str(current_user.public_id),
@@ -198,10 +209,10 @@ class UserServiceSelf:
         except IntegrityError as exc:
             await db_session.rollback()
 
-            logger.error(
+            logger.warning(
                 "credentials_update_failed",
                 public_id=str(current_user.public_id),
-                reason=str(exc.orig),
+                failure_reason=str(exc.orig),
                 method="self_service",
             )
 
