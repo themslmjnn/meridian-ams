@@ -34,7 +34,7 @@ from src.core.security import (
 )
 from src.emails.models import Email
 from src.emails.templates.authentication import (
-    build_reset_password_email,
+    build_password_reset_email,
     send_account_activated_email,
     send_guardian_account_reactivated_email,
     send_new_login_notification_email,
@@ -703,7 +703,7 @@ class AuthService:
                 UTC
             ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
 
-        subject, html_body = build_reset_password_email(raw_reset_password_token)
+        subject, html_body = build_password_reset_email(raw_reset_password_token)
 
         db_session.add(
             Email(

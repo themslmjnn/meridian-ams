@@ -7,9 +7,7 @@ settings = get_settings()
 
 
 def build_new_login_notification_email(
-    *,
-    user_agent: str,
-    login_time: str,
+    user_agent: str, login_time: str
 ) -> tuple[str, str]:
     subject = "New login to your Meridian account"
 
@@ -147,8 +145,8 @@ async def send_new_login_notification_email(
     login_time: str,
 ) -> None:
     subject, html_body = build_new_login_notification_email(
-        user_agent=user_agent,
-        login_time=login_time,
+        user_agent,
+        login_time,
     )
 
     await send_email(
@@ -159,7 +157,7 @@ async def send_new_login_notification_email(
 
 
 def build_account_activation_email(
-    raw_activation_token: str, username: str
+    username: str, raw_activation_token: str
 ) -> tuple[str, str]:
     activation_link = f"{settings.APP_URL}/auth/activation?token={raw_activation_token}"
 
@@ -417,7 +415,7 @@ async def send_account_activated_email(to_email: str) -> None:
     )
 
 
-def build_reset_password_email(raw_reset_password_token: str) -> tuple[str, str]:
+def build_password_reset_email(raw_reset_password_token: str) -> tuple[str, str]:
     reset_password_link = (
         f"{settings.APP_URL}/auth/reset-password?token={raw_reset_password_token}"
     )
@@ -552,11 +550,10 @@ def build_reset_password_email(raw_reset_password_token: str) -> tuple[str, str]
     return subject, html_body
 
 
-async def send_reset_password_token(
-    to_email: str,
-    raw_reset_password_token: str,
+async def send_password_reset_token(
+    to_email: str, raw_reset_password_token: str
 ) -> None:
-    subject, html_body = build_reset_password_email(raw_reset_password_token)
+    subject, html_body = build_password_reset_email(raw_reset_password_token)
 
     await send_email(
         subject=subject,
