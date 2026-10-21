@@ -71,7 +71,7 @@ async def logout_all(
     redis: redis_dependency,
     current_user: current_user_dependency,
 ) -> None:
-    await AuthService.logout_all(db_session, redis, response, current_user)
+    await AuthService.logout_all(response, db_session, redis, current_user)
 
 
 @router.post(

@@ -408,6 +408,8 @@ class AuthService:
             db_session, current_user.credentials_id
         )
 
+        await db_session.commit()
+
         await delete_cache_critical(
             redis,
             *[
@@ -416,13 +418,11 @@ class AuthService:
             ],
         )
 
-        await db_session.commit()
-
-        cookies.clear_refresh_cookie(response)
+        cookies.clear_refresh_token_cookie(response)
         cookies.clear_device_id_cookie(response)
 
         logger.info(
-            "logout_all",
+            "user_revoked_all_sessions",
             credentials_id=current_user.credentials_id,
             sessions_revoked=len(session_ids),
         )
