@@ -617,7 +617,7 @@ class UserService:
                 credentials_id=credentials.id,
                 reset_password_token_hash=hashed_reset_password_token,
                 reset_password_token_expires_at=datetime.now(UTC)
-                + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES),
+                + timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRES_MINUTES),
             )
 
             db_session.add(new_password_reset)
@@ -627,7 +627,7 @@ class UserService:
             )
             credentials.password_reset.reset_password_token_expires_at = datetime.now(
                 UTC
-            ) + timedelta(minutes=settings.RESET_PASSWORD_EXPIRES_MINUTES)
+            ) + timedelta(minutes=settings.RESET_PASSWORD_TOKEN_EXPIRES_MINUTES)
 
         subject, html_body = build_password_reset_email(raw_reset_password_token)
 
