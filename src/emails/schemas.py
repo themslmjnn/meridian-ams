@@ -6,7 +6,7 @@ from src.emails.utils.enums import EmailStatus, EmailType
 from src.utils.base_schema import BaseSchema
 
 
-class EmailResponseBase(BaseModel):
+class EmailResponseBase(BaseSchema):
     recipient_email: str
     email_type: EmailType
     status: EmailStatus
@@ -15,7 +15,7 @@ class EmailResponseBase(BaseModel):
     triggered_by: int | None
 
 
-class EmailResponseDetailed(EmailResponseBase, BaseSchema):
+class EmailResponseDetailed(EmailResponseBase):
     id: int
     sent_at: datetime | None
     created_at: datetime

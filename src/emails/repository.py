@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Select, String, select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.pagination import CursorPage, paginate
@@ -43,30 +43,28 @@ class EmailRepository:
 
     @staticmethod
     async def reset_for_retry(record: Email) -> None:
-        """Reset a FAILED email back to PENDING for manual retry."""
-
         record.status = EmailStatus.PENDING
         record.retry_count = 0
         record.last_error = None
 
     @staticmethod
-    def apply_filters(base_query: Select, filters: SearchEmail | None) -> Select:
-        if filters is None:
-            return base_query
+    def _apply_filters(base_query: Select, filters: SearchEmail | None) -> Select:
+        if filters is not None:
+            if filters.status:
+                base_query = base_query.where(Email.status == filters.status)
 
-        if filters.status is not None:
-            base_query = base_query.where(Email.status == filters.status)
+            if filters.email_type:
+                base_query = base_query.where(Email.email_type == filters.email_type)
 
-        if filters.email_type is not None:
-            base_query = base_query.where(Email.email_type == filters.email_type)
+            if filters.triggered_by:
+                base_query = base_query.where(
+                    Email.triggered_by == filters.triggered_by
+                )
 
-        if filters.triggered_by is not None:
-            base_query = base_query.where(Email.triggered_by == filters.triggered_by)
-
-        if filters.recipient_email is not None:
-            base_query = base_query.where(
-                Email.recipient_email.cast(String).ilike(f"%{filters.recipient_email}%")
-            )
+            if filters.recipient_email:
+                base_query = base_query.where(
+                    Email.recipient_email.ilike(f"%{filters.recipient_email}%")
+                )
 
         return base_query
 
@@ -80,7 +78,7 @@ class EmailRepository:
         prev_cursor: str | None = None,
     ) -> CursorPage:
         query = select(Email)
-        query = EmailRepository.apply_filters(query, filters)
+        query = EmailRepository._apply_filters(query, filters)
 
         return await paginate(
             db_session,
