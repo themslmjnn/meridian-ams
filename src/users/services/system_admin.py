@@ -856,7 +856,9 @@ class UserService:
         )
 
         return CursorPage[schemas.UserResponseBase](
-            items=[schemas.UserResponseBase.model_validate(row) for row in page.items],
+            items=[
+                schemas.UserResponseBase.model_validate(item) for item in page.items
+            ],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
@@ -906,7 +908,9 @@ class UserService:
         )
 
         return CursorPage[schemas.UserResponseBase](
-            items=[schemas.UserResponseBase.model_validate(row) for row in page.items],
+            items=[
+                schemas.UserResponseBase.model_validate(item) for item in page.items
+            ],
             next_cursor=page.next_cursor,
             prev_cursor=page.prev_cursor,
             limit=page.limit,
