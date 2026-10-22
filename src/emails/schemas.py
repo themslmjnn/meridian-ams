@@ -8,7 +8,6 @@ from src.utils.base_schema import BaseSchema
 
 class EmailResponseBase(BaseModel):
     recipient_email: str
-    subject: str
     email_type: EmailType
     status: EmailStatus
     retry_count: int

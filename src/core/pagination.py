@@ -97,6 +97,7 @@ async def paginate(
     Exactly one of next_cursor / prev_cursor should be provided per request.
     Both None means first page.
     """
+
     limit = max(1, min(limit, 100))
     fetch = limit + 1
 
@@ -164,5 +165,8 @@ async def paginate(
     )
 
     return CursorPage(
-        items=rows, next_cursor=built_next, prev_cursor=built_prev, limit=limit
+        items=rows,
+        next_cursor=built_next,
+        prev_cursor=built_prev,
+        limit=limit,
     )

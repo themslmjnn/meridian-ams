@@ -1,3 +1,4 @@
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.caching import get_cache, set_cache
@@ -18,7 +19,7 @@ class EmailService:
         next_cursor: str | None = None,
         prev_cursor: str | None = None,
     ) -> CursorPage[EmailResponseBase]:
-        emails = await EmailRepository.get_emails(
+        page = await EmailRepository.get_emails(
             db_session,
             filters=filters,
             limit=limit,
@@ -27,18 +28,20 @@ class EmailService:
         )
 
         return CursorPage[EmailResponseBase](
-            items=[EmailResponseBase.model_validate(item) for item in emails.items],
-            next_cursor=emails.next_cursor,
-            prev_cursor=emails.prev_cursor,
-            limit=emails.limit,
+            items=[EmailResponseBase.model_validate(item) for item in page.items],
+            next_cursor=page.next_cursor,
+            prev_cursor=page.prev_cursor,
+            limit=page.limit,
         )
 
     @staticmethod
     async def get_email_by_id(
-        db_session: AsyncSession, email_id: int
+        db_session: AsyncSession,
+        redis: Redis,
+        email_id: int,
     ) -> EmailResponseDetailed:
         cache_key = EmailCacheKey.email_detail_key(email_id)
-        cached_data = await get_cache(cache_key)
+        cached_data = await get_cache(redis, cache_key)
 
         if cached_data is not None:
             return EmailResponseDetailed.model_validate(cached_data)
@@ -49,7 +52,7 @@ class EmailService:
 
         response = EmailResponseDetailed.model_validate(email)
 
-        await set_cache(cache_key, response.model_dump(mode="json"), 900)
+        await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
         return response
 
