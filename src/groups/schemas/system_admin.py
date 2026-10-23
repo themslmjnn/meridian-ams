@@ -33,3 +33,9 @@ class CreateGroup(BaseModel):
     @classmethod
     def _validate_academic_year(cls, v: str) -> str:
         return validate_academic_year(v)
+
+
+class UpdateGroup(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=20)
+    grade_level: int | None = Field(None, ge=1, le=12)
+    max_capacity: int | None = Field(None, gt=0)
