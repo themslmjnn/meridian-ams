@@ -31,6 +31,10 @@ class Group(MutableBase):
     is_archived: Mapped[bool] = mapped_column(nullable=False, default=False)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    assignments: Mapped[list["StudentGroupAssignment"]] = relationship(
+        back_populates="group"
+    )
+
     __table_args__ = (
         UniqueConstraint(
             "name", "academic_year", name="uix_group_name_per_academic_year"
