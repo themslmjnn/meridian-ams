@@ -23,7 +23,7 @@ class GroupResponseAdminDetailed(GroupResponseBase):
     updated_at: datetime
 
 
-class CreateGroupAdmin(BaseModel):
+class CreateGroup(BaseModel):
     name: str = Field(min_length=1, max_length=20)
     academic_year: str = Field(pattern=r"^\d{4}-\d{4}$")
     grade_level: int = Field(ge=1, le=12)
