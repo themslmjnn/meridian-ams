@@ -133,13 +133,14 @@ class GuardianLinkRepository:
         query = (
             GuardianLinkRepository._base_query()
             .where(StudentGuardianLink.student_credentials_id == student_credentials_id)
-            .order_by(StudentGuardianLink.guardian_type)  # "primary" sorts before "secondary"
+            .order_by(
+                StudentGuardianLink.guardian_type
+            )  # "primary" sorts before "secondary"
         )
 
         result = await db_session.execute(query)
 
         return result.mappings().all()
-
 
     @staticmethod
     async def get_links_by_guardian(
@@ -147,7 +148,9 @@ class GuardianLinkRepository:
     ) -> Sequence[RowMapping]:
         query = (
             GuardianLinkRepository._base_query()
-            .where(StudentGuardianLink.guardian_credentials_id == guardian_credentials_id)
+            .where(
+                StudentGuardianLink.guardian_credentials_id == guardian_credentials_id
+            )
             .order_by(_student_identity.lastname, _student_identity.firstname)
         )
 

@@ -82,3 +82,31 @@ async def get_guardian_links(
         next_cursor=next_cursor,
         prev_cursor=prev_cursor,
     )
+
+
+@router.get(
+    "/student/{student_public_id}",
+    response_model=list[GuardianLinkResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_links_by_student(
+    db_session: db_session_dependency,
+    _current_user: require_system_admin,
+    student_public_id: uuid.UUID,
+):
+    return await GuardianLinkService.get_links_by_student(db_session, student_public_id)
+
+
+@router.get(
+    "/guardian/{guardian_public_id}",
+    response_model=list[GuardianLinkResponse],
+    status_code=status.HTTP_200_OK,
+)
+async def get_links_by_guardian(
+    db_session: db_session_dependency,
+    _current_user: require_system_admin,
+    guardian_public_id: uuid.UUID,
+):
+    return await GuardianLinkService.get_links_by_guardian(
+        db_session, guardian_public_id
+    )

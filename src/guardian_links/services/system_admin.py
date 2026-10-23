@@ -179,3 +179,33 @@ class GuardianLinkService:
             prev_cursor=page.prev_cursor,
             limit=page.limit,
         )
+
+    @staticmethod
+    async def get_links_by_student(
+        db_session: AsyncSession, student_public_id: uuid.UUID
+    ) -> list[GuardianLinkResponse]:
+        student = await UserCredentialsRepository.get_by_public_id(
+            db_session, student_public_id
+        )
+        if student is None or student.account_type != AccountType.STUDENT:
+            raise StudentNotFoundError()
+
+        rows = await GuardianLinkRepository.get_links_by_student(db_session, student.id)
+
+        return [build_guardian_link_response_from_row(row) for row in rows]
+
+    @staticmethod
+    async def get_links_by_guardian(
+        db_session: AsyncSession, guardian_public_id: uuid.UUID
+    ) -> list[GuardianLinkResponse]:
+        guardian = await UserCredentialsRepository.get_by_public_id(
+            db_session, guardian_public_id
+        )
+        if guardian is None or guardian.account_type != AccountType.PERSONAL:
+            raise GuardianNotFoundError()
+
+        rows = await GuardianLinkRepository.get_links_by_guardian(
+            db_session, guardian.id
+        )
+
+        return [build_guardian_link_response_from_row(row) for row in rows]
