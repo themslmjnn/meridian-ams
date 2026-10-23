@@ -1,9 +1,9 @@
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.groups.models import Group
+from src.groups.models import Group, StudentGroupAssignment
 
 
 class GroupRepository:
@@ -16,3 +16,14 @@ class GroupRepository:
         result = await db_session.execute(query)
 
         return result.scalar_one_or_none()
+
+    @staticmethod
+    async def count_active_students(db_session: AsyncSession, group_id: int) -> int:
+        query = select(func.count()).where(
+            StudentGroupAssignment.group_id == group_id,
+            StudentGroupAssignment.unassigned_at.is_(None),
+        )
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one()
