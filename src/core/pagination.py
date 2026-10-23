@@ -7,7 +7,7 @@ from typing import Any, TypeVar
 
 from fastapi import HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import Select, asc, desc, text
+from sqlalchemy import ColumnElement, Select, asc, desc, text, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import get_settings
@@ -166,6 +166,92 @@ async def paginate(
 
     return CursorPage(
         items=rows,
+        next_cursor=built_next,
+        prev_cursor=built_prev,
+        limit=limit,
+    )
+
+
+async def paginate_mapped(
+    session: AsyncSession,
+    query: Select,
+    *,
+    created_at_column: ColumnElement[datetime],
+    id_column: ColumnElement[int],
+    limit: int = 20,
+    next_cursor: str | None = None,
+    prev_cursor: str | None = None,
+) -> CursorPage[dict[str, Any]]:
+    """
+    Cursor pagination for flat joined projections (mappings, not ORM objects).
+    The cursor is keyed on the given (created_at, id) columns, so it works for
+    any table in the join.
+    """
+
+    limit = max(1, min(limit, 100))
+    fetch = limit + 1
+
+    query = query.add_columns(
+        id_column.label("_cursor_id"),
+        created_at_column.label("_cursor_created_at"),
+    )
+    key = tuple_(created_at_column, id_column)
+
+    if next_cursor:
+        created_at, record_id = decode_cursor(next_cursor)
+        query = (
+            query.where(key < tuple_(created_at, record_id))
+            .order_by(desc(created_at_column), desc(id_column))
+            .limit(fetch)
+        )
+        direction = "forward"
+
+    elif prev_cursor:
+        created_at, record_id = decode_cursor(prev_cursor)
+        query = (
+            query.where(key > tuple_(created_at, record_id))
+            .order_by(asc(created_at_column), asc(id_column))
+            .limit(fetch)
+        )
+        direction = "backward"
+
+    else:
+        query = query.order_by(desc(created_at_column), desc(id_column)).limit(fetch)
+        direction = "forward"
+
+    result = await session.execute(query)
+    rows = list(result.mappings().all())
+
+    has_more = len(rows) > limit
+    if has_more:
+        rows = rows[:limit]
+
+    if direction == "backward":
+        rows.reverse()
+
+    if not rows:
+        return CursorPage(items=[], next_cursor=None, prev_cursor=None, limit=limit)
+
+    first, last = rows[0], rows[-1]
+
+    built_next = (
+        encode_cursor(last["_cursor_created_at"], last["_cursor_id"])
+        if has_more or direction == "backward"
+        else None
+    )
+    built_prev = (
+        encode_cursor(first["_cursor_created_at"], first["_cursor_id"])
+        if next_cursor or (direction == "backward" and has_more)
+        else None
+    )
+
+    items = [
+        {k: v for k, v in row.items() if k not in {"_cursor_id", "_cursor_created_at"}}
+        for row in rows
+    ]
+
+    return CursorPage(
+        items=items,
         next_cursor=built_next,
         prev_cursor=built_prev,
         limit=limit,
