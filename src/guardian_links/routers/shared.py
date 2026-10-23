@@ -13,7 +13,7 @@ from src.guardian_links.services.shared import GuardianLinkServiceShared
 
 router = APIRouter(
     prefix="/api/v1/users/me",
-    tags=["Guardian Links - Self Service"],
+    tags=["Guardian Links - Shared"],
 )
 
 
