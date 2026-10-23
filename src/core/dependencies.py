@@ -204,3 +204,4 @@ require_guardian = Annotated[CurrentUser, Depends(require_roles(UserRole.GUARDIA
 require_admin_and_guardian = Annotated[
     CurrentUser, Depends(require_roles(UserRole.SYSTEM_ADMIN, UserRole.GUARDIAN))
 ]
+require_student = Annotated[CurrentUser, Depends(require_roles(UserRole.STUDENT))]
