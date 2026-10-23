@@ -1,3 +1,5 @@
+import uuid
+
 import structlog
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,3 +114,39 @@ class GuardianLinkService:
         )
 
         return build_guardian_link_response(guardian, student, payload.guardian_type)
+
+    @staticmethod
+    async def delete_guardian_link(
+        db_session: AsyncSession,
+        actor_id: int,
+        student_public_id: uuid.UUID,
+        guardian_public_id: uuid.UUID,
+    ) -> None:
+        student = await UserCredentialsRepository.get_by_public_id(
+            db_session, student_public_id
+        )
+        if student is None:
+            raise StudentNotFoundError()
+
+        guardian = await UserCredentialsRepository.get_by_public_id(
+            db_session, guardian_public_id
+        )
+        if guardian is None:
+            raise GuardianNotFoundError()
+
+        deleted_type = await GuardianLinkRepository.delete_by_pair(
+            db_session, student.id, guardian.id
+        )
+
+        if deleted_type is None:
+            return
+
+        await db_session.commit()
+
+        logger.info(
+            "guardian_unlinked",
+            actor_id=actor_id,
+            guardian_public_id=guardian_public_id,
+            student_public_id=student_public_id,
+            guardian_type=deleted_type,
+        )

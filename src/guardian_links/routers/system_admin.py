@@ -1,3 +1,4 @@
+import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -12,6 +13,7 @@ from src.guardian_links.schemas.system_admin import (
     CreateGuardianLink,
     GuardianLinkResponse,
 )
+from src.guardian_links.services.system_admin import GuardianLinkService
 from src.guardian_links.use_cases.create_guardian_link import CreateGuardianLinkUseCase
 
 router = APIRouter(
@@ -40,4 +42,19 @@ async def create_guardian_link(
         current_user.credentials_id,
         payload,
         idempotency_key,
+    )
+
+
+@router.delete(
+    "/student/{student_public_id}/guardian/{guardian_public_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_guardian_link(
+    db_session: db_session_dependency,
+    current_user: require_system_admin,
+    student_public_id: uuid.UUID,
+    guardian_public_id: uuid.UUID,
+):
+    await GuardianLinkService.delete_guardian_link(
+        db_session, current_user.credentials_id, student_public_id, guardian_public_id
     )
