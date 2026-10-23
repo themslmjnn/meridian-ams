@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 import structlog
 from redis.asyncio import Redis
@@ -14,6 +15,7 @@ from src.groups.schemas.system_admin import (
     UpdateGroup,
 )
 from src.groups.utils.exceptions import (
+    GroupAlreadyArchivedError,
     GroupNotFoundError,
     handle_group_name_per_academic_year,
 )
@@ -102,3 +104,40 @@ class GroupServiceAdmin:
 
             handle_group_name_per_academic_year(exc)
             raise_unhandled_integrity_error(exc)
+
+    @staticmethod
+    async def archive_group(
+        db_session: AsyncSession,
+        redis: Redis,
+        actor_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        group = await GroupRepository.get_by_public_id(db_session, public_id)
+        if group is None:
+            raise GroupNotFoundError()
+
+        if group.is_archived:
+            raise GroupAlreadyArchivedError()
+
+        student_count = await GroupRepository.count_active_students(
+            db_session, group.id
+        )
+
+        group.is_archived = True
+        group.archived_at = datetime.now(UTC)
+
+        await db_session.commit()
+
+        await delete_cache(
+            redis,
+            GroupCacheKey.group_detail_key_admin(group.id),
+            GroupCacheKey.group_detail_key_staff(group.id),
+        )
+
+        logger.info(
+            "group_archived",
+            group_public_id=public_id,
+            archived_by=actor_id,
+        )
+
+        return student_count

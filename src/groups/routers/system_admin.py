@@ -49,3 +49,20 @@ async def update_group(
     await GroupServiceAdmin.update_group(
         db_session, redis, current_user.credentials_id, public_id, payload
     )
+
+
+@router.patch(
+    "/{public_id}/archive",
+    status_code=status.HTTP_200_OK,
+)
+async def archive_group(
+    db_session: db_session_dependency,
+    redis: redis_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+) -> dict:
+    student_count = await GroupServiceAdmin.archive_group(
+        db_session, redis, current_user.credentials_id, public_id
+    )
+
+    return {"message": "Group archived.", "active_students_at_archive": student_count}
