@@ -2,6 +2,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from src.guardian_links.schemas.director import GuardianLinkResponseDirector
+from src.guardian_links.schemas.shared import (
+    MyGuardianLinkResponse,
+    MyStudentLinkResponse,
+)
 from src.guardian_links.schemas.system_admin import GuardianLinkResponse, PersonName
 from src.guardian_links.utils.enums import GuardianType
 from src.users.models.credentials import UserCredentials
@@ -64,6 +68,29 @@ def build_guardian_link_response_director_from_row(
             firstname=row["student_firstname"],
             lastname=row["student_lastname"],
             middlename=row["student_middlename"],
+        ),
+        guardian_type=row["guardian_type"],
+    )
+
+
+def build_my_student_link_from_row(row: Mapping[str, Any]) -> MyStudentLinkResponse:
+    return MyStudentLinkResponse(
+        student_public_id=row["student_public_id"],
+        student=PersonName(
+            firstname=row["student_firstname"],
+            lastname=row["student_lastname"],
+            middlename=row["student_middlename"],
+        ),
+        guardian_type=row["guardian_type"],
+    )
+
+
+def build_my_guardian_link_from_row(row: Mapping[str, Any]) -> MyGuardianLinkResponse:
+    return MyGuardianLinkResponse(
+        guardian=PersonName(
+            firstname=row["guardian_firstname"],
+            lastname=row["guardian_lastname"],
+            middlename=row["guardian_middlename"],
         ),
         guardian_type=row["guardian_type"],
     )
