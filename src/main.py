@@ -26,6 +26,7 @@ from src.core.middleware import (
 )
 from src.database.connection import dispose_engine
 from src.emails.routers import router as emails_system_admin_router
+from src.guardian_links.routers.director import router as guardian_links_director_router
 from src.guardian_links.routers.system_admin import (
     router as guardian_links_system_admin_router,
 )
@@ -178,6 +179,7 @@ def create_app() -> FastAPI:
     app.include_router(users_shared_router)
     app.include_router(users_guardian_router)
     app.include_router(guardian_links_system_admin_router)
+    app.include_router(guardian_links_director_router)
 
     return app
 

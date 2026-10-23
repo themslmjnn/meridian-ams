@@ -1,4 +1,3 @@
-# src/guardian_links/routers/director.py
 import uuid
 from typing import Annotated
 
