@@ -16,7 +16,7 @@ class GroupResponseBase(BaseSchema):
 
 class GroupResponseAdminDetailed(GroupResponseBase):
     max_capacity: int
-    student_count: int
+    student_count: int | None = Field(ge=0, default=0)
     is_archived: bool
     archived_at: datetime | None
     created_at: datetime

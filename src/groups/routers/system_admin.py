@@ -5,7 +5,7 @@ from src.groups.schemas.system_admin import CreateGroup, GroupResponseAdminDetai
 from src.groups.services.system_admin import GroupServiceAdmin
 
 router = APIRouter(
-    prefix="/admin/groups",
+    prefix="/api/v1/admin/groups",
     tags=["Groups - System Admin"],
 )
 
@@ -20,4 +20,6 @@ async def create_group(
     current_user: require_system_admin,
     payload: CreateGroup,
 ):
-    return await GroupServiceAdmin.create_group(db_session, current_user.id, payload)
+    return await GroupServiceAdmin.create_group(
+        db_session, current_user.credentials_id, payload
+    )

@@ -30,6 +30,11 @@ class GroupServiceAdmin:
                 created_by=actor_id,
             )
 
+            response = GroupResponseAdminDetailed.model_validate(group)
+            response.student_count = 0
+
+            return response
+
         except IntegrityError as exc:
             await db_session.rollback()
 
