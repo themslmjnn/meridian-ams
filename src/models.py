@@ -1,5 +1,6 @@
 from src.core.idempotency.models import IdempotencyRecord
 from src.emails.models import Email
+from src.groups.models import Group
 from src.guardian_links.models import StudentGuardianLink
 from src.users.models.activation import UserActivation
 from src.users.models.credentials import UserCredentials

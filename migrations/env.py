@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 import src.core.idempotency.models
 import src.emails.models
+import src.groups.models
 import src.guardian_links.models
 import src.users.models
 from src.core.config import get_settings
