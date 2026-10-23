@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import Select, delete, select
+from sqlalchemy import RowMapping, Select, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -125,3 +125,32 @@ class GuardianLinkRepository:
             next_cursor=next_cursor,
             prev_cursor=prev_cursor,
         )
+
+    @staticmethod
+    async def get_links_by_student(
+        db_session: AsyncSession, student_credentials_id: int
+    ) -> Sequence[RowMapping]:
+        query = (
+            GuardianLinkRepository._base_query()
+            .where(StudentGuardianLink.student_credentials_id == student_credentials_id)
+            .order_by(StudentGuardianLink.guardian_type)  # "primary" sorts before "secondary"
+        )
+
+        result = await db_session.execute(query)
+
+        return result.mappings().all()
+
+
+    @staticmethod
+    async def get_links_by_guardian(
+        db_session: AsyncSession, guardian_credentials_id: int
+    ) -> Sequence[RowMapping]:
+        query = (
+            GuardianLinkRepository._base_query()
+            .where(StudentGuardianLink.guardian_credentials_id == guardian_credentials_id)
+            .order_by(_student_identity.lastname, _student_identity.firstname)
+        )
+
+        result = await db_session.execute(query)
+
+        return result.mappings().all()
