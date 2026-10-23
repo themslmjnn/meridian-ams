@@ -49,3 +49,13 @@ class EmailCacheKey:
     @staticmethod
     def email_detail_key(email_id: int) -> str:
         return f"emails:detail:{email_id}:admin"
+
+
+class GroupCacheKey:
+    @staticmethod
+    def group_detail_key_admin(group_id: int) -> str:
+        return f"groups:detail:{group_id}:admin"
+
+    @staticmethod
+    def group_detail_key_staff(group_id: int) -> str:
+        return f"groups:detail:{group_id}:staff"
