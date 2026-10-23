@@ -24,3 +24,11 @@ class GuardianLinkResponse(BaseSchema):
     student_public_id: uuid.UUID
     student: PersonName
     guardian_type: GuardianType
+
+
+class SearchGuardianLink(BaseModel):
+    guardian_type: GuardianType | None = None
+    guardian_firstname: str | None = None
+    guardian_lastname: str | None = None
+    student_firstname: str | None = None
+    student_lastname: str | None = None
