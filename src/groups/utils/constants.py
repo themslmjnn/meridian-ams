@@ -1,2 +1,2 @@
 class HTTP404:
-    GROUP = "Group not founc"
+    GROUP = "Group not found"
