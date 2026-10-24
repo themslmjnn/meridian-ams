@@ -39,3 +39,12 @@ class UpdateGroup(BaseModel):
     name: str | None = Field(None, min_length=1, max_length=20)
     grade_level: int | None = Field(None, ge=1, le=12)
     max_capacity: int | None = Field(None, gt=0)
+
+
+class SearchGroupBase(BaseModel):
+    name: str | None = None
+    academic_year: str | None = None
+
+
+class SearchGroupAdmin(SearchGroupBase):
+    include_archived: bool = False
