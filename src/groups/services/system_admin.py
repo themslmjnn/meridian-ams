@@ -12,8 +12,11 @@ from src.groups.repository import GroupRepository
 from src.groups.schemas.system_admin import (
     CreateGroup,
     GroupResponseAdminDetailed,
+    GroupResponseBase,
+    SearchGroupAdmin,
     UpdateGroup,
 )
+from src.groups.utils.enums import GroupSortField
 from src.groups.utils.exceptions import (
     GroupAlreadyArchivedError,
     GroupNotArchivedError,
@@ -21,6 +24,7 @@ from src.groups.utils.exceptions import (
     handle_group_name_per_academic_year,
 )
 from src.utils.cache_keys import GroupCacheKey
+from src.utils.enums import OrderBy
 from src.utils.exceptions import raise_unhandled_integrity_error
 from src.utils.helpers import update_object
 
@@ -173,3 +177,14 @@ class GroupServiceAdmin:
             group_public_id=public_id,
             restored_by=actor_id,
         )
+
+    @staticmethod
+    async def get_groups(
+        db_session: AsyncSession,
+        filters: SearchGroupAdmin,
+        sort_by: GroupSortField,
+        order: OrderBy,
+    ) -> list[GroupResponseBase]:
+        groups = await GroupRepository.get_groups(db_session, filters, sort_by, order)
+
+        return [GroupResponseBase.model_validate(group) for group in groups]
