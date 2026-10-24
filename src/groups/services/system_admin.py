@@ -6,7 +6,7 @@ from redis.asyncio import Redis
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.caching import delete_cache
+from src.core.caching import delete_cache, get_cache, set_cache
 from src.groups.models import Group
 from src.groups.repository import GroupRepository
 from src.groups.schemas.system_admin import (
@@ -188,3 +188,29 @@ class GroupServiceAdmin:
         groups = await GroupRepository.get_groups(db_session, filters, sort_by, order)
 
         return [GroupResponseBase.model_validate(group) for group in groups]
+
+    @staticmethod
+    async def get_group_by_public_id(
+        db_session: AsyncSession,
+        redis: Redis,
+        public_id: uuid.UUID,
+    ) -> GroupResponseAdminDetailed:
+        cache_key = GroupCacheKey.group_detail_key_admin(public_id)
+
+        cached_data = await get_cache(redis, cache_key)
+
+        if cached_data is not None:
+            return GroupResponseAdminDetailed.model_validate(cached_data)
+
+        group = await GroupRepository.get_user_by_public_id(
+            db_session,
+            public_id,
+        )
+        if group is None:
+            raise GroupNotFoundError()
+
+        response = GroupResponseAdminDetailed.model_validate(group)
+
+        await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
+
+        return response

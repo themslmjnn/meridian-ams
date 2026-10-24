@@ -106,3 +106,16 @@ async def get_groups(
     order: OrderBy = OrderBy.DESC,
 ):
     return await GroupServiceAdmin.get_groups(db_session, filters, sort_by, order)
+
+
+@router.get(
+    "/{public_id}",
+    response_model=GroupResponseAdminDetailed,
+    status_code=status.HTTP_200_OK,
+)
+async def get_group_by_id(
+    db_session: db_session_dependency,
+    _: require_system_admin,
+    public_id: uuid.UUID,
+):
+    return await GroupServiceAdmin.get_group_by_public_id(db_session, public_id)
