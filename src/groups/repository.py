@@ -78,3 +78,14 @@ class GroupRepository:
         result = await db_session.execute(query)
 
         return result.scalars().all()
+
+    @staticmethod
+    async def get_active_assignment(
+        db_session: AsyncSession, student_credentials_id: int
+    ) -> StudentGroupAssignment | None:
+        query = select(StudentGroupAssignment).where(
+            StudentGroupAssignment.student_credentials_id == student_credentials_id,
+            StudentGroupAssignment.unassigned_at.is_(None),
+        )
+        result = await db_session.execute(query)
+        return result.scalar_one_or_none()
