@@ -1,7 +1,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from src.core.dependencies import (
     db_session_dependency,
@@ -9,7 +9,6 @@ from src.core.dependencies import (
     require_system_admin,
 )
 from src.core.limiter import user_limiter
-from src.core.pagination import CursorPage
 from src.groups.schemas.system_admin import (
     CreateGroup,
     GroupResponseAdminDetailed,
@@ -120,3 +119,18 @@ async def get_group_by_id(
     public_id: uuid.UUID,
 ):
     return await GroupServiceAdmin.get_group_by_public_id(db_session, redis, public_id)
+
+
+@router.post(
+    "/{group_public_id}/students/{student_public_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def assign_student(
+    db_session: db_session_dependency,
+    current_user: require_system_admin,
+    group_public_id: uuid.UUID,
+    student_public_id: uuid.UUID,
+):
+    await GroupServiceAdmin.assign_student(
+        db_session, current_user.credentials_id, group_public_id, student_public_id
+    )

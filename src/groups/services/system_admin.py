@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.caching import delete_cache, get_cache, set_cache
-from src.groups.models import Group
+from src.groups.models import Group, StudentGroupAssignment
 from src.groups.repository import GroupRepository
 from src.groups.schemas.system_admin import (
     CreateGroup,
@@ -19,10 +19,18 @@ from src.groups.schemas.system_admin import (
 from src.groups.utils.enums import GroupSortField
 from src.groups.utils.exceptions import (
     GroupAlreadyArchivedError,
+    GroupCapacityReachedError,
     GroupNotArchivedError,
     GroupNotFoundError,
+    StudentAlreadyInGroupError,
     handle_group_name_per_academic_year,
 )
+from src.guardian_links.utils.exceptions import (
+    InvalidStudentAccountError,
+    StudentNotFoundError,
+)
+from src.users.repository.credentials import UserCredentialsRepository
+from src.users.utils.enums import AccountType
 from src.utils.cache_keys import GroupCacheKey
 from src.utils.enums import OrderBy
 from src.utils.exceptions import raise_unhandled_integrity_error
@@ -216,3 +224,57 @@ class GroupServiceAdmin:
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 
         return response
+
+    @staticmethod
+    async def assign_student(
+        db_session: AsyncSession,
+        actor_id: int,
+        group_public_id: uuid.UUID,
+        student_public_id: uuid.UUID,
+    ) -> None:
+        group = await GroupRepository.get_by_public_id(db_session, group_public_id)
+        if group is None:
+            raise GroupNotFoundError()
+
+        if group.is_archived:
+            raise GroupAlreadyArchivedError(
+                "Cannot assign students to an archived group"
+            )
+
+        student = await UserCredentialsRepository.get_by_public_id(
+            db_session, student_public_id
+        )
+        if student is None:
+            raise StudentNotFoundError()
+
+        if student.account_type != AccountType.STUDENT:
+            raise InvalidStudentAccountError(
+                "Only student accounts can be assigned to groups."
+            )
+
+        existing_assignment = await GroupRepository.get_active_assignment(
+            db_session, student.id
+        )
+        if existing_assignment is not None:
+            raise StudentAlreadyInGroupError()
+
+        student_count = await GroupRepository.count_active_students(
+            db_session, group.id
+        )
+        if student_count >= group.max_capacity:
+            raise GroupCapacityReachedError()
+
+        assignment = StudentGroupAssignment(
+            student_credentials_id=student.id,
+            group_id=group.id,
+        )
+
+        db_session.add(assignment)
+        await db_session.commit()
+
+        logger.info(
+            "student_assigned_to_group",
+            group_public_id=group_public_id,
+            student_public_id=group_public_id,
+            assigned_by=actor_id,
+        )

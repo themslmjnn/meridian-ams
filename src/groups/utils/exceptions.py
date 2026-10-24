@@ -30,6 +30,18 @@ class GroupNotArchivedError(AppException):
     error_code = "GROUP_NOT_ARCHIVED"
 
 
+class StudentAlreadyInGroupError(AppException):
+    status_code = 409
+    detail = "Student is already assigned to a group"
+    error_code = "STUDENT_ALREADY_ASSIGNED"
+
+
+class GroupCapacityReachedError(AppException):
+    status_code = 409
+    detail = "Group has reached maximum capacity"
+    error_code = "GROUP_CAPACITY_REACHED"
+
+
 def handle_group_name_per_academic_year(error: IntegrityError) -> None:
     if "uix_group_name_per_academic_year" in str(error.orig):
         raise GroupNameYearConflictError()
