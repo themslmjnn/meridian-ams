@@ -24,6 +24,12 @@ class GroupAlreadyArchivedError(AppException):
     error_code = "GROUP_ALREADY_ARCHIVED"
 
 
+class GroupNotArchivedError(AppException):
+    status_code = 409
+    detail = "Group is not archived"
+    error_code = "GROUP_NOT_ARCHIVED"
+
+
 def handle_group_name_per_academic_year(error: IntegrityError) -> None:
     if "uix_group_name_per_academic_year" in str(error.orig):
         raise GroupNameYearConflictError()

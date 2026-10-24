@@ -16,6 +16,7 @@ from src.groups.schemas.system_admin import (
 )
 from src.groups.utils.exceptions import (
     GroupAlreadyArchivedError,
+    GroupNotArchivedError,
     GroupNotFoundError,
     handle_group_name_per_academic_year,
 )
@@ -141,3 +142,34 @@ class GroupServiceAdmin:
         )
 
         return student_count
+
+    @staticmethod
+    async def restore_group(
+        db_session: AsyncSession,
+        redis: Redis,
+        actor_id: int,
+        public_id: uuid.UUID,
+    ) -> None:
+        group = await GroupRepository.get_by_public_id(db_session, public_id)
+        if group is None:
+            raise GroupNotFoundError()
+
+        if not group.is_archived:
+            raise GroupNotArchivedError()
+
+        group.is_archived = False
+        group.archived_at = None
+
+        await db_session.commit()
+
+        await delete_cache(
+            redis,
+            GroupCacheKey.group_detail_key_admin(group.id),
+            GroupCacheKey.group_detail_key_staff(group.id),
+        )
+
+        logger.info(
+            "group_restored",
+            group_public_id=public_id,
+            restored_by=actor_id,
+        )

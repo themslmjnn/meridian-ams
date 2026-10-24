@@ -65,4 +65,19 @@ async def archive_group(
         db_session, redis, current_user.credentials_id, public_id
     )
 
-    return {"message": "Group archived.", "active_students_at_archive": student_count}
+    return {
+        "message": "Group archived",
+        "active_students_at_archive": student_count,
+    }
+
+
+@router.patch("/{public_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def restore_group(
+    db_session: db_session_dependency,
+    redis: redis_dependency,
+    current_user: require_system_admin,
+    public_id: uuid.UUID,
+):
+    await GroupServiceAdmin.restore_group(
+        db_session, redis, current_user.credentials_id, public_id
+    )
