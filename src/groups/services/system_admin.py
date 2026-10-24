@@ -198,7 +198,6 @@ class GroupServiceAdmin:
         cache_key = GroupCacheKey.group_detail_key_admin(public_id)
 
         cached_data = await get_cache(redis, cache_key)
-
         if cached_data is not None:
             return GroupResponseAdminDetailed.model_validate(cached_data)
 
@@ -206,7 +205,13 @@ class GroupServiceAdmin:
         if group is None:
             raise GroupNotFoundError()
 
-        response = GroupResponseAdminDetailed.model_validate(group)
+        student_count = await GroupRepository.count_active_students(
+            db_session, group.id
+        )
+
+        response = GroupResponseAdminDetailed.model_validate(group).model_copy(
+            update={"student_count": student_count}
+        )
 
         await set_cache(redis, cache_key, response.model_dump(mode="json"), 900)
 

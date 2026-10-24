@@ -32,7 +32,9 @@ class GroupRepository:
         return result.scalar_one()
 
     @staticmethod
-    def _apply_filters(query: Select, filters: SearchGroupBase) -> Select:
+    def _apply_filters(
+        query: Select, filters: SearchGroupBase | SearchGroupAdmin
+    ) -> Select:
         if filters is not None:
             if filters.name:
                 query = query.where(Group.name.ilike(f"%{filters.name}%"))
@@ -46,8 +48,9 @@ class GroupRepository:
             include_archived = (
                 isinstance(filters, SearchGroupAdmin) and filters.include_archived
             )
-            if not include_archived:
-                query = query.where(Group.is_archived.is_(False))
+
+            if include_archived:
+                query = query.where(Group.is_archived.is_(True))
 
         return query
 
@@ -65,7 +68,7 @@ class GroupRepository:
     @staticmethod
     async def get_groups(
         db_session: AsyncSession,
-        filters: SearchGroupBase,
+        filters: SearchGroupBase | SearchGroupAdmin,
         sort_by: GroupSortField,
         order: OrderBy,
     ) -> list[Group]:

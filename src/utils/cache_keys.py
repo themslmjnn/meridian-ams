@@ -53,9 +53,9 @@ class EmailCacheKey:
 
 class GroupCacheKey:
     @staticmethod
-    def group_detail_key_admin(group_id: int) -> str:
-        return f"groups:detail:{group_id}:admin"
+    def group_detail_key_admin(public_id: int) -> str:
+        return f"groups:detail:{public_id}:admin"
 
     @staticmethod
-    def group_detail_key_staff(group_id: int) -> str:
-        return f"groups:detail:{group_id}:staff"
+    def group_detail_key_staff(public_id: int) -> str:
+        return f"groups:detail:{public_id}:staff"

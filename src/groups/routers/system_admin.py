@@ -115,7 +115,8 @@ async def get_groups(
 )
 async def get_group_by_id(
     db_session: db_session_dependency,
+    redis: redis_dependency,
     _: require_system_admin,
     public_id: uuid.UUID,
 ):
-    return await GroupServiceAdmin.get_group_by_public_id(db_session, public_id)
+    return await GroupServiceAdmin.get_group_by_public_id(db_session, redis, public_id)
