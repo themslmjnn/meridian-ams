@@ -44,6 +44,7 @@ class UpdateGroup(BaseModel):
 class SearchGroupBase(BaseModel):
     name: str | None = None
     academic_year: str | None = None
+    grade_level: int | None = None
 
 
 class SearchGroupAdmin(SearchGroupBase):
