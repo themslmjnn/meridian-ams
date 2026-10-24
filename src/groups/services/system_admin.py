@@ -202,10 +202,7 @@ class GroupServiceAdmin:
         if cached_data is not None:
             return GroupResponseAdminDetailed.model_validate(cached_data)
 
-        group = await GroupRepository.get_user_by_public_id(
-            db_session,
-            public_id,
-        )
+        group = await GroupRepository.get_by_public_id(db_session, public_id)
         if group is None:
             raise GroupNotFoundError()
 
