@@ -1,5 +1,8 @@
 .PHONY: format migrate migration autogenerate
 
+dev:
+	uv run uvicorn meridian_ams.main:app --reload
+
 format:
 	uv run ruff format .
 
