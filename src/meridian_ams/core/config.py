@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     DB_PASSWORD: SecretStr
     DB_NAME: NonEmptyStr
 
+    DB_POOL_TIMEOUT: int = Field(ge=1, le=120, default=5)
+
     @property
     def DATABASE_URL(self) -> str:
         """Async SQLAlchemy URL. Computed on access; credentials are percent-encoded."""
