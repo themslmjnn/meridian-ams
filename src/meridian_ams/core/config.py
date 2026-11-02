@@ -3,7 +3,7 @@ from functools import lru_cache
 from typing import Annotated, Literal
 from urllib.parse import quote
 
-from pydantic import Field, SecretStr, StringConstraints
+from pydantic import Field, SecretStr, StringConstraints, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV = os.getenv("ENVIRONMENT", "development")
@@ -40,6 +40,18 @@ class Settings(BaseSettings):
     REDIS_PORT: int = Field(ge=1, le=65535, default=6379)
     REDIS_PASSWORD: SecretStr | None = None
     REDIS_DB: int = Field(ge=0, le=15)
+
+    WORK_EMAIL_DOMAIN: str
+
+    @field_validator("WORK_EMAIL_DOMAIN")
+    @classmethod
+    def validate_work_email_domain(cls, v: str) -> str:
+        v = v.strip().lower().lstrip("@")
+
+        if not v:
+            raise ValueError("WORK_EMAIL_DOMAIN cannot be empty")
+
+        return v
 
     @property
     def DATABASE_URL(self) -> str:
