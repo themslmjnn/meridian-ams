@@ -34,3 +34,5 @@ build/
 Thumbs.db
 
 .coverage
+
+.pytest_cache/
