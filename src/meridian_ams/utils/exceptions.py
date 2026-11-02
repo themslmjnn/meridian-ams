@@ -36,3 +36,46 @@ class InvalidCredentialsError(AppException):
     status_code = 401
     detail = "Invalid credentials"
     error_code = "INVALID_CREDENTIALS"
+
+
+# HTTP403
+class AccessDeniedError(AppException):
+    status_code = 403
+    detail = "Access denied"
+    error_code = "ACCESS_DENIED"
+
+
+class AccountLockedError(AppException):
+    status_code = 403
+    error_code = "ACCOUNT_LOCKED"
+    detail = "Your account is locked"
+
+
+class AccountNotActivatedError(AppException):
+    status_code = 403
+    detail = "Account has not been activated yet"
+    error_code = "ACCOUNT_NOT_ACTIVATED"
+
+
+class AccountInactiveError(AppException):
+    status_code = 403
+    detail = "Account is inactive"
+    error_code = "ACCOUNT_INACTIVE"
+
+
+class AccountGraduatedError(AppException):
+    status_code = 403
+    detail = "This account belongs to a graduated student"
+    error_code = "ACCOUNT_GRADUATED"
+
+
+class AccountExpelledError(AppException):
+    status_code = 403
+    detail = "This account has been expelled"
+    error_code = "ACCOUNT_EXPELLED"
+
+
+class AccountWithdrawnError(AppException):
+    status_code = 403
+    detail = "This account has been withdrawn"
+    error_code = "ACCOUNT_WITHDRAWN"
