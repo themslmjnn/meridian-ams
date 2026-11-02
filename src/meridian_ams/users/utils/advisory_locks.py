@@ -1,0 +1,70 @@
+import hashlib
+
+import structlog
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = structlog.get_logger(__name__)
+
+NAMESPACE_PHONE_NUMBER = 9001
+NAMESPACE_EMAIL = 9002
+
+ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(:ns, :key)"
+
+
+def _compute_lock_key(value: str) -> int:
+    digest = hashlib.sha256(value.encode("utf-8")).digest()
+    unsigned = int.from_bytes(digest[:4], byteorder="big", signed=False)
+
+    return unsigned - 2**32 if unsigned >= 2**31 else unsigned
+
+
+async def acquire_contact_locks(
+    db_session: AsyncSession,
+    *,
+    phone_number: str | None,
+    email: str | None,
+) -> None:
+    if phone_number:
+        key = _compute_lock_key(phone_number)
+
+        logger.debug(
+            "acquiring_advisory_lock",
+            lock_type="phone_number",
+            namespace=NAMESPACE_PHONE_NUMBER,
+            key=key,
+        )
+
+        await db_session.execute(
+            text(ADVISORY_LOCK_SQL),
+            {"ns": NAMESPACE_PHONE_NUMBER, "key": key},
+        )
+
+        logger.debug(
+            "advisory_lock_acquired",
+            lock_type="phone_number",
+            namespace=NAMESPACE_PHONE_NUMBER,
+            key=key,
+        )
+
+    if email:
+        key = _compute_lock_key(email)
+
+        logger.debug(
+            "acquiring_advisory_lock",
+            lock_type="student_email",
+            namespace=NAMESPACE_EMAIL,
+            key=key,
+        )
+
+        await db_session.execute(
+            text(ADVISORY_LOCK_SQL),
+            {"ns": NAMESPACE_EMAIL, "key": key},
+        )
+
+        logger.debug(
+            "advisory_lock_acquired",
+            lock_type="student_email",
+            namespace=NAMESPACE_EMAIL,
+            key=key,
+        )
