@@ -8,6 +8,16 @@ from meridian_ams.users.utils.enums import AccountType
 
 class UserCredentialsRepository:
     @staticmethod
+    async def get_by_id(
+        db_session: AsyncSession, credentials_id: int
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(UserCredentials.id == credentials_id)
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def count_by_phone_and_account_type(
         db_session: AsyncSession,
         phone_number: str,
