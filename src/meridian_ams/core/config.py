@@ -51,6 +51,14 @@ class Settings(BaseSettings):
 
     WORK_EMAIL_DOMAIN: str
 
+    @field_validator("JWT_SECRET_KEY")
+    @classmethod
+    def validate_required_secrets(cls, v: SecretStr) -> SecretStr:
+        if len(v.get_secret_value()) < 32:
+            raise ValueError("Secret must be at least 32 characters")
+
+        return v
+
     @field_validator("WORK_EMAIL_DOMAIN")
     @classmethod
     def validate_work_email_domain(cls, v: str) -> str:
