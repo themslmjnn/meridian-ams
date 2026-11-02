@@ -53,6 +53,10 @@ async def _ping_database(request: Request) -> None:
         await conn.execute(text("SELECT 1"))
 
 
+async def _ping_redis(request: Request) -> None:
+    await request.app.state.redis.ping()
+
+
 @router.get("/live")
 async def liveness() -> JSONResponse:
     return JSONResponse(status_code=status.HTTP_200_OK, content={"status": "ok"})
@@ -60,11 +64,12 @@ async def liveness() -> JSONResponse:
 
 @router.get("/ready")
 async def readiness(request: Request) -> JSONResponse:
-    (database,) = await asyncio.gather(
-        _timed_check("database", lambda: _ping_database(request))
+    database, redis = await asyncio.gather(
+        _timed_check("database", lambda: _ping_database(request)),
+        _timed_check("redis", lambda: _ping_redis(request)),
     )
 
-    healthy = database["status"] == "ok"
+    healthy = database["status"] == "ok" and redis["status"] == "ok"
 
     return JSONResponse(
         status_code=(
@@ -72,6 +77,6 @@ async def readiness(request: Request) -> JSONResponse:
         ),
         content={
             "status": "ok" if healthy else "error",
-            "checks": {"database": database},
+            "checks": {"database": database, "redis": redis},
         },
     )
