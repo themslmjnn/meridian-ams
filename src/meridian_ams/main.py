@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from meridian_ams.core.exceptions import register_exception_handlers
 from meridian_ams.core.logging import configure_logging
 from meridian_ams.core.redis.client import build_redis
 from meridian_ams.database.connection import build_engine, build_session_factory
+from meridian_ams.workers.email_worker import run_email_worker
 
 logger = structlog.get_logger(__name__)
 
@@ -48,6 +50,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     engine = build_engine(settings)
     redis = build_redis(settings)
 
+    tasks: list[asyncio.Task[None]] = []
+
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
@@ -62,6 +66,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         app.state.async_session_factory = build_session_factory(engine)
         app.state.redis = redis
 
+        tasks.append(
+            asyncio.create_task(
+                run_email_worker(engine=app.state.engine), name="email_worker"
+            )
+        )
+
+        logger.info("workers_started")
         logger.info("application_ready")
 
         yield
@@ -70,6 +81,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("application_shutting_down")
 
         is_shutdown_completed = True
+
+        for task in tasks:
+            task.cancel()
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for task, result in zip(tasks, results, strict=True):
+            if isinstance(result, BaseException) and not isinstance(
+                result, asyncio.CancelledError
+            ):
+                logger.error(
+                    "worker_shutdown_error",
+                    worker=task.get_name(),
+                    error=repr(result),
+                    error_type=type(result).__name__,
+                )
 
         shutdown = (
             ("redis", redis.aclose, "redis_closed"),
