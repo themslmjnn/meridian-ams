@@ -7,6 +7,7 @@ from sqlalchemy import text
 
 from meridian_ams.api.health import router as health_router
 from meridian_ams.core.config import Settings, get_settings
+from meridian_ams.core.exceptions import register_exception_handlers
 from meridian_ams.core.logging import configure_logging
 from meridian_ams.core.redis.client import build_redis
 from meridian_ams.database.connection import build_engine, build_session_factory
@@ -98,7 +99,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
        otherwise they come from get_settings().
     2. Configure logging, before anything else can log.
     3. Create the FastAPI app and attach settings to app.state.
-    4. Register routers.
+    4. Register exception handlers, so every error leaves the app in the
+       standard shape.
+    5. Register routers.
 
     Resources (database, Redis) are not created here. The lifespan builds
     them, so tests that skip the lifespan must set them on app.state.
@@ -111,6 +114,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
     app.state.settings = settings
+
+    # Exceptions
+    register_exception_handlers(app)
 
     # Routers
     app.include_router(health_router)
