@@ -1,9 +1,13 @@
 from datetime import date
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Index, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meridian_ams.database.base import Base, CreatedAtMixin, IdMixin, UpdatedAtMixin
+
+if TYPE_CHECKING:
+    from meridian_ams.users.models.credentials import UserCredentials
 
 
 class UserIdentity(IdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
@@ -17,6 +21,10 @@ class UserIdentity(IdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     address: Mapped[str | None] = mapped_column(String(150), nullable=True)
 
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    credentials: Mapped[list["UserCredentials"]] = relationship(
+        back_populates="identity", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index(
