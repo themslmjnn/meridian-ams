@@ -11,6 +11,8 @@ REQUIRED_FIELDS = [
     "DB_NAME",
     "REDIS_HOST",
     "REDIS_DB",
+    "JWT_SECRET_KEY",
+    "WORK_EMAIL_DOMAIN",
 ]
 
 OPTIONAL_FIELDS = [
@@ -21,7 +23,12 @@ OPTIONAL_FIELDS = [
     "DB_CONNECT_TIMEOUT",
     "REDIS_PORT",
     "REDIS_PASSWORD",
+    "ALGORITHM",
+    "ACCESS_TOKEN_EXPIRES_MINUTES",
+    "REFRESH_TOKEN_EXPIRES_DAYS",
 ]
+
+JWT_SECRET = "jwt-secret-value-" + "x" * 20
 
 
 @pytest.fixture
@@ -38,6 +45,8 @@ def valid_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setenv("DB_NAME", "meridian_test")
     monkeypatch.setenv("REDIS_HOST", "localhost")
     monkeypatch.setenv("REDIS_DB", "1")
+    monkeypatch.setenv("JWT_SECRET_KEY", JWT_SECRET)
+    monkeypatch.setenv("WORK_EMAIL_DOMAIN", "school.com")
 
     return monkeypatch
 
@@ -85,6 +94,12 @@ class TestValidationRules:
             ("DB_CONNECT_TIMEOUT", "121"),
             ("REDIS_DB", "-1"),
             ("REDIS_DB", "16"),
+            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "0"),
+            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "169"),
+            ("ACCESS_TOKEN_EXPIRES_MINUTES", "14"),
+            ("ACCESS_TOKEN_EXPIRES_MINUTES", "31"),
+            ("REFRESH_TOKEN_EXPIRES_DAYS", "6"),
+            ("REFRESH_TOKEN_EXPIRES_DAYS", "31"),
         ],
     )
     def test_out_of_range_number_is_rejected(self, valid_env, field, value):
@@ -100,8 +115,15 @@ class TestValidationRules:
         [
             ("ENVIRONMENT", "banana"),
             ("LOG_LEVEL", "info"),
+            ("ALGORITHM", "none"),
+            ("ALGORITHM", "RS256"),
         ],
-        ids=["unknown_environment", "lowercase_log_level"],
+        ids=[
+            "unknown_environment",
+            "lowercase_log_level",
+            "algorithm_none",
+            "algorithm_other_than_hs256",
+        ],
     )
     def test_invalid_choice_is_rejected(self, valid_env, field, value):
         valid_env.setenv(field, value)
@@ -110,6 +132,39 @@ class TestValidationRules:
             build_settings()
 
         assert failed_fields(exc_info) == {field}
+
+
+class TestJWTSecret:
+    def test_secret_shorter_than_32_characters_is_rejected(self, valid_env):
+        valid_env.setenv("JWT_SECRET_KEY", "x" * 31)
+
+        with pytest.raises(ValidationError) as exc_info:
+            build_settings()
+
+        assert failed_fields(exc_info) == {"JWT_SECRET_KEY"}
+
+    def test_secret_of_exactly_32_characters_is_accepted(self, valid_env):
+        valid_env.setenv("JWT_SECRET_KEY", "x" * 32)
+
+        settings = build_settings()
+
+        assert settings.JWT_SECRET_KEY.get_secret_value() == "x" * 32
+
+
+class TestWorkEmailDomain:
+    def test_domain_is_normalised(self, valid_env):
+        valid_env.setenv("WORK_EMAIL_DOMAIN", "  @School.COM ")
+
+        assert build_settings().WORK_EMAIL_DOMAIN == "school.com"
+
+    @pytest.mark.parametrize("value", ["@", "   ", " @ "])
+    def test_domain_that_is_empty_after_normalising_is_rejected(self, valid_env, value):
+        valid_env.setenv("WORK_EMAIL_DOMAIN", value)
+
+        with pytest.raises(ValidationError) as exc_info:
+            build_settings()
+
+        assert failed_fields(exc_info) == {"WORK_EMAIL_DOMAIN"}
 
 
 class TestDefaults:
@@ -123,6 +178,10 @@ class TestDefaults:
         assert settings.DB_CONNECT_TIMEOUT == 5
         assert settings.REDIS_PORT == 6379
         assert settings.REDIS_PASSWORD is None
+        assert settings.ALGORITHM == "HS256"
+        assert settings.ACTIVATION_TOKEN_EXPIRES_HOURS == 48
+        assert settings.ACCESS_TOKEN_EXPIRES_MINUTES == 15
+        assert settings.REFRESH_TOKEN_EXPIRES_DAYS == 7
 
 
 class TestComputedURLs:
@@ -150,10 +209,11 @@ class TestComputedURLs:
 
 
 class TestSecrets:
-    def test_passwords_do_not_appear_in_repr(self, valid_env):
+    def test_secrets_do_not_appear_in_repr(self, valid_env):
         valid_env.setenv("REDIS_PASSWORD", "redis-secret-value")
 
         text = repr(build_settings())
 
         assert "db-secret-value" not in text
         assert "redis-secret-value" not in text
+        assert JWT_SECRET not in text
