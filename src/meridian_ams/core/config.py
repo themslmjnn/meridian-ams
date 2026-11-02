@@ -21,9 +21,11 @@ class Settings(BaseSettings):
         env_ignore_empty=True,
     )
 
+    APP_NAME: str = "Meridian AMS"
+
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
 
-    APP_NAME: str = "Meridian AMS"
+    LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     DB_HOST: NonEmptyStr
     DB_PORT: int = Field(ge=1, le=65535, default=5432)
