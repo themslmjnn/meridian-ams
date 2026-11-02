@@ -8,6 +8,7 @@ from sqlalchemy import text
 from meridian_ams.api.health import router as health_router
 from meridian_ams.core.config import Settings, get_settings
 from meridian_ams.core.logging import configure_logging
+from meridian_ams.core.redis.client import build_redis
 from meridian_ams.database.connection import build_engine, build_session_factory
 
 logger = structlog.get_logger(__name__)
@@ -20,17 +21,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     Startup:
     1. Read settings from app.state (attached by create_app)
-    2. Build the DB engine (no connection is opened yet)
-    3. Verify PostgreSQL is reachable. It is mandatory, so a failure
-       here aborts startup.
-    4. Attach the engine and session factory to app.state
+    2. Build the DB engine and the Redis client (neither connects yet)
+    3. Verify PostgreSQL is reachable
+    4. Verify Redis is reachable
+       Both are mandatory, so a failure in either aborts startup.
+    5. Attach the engine, session factory and Redis client to app.state
 
-    Shutdown:
-    1. Dispose the DB engine. This runs in `finally`, so it also runs
-       when the startup check fails.
+    Shutdown (reverse of startup), one guarded step at a time:
+    1. Close the Redis client
+    2. Dispose the DB engine
+       A failing step is logged and does not skip the next one. Shutdown
+       runs in `finally`, so it also runs after a failed startup, and the
+       resources built in step 2 are released even if nothing was attached.
 
-    Logs `database_connected` after the startup check and
-    `database_disposed` after shutdown.
+    Logs: `application_starting`, `postgresql_connected`, `redis_connected`,
+    `application_ready`, `application_shutting_down`, `redis_closed`,
+    `db_engine_disposed`, `shutdown_step_failed` (per failing step), and
+    `application_stopped` only if every shutdown step succeeded.
     """
 
     settings: Settings = app.state.settings
@@ -38,15 +45,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logger.info("application_starting", environment=settings.ENVIRONMENT)
 
     engine = build_engine(settings)
+    redis = build_redis(settings)
 
     try:
         async with engine.connect() as conn:
             await conn.execute(text("SELECT 1"))
 
-        logger.info("database_connected")
+        logger.info("postgresql_connected")
+
+        await redis.ping()
+
+        logger.info("redis_connected")
 
         app.state.engine = engine
         app.state.session_factory = build_session_factory(engine)
+        app.state.redis = redis
 
         logger.info("application_ready")
 
@@ -55,17 +68,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     finally:
         logger.info("application_shutting_down")
 
-        is_shutdown_completed = False
+        is_shutdown_completed = True
 
-        try:
-            await engine.dispose()
+        shutdown = (
+            ("redis", redis.aclose, "redis_closed"),
+            ("db_engine", engine.dispose, "db_engine_disposed"),
+        )
 
-            logger.info("database_disposed")
+        for step, close, log in shutdown:
+            try:
+                await close()
 
-            is_shutdown_completed = True
+                logger.info(log)
 
-        except Exception:
-            logger.exception("shutdown_step_failed", step="db_engine")
+            except Exception:
+                is_shutdown_completed = False
+
+                logger.exception("shutdown_step_failed", step=step)
 
         if is_shutdown_completed:
             logger.info("application_stopped")
@@ -79,6 +98,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
        otherwise they come from get_settings().
     2. Configure logging, before anything else can log.
     3. Create the FastAPI app and attach settings to app.state.
+    4. Register routers.
+
+    Resources (database, Redis) are not created here. The lifespan builds
+    them, so tests that skip the lifespan must set them on app.state.
     """
 
     settings = settings or get_settings()
