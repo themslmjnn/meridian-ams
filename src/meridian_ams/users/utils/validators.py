@@ -77,3 +77,18 @@ def validate_username(username: str) -> str:
         )
 
     return username
+
+
+_EMAIL_PATTERN = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9.+_-]*@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$"
+)
+
+
+def validate_email(email: str) -> str:
+    if not _EMAIL_PATTERN.fullmatch(email.strip()):
+        raise PydanticCustomError(
+            "invalid_email",
+            "Invalid email address",
+        )
+
+    return email.strip().lower()
