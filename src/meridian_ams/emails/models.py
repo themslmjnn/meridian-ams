@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meridian_ams.database.base import (
     Base,
@@ -11,6 +12,9 @@ from meridian_ams.database.base import (
     UpdatedAtMixin,
 )
 from meridian_ams.emails.enums import EmailStatus, EmailType
+
+if TYPE_CHECKING:
+    from meridian_ams.users.models.credentials import UserCredentials
 
 
 class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
@@ -46,7 +50,7 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         index=True,
     )
 
-    triggered_by_user: Mapped["UserCredentials | None"] = relationship(  # noqa: F821
+    triggered_by_user: Mapped["UserCredentials | None"] = relationship(
         "UserCredentials",
         foreign_keys=[triggered_by],
     )
