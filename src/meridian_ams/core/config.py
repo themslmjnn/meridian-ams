@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: SecretStr | None = None
     REDIS_DB: int = Field(ge=0, le=15)
 
-    ALGORITHM: str = "HS256"
+    ALGORITHM: Literal["HS256"]
     JWT_SECRET_KEY: SecretStr
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
