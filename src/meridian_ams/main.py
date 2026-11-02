@@ -5,6 +5,7 @@ import structlog
 from fastapi import FastAPI
 from sqlalchemy import text
 
+from meridian_ams.api.health import router as health_router
 from meridian_ams.core.config import Settings, get_settings
 from meridian_ams.core.logging import configure_logging
 from meridian_ams.database.connection import build_engine, build_session_factory
@@ -87,6 +88,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
     app.state.settings = settings
+
+    # Routers
+    app.include_router(health_router)
 
     return app
 
