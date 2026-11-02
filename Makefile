@@ -13,7 +13,7 @@ migration:
 	@test -n "$(m)" || (echo 'usage: make migration m="message"'; exit 1)
 	uv run alembic revision -m "$(m)"
 
-autogenerate:
+mig-auto:
 	@test -n "$(m)" || (echo 'usage: make autogenerate m="message"'; exit 1)
 	uv run alembic revision --autogenerate -m "$(m)"
 
