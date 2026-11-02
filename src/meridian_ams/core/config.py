@@ -51,6 +51,9 @@ class Settings(BaseSettings):
 
     WORK_EMAIL_DOMAIN: str
 
+    EMAIL_WORKER_INTERVAL: int = Field(ge=1, default=60)
+    EMAIL_WORKER_BATCH_SIZE: int = Field(ge=1, le=100, default=10)
+
     RESEND_API_KEY: SecretStr
     MAIL_FROM: str = "noreply@meridian.edu"
     MAIL_FROM_NAME: str = "Meridian AMS"
