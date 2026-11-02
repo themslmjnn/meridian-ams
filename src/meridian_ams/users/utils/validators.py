@@ -49,3 +49,31 @@ def validate_phone_number(phone_number: str) -> str:
         )
 
     return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+
+
+def validate_username(username: str) -> str:
+    if not re.fullmatch(r"[a-z0-9._]+", username):
+        raise PydanticCustomError(
+            "invalid_username_characters",
+            "Username can only contain lowercase letters, numbers, (.) and (_)",
+        )
+
+    if not username[0].isalpha():
+        raise PydanticCustomError(
+            "invalid_username_start",
+            "Username must start with a letter",
+        )
+
+    if username[-1] in (".", "_"):
+        raise PydanticCustomError(
+            "invalid_username_end",
+            "Username cannot end with (.) or (_)",
+        )
+
+    if re.search(r"[._]{2}", username):
+        raise PydanticCustomError(
+            "invalid_username_consecutive",
+            "Username cannot contain consecutive (.) or (_) characters",
+        )
+
+    return username
