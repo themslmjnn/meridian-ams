@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     REDIS_HOST: NonEmptyStr
     REDIS_PORT: int = Field(ge=1, le=65535, default=6379)
     REDIS_PASSWORD: SecretStr | None = None
-    REDIS_DB: int = Field(ge=0)
+    REDIS_DB: int = Field(ge=0, le=15)
 
     @property
     def DATABASE_URL(self) -> str:
