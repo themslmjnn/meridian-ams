@@ -1,3 +1,5 @@
+from sqlalchemy.exc import IntegrityError
+
 from meridian_ams.core.exceptions import AppException
 
 
@@ -79,3 +81,7 @@ class AccountWithdrawnError(AppException):
     status_code = 403
     detail = "This account has been withdrawn"
     error_code = "ACCOUNT_WITHDRAWN"
+
+
+def raise_unhandled_integrity_error(error: IntegrityError) -> None:
+    raise error

@@ -1,3 +1,5 @@
+from sqlalchemy.exc import IntegrityError
+
 from meridian_ams.core.exceptions import AppException
 
 
@@ -38,7 +40,23 @@ class MaxStudentsPerEmailError(AppException):
     detail = "Maximum number of students with this email reached"
     error_code = "MAX_STUDENTS_PER_EMAIL"
 
+
 class GuardianAccountAlreadyExistsError(AppException):
     status_code = 409
     detail = "Guardian account already exists"
     error_code = "DUPLICATE_ALREADY_GUARDIAN_ACCOUNT"
+
+
+def handle_username_integrity_error(error: IntegrityError) -> None:
+    if "uq_user_credentials_username" in str(error.orig):
+        raise UsernameAlreadyTakenError()
+
+
+def handle_non_student_unique_email_error(error: IntegrityError) -> None:
+    if "uix_non_student_unique_email" in str(error.orig):
+        raise DuplicateEmailError()
+
+
+def handle_account_per_identity_error(error: IntegrityError) -> None:
+    if "uix_one_personal_account_per_identity" in str(error.orig):
+        raise GuardianAccountAlreadyExistsError()
