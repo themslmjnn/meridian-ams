@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     DB_POOL_TIMEOUT: int = Field(ge=1, le=120, default=5)
     DB_CONNECT_TIMEOUT: int = Field(ge=1, le=120, default=5)
 
+    REDIS_HOST: NonEmptyStr
+    REDIS_PORT: int = Field(ge=1, le=65535, default=6379)
+    REDIS_PASSWORD: SecretStr | None = None
+    REDIS_DB: int = Field(ge=0)
+
     @property
     def DATABASE_URL(self) -> str:
         return (
@@ -43,6 +48,15 @@ class Settings(BaseSettings):
             f":{quote(self.DB_PASSWORD.get_secret_value(), safe='')}"
             f"@{self.DB_HOST}:{self.DB_PORT}/{quote(self.DB_NAME, safe='')}"
         )
+
+    @property
+    def REDIS_URL(self) -> str:
+        if self.REDIS_PASSWORD:
+            password = quote(self.REDIS_PASSWORD.get_secret_value(), safe="")
+
+            return f"redis://:{password}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
 
 @lru_cache
