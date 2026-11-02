@@ -13,6 +13,9 @@ from meridian_ams.database.base import (
 from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 
 if TYPE_CHECKING:
+    from meridian_ams.auth.models.activation import UserActivation
+    from meridian_ams.auth.models.login_lockout import UserLoginLockout
+    from meridian_ams.auth.models.session import UserSession
     from meridian_ams.users.models.identity import UserIdentity
 
 
@@ -37,6 +40,21 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
     pre_transition_status: Mapped[UserStatus | None] = mapped_column(nullable=True)
 
     identity: Mapped["UserIdentity"] = relationship(back_populates="credentials")
+
+    activation: Mapped["UserActivation | None"] = relationship(
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    sessions: Mapped[list["UserSession"]] = relationship(
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+    )
+    login_lockout: Mapped["UserLoginLockout | None"] = relationship(
+        back_populates="credentials",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
 
     __table_args__ = (
         Index(
