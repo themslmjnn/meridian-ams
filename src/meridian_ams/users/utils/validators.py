@@ -124,3 +124,16 @@ def validate_email(email: str) -> str:
         )
 
     return email.strip().lower()
+
+
+def validate_work_email_domain_staff(email: str) -> None:
+    from meridian_ams.core.config import get_settings
+
+    settings = get_settings()
+
+    domain = email.split("@")[-1]
+    if domain != settings.WORK_EMAIL_DOMAIN:
+        raise PydanticCustomError(
+            "invalid_work_email_domain",
+            f"Staff email must use the school domain @{settings.WORK_EMAIL_DOMAIN}",
+        )
