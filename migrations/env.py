@@ -6,6 +6,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import meridian_ams.auth.models
 import meridian_ams.users.models
 from meridian_ams.core.config import get_settings
 from meridian_ams.database.base import Base
