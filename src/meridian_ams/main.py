@@ -59,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("redis_connected")
 
         app.state.engine = engine
-        app.state.session_factory = build_session_factory(engine)
+        app.state.async_session_factory = build_session_factory(engine)
         app.state.redis = redis
 
         logger.info("application_ready")
