@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: SecretStr | None = None
     REDIS_DB: int = Field(ge=0, le=15)
 
+    ACCESS_TOKEN_EXPIRES_MINUTES: int = Field(ge=15, le=30, default=15)
+    REFRESH_TOKEN_EXPIRES_DAYS: int = Field(ge=7, le=30, default=7)
+
     WORK_EMAIL_DOMAIN: str
 
     @field_validator("WORK_EMAIL_DOMAIN")
