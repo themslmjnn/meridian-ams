@@ -1,7 +1,10 @@
 import re
+from datetime import date
 
 import phonenumbers
 from pydantic_core import PydanticCustomError
+
+from meridian_ams.users.utils.constants import STUDENT_MAX_AGE, STUDENT_MIN_AGE
 
 _NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$")
 
@@ -18,6 +21,35 @@ def validate_name(value: str, field: str) -> str:
         lambda m: m.group(0).capitalize(),
         value,
     )
+
+
+def validate_date_of_birth(birth_date: date) -> date:
+    today = date.today()
+
+    if birth_date >= today:
+        raise PydanticCustomError(
+            "date_of_birth_not_in_past",
+            "Date of birth must be in the past",
+        )
+
+    age = (
+        today.year
+        - birth_date.year
+        - ((today.month, today.day) < (birth_date.month, birth_date.day))
+    )
+
+    if age < STUDENT_MIN_AGE:
+        raise PydanticCustomError(
+            "date_of_birth_too_young",
+            f"User must be at least {STUDENT_MIN_AGE} years old",
+        )
+    if age > STUDENT_MAX_AGE:
+        raise PydanticCustomError(
+            "date_of_birth_too_old",
+            f"Student must be {STUDENT_MAX_AGE} years old or younger",
+        )
+
+    return birth_date
 
 
 def validate_phone_number(phone_number: str) -> str:
