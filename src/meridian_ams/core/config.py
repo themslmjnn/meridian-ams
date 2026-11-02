@@ -44,6 +44,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     JWT_SECRET_KEY: SecretStr
 
+    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
+
     ACCESS_TOKEN_EXPIRES_MINUTES: int = Field(ge=15, le=30, default=15)
     REFRESH_TOKEN_EXPIRES_DAYS: int = Field(ge=7, le=30, default=7)
 
