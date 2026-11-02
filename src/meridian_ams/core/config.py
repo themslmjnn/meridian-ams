@@ -51,6 +51,14 @@ class Settings(BaseSettings):
 
     WORK_EMAIL_DOMAIN: str
 
+    RESEND_API_KEY: SecretStr
+    MAIL_FROM: str = "noreply@meridian.edu"
+    MAIL_FROM_NAME: str = "Meridian AMS"
+    MAILTRAP_HOST: str = "sandbox.smtp.mailtrap.io"
+    MAILTRAP_PORT: int = Field(ge=1, le=65535, default=587)
+    MAILTRAP_USERNAME: str
+    MAILTRAP_PASSWORD: SecretStr
+
     @field_validator("JWT_SECRET_KEY")
     @classmethod
     def validate_required_secrets(cls, v: SecretStr) -> SecretStr:
