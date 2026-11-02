@@ -45,3 +45,8 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         nullable=True,
         index=True,
     )
+
+    triggered_by_user: Mapped["UserCredentials | None"] = relationship(  # noqa: F821
+        "UserCredentials",
+        foreign_keys=[triggered_by],
+    )
