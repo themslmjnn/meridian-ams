@@ -1,10 +1,12 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from meridian_ams.emails.enums import EmailStatus
 from meridian_ams.emails.models import Email
+
+RETRY_DELAY = timedelta(minutes=2)
 
 
 class EmailRepository:
@@ -16,7 +18,7 @@ class EmailRepository:
             select(Email)
             .where(
                 Email.status == EmailStatus.PENDING,
-                Email.retry_count < Email.max_retries,
+                Email.scheduled_for <= func.now(),
             )
             .order_by(Email.id.asc())
             .limit(limit)
@@ -27,14 +29,16 @@ class EmailRepository:
         return result.scalars().all()
 
     @staticmethod
-    async def mark_sent(record: Email) -> None:
+    def mark_sent(record: Email) -> None:
         record.status = EmailStatus.SENT
         record.sent_at = datetime.now(UTC)
 
     @staticmethod
-    async def mark_failed_attempt(record: Email, error: str) -> None:
+    def mark_failed_attempt(record: Email, error: str) -> None:
         record.retry_count += 1
         record.last_error = error[:500]
 
         if record.retry_count >= record.max_retries:
             record.status = EmailStatus.FAILED
+        else:
+            record.scheduled_for = datetime.now(UTC) + RETRY_DELAY * record.retry_count
