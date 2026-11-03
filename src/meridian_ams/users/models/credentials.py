@@ -14,6 +14,7 @@ from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 
 if TYPE_CHECKING:
     from meridian_ams.auth.models.activation import UserActivation
+    from meridian_ams.auth.models.login_history import LoginHistory
     from meridian_ams.auth.models.login_lockout import UserLoginLockout
     from meridian_ams.auth.models.session import UserSession
     from meridian_ams.users.models.identity import UserIdentity
@@ -54,6 +55,10 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
         back_populates="credentials",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    login_history: Mapped[list["LoginHistory"]] = relationship(  # noqa: F821
+        back_populates="credentials",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (
