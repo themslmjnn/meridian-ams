@@ -20,6 +20,7 @@ dependencies = [
     "redis>=8.1.0",
     "sqlalchemy>=2.1.6",
     "structlog>=26.1.0",
+    "ua-parser>=1.0.2",
 ]
 
 [build-system]
