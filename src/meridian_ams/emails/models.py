@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, ForeignKey, String, Text
+from sqlalchemy import DateTime, Enum, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meridian_ams.database.base import (
@@ -40,6 +40,10 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
 
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    scheduled_for: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
     sent_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
