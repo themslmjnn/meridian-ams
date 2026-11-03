@@ -2,12 +2,12 @@ from datetime import UTC, datetime, timedelta
 from typing import assert_never
 
 import structlog
-from fastapi import Request
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from meridian_ams.auth.models.activation import UserActivation
 from meridian_ams.auth.models.login_lockout import UserLoginLockout
+from meridian_ams.core.config import get_settings
 from meridian_ams.core.email.templates.auth import build_account_activation_email
 from meridian_ams.core.security import generate_token
 from meridian_ams.emails.enums import EmailType
@@ -16,7 +16,6 @@ from meridian_ams.users.models.credentials import UserCredentials
 from meridian_ams.users.models.identity import UserIdentity
 from meridian_ams.users.repositories.base import UserResponseRepository
 from meridian_ams.users.repositories.credentials import UserCredentialsRepository
-from meridian_ams.users.repositories.identity import UserIdentityRepository
 from meridian_ams.users.schemas.system_admin import (
     CreateGuardianFromExistingIdentity,
     CreateNewGuardian,
@@ -28,6 +27,7 @@ from meridian_ams.users.schemas.system_admin import (
 from meridian_ams.users.utils.advisory_locks import acquire_contact_locks
 from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 from meridian_ams.users.utils.exceptions import (
+    CannotCreateGuardianAccountForStudentsError,
     GuardianAccountAlreadyExistsError,
     IdentityNotFoundError,
     handle_account_per_identity_error,
@@ -35,6 +35,7 @@ from meridian_ams.users.utils.exceptions import (
     handle_username_integrity_error,
 )
 from meridian_ams.users.utils.helpers import check_contact_limit
+from meridian_ams.users.utils.schemas import LoadOptionsSchema
 from meridian_ams.utils.exceptions import raise_unhandled_integrity_error
 
 logger = structlog.get_logger(__name__)
@@ -43,12 +44,11 @@ logger = structlog.get_logger(__name__)
 class UserServiceAdmin:
     @staticmethod
     async def register_user(
-        request: Request,
         db_session: AsyncSession,
         actor_id: int,
         payload: CreateUserRequest,
     ) -> UserResponseDetailedAdmin:
-        settings = request.app.state.settings
+        settings = get_settings()
 
         is_existing_identity = False
 
@@ -86,6 +86,7 @@ class UserServiceAdmin:
         await check_contact_limit(
             db_session,
             actor_id,
+            operation="user_registration",
             username=payload.username,
             phone_number=phone_number,
             email=payload.email,
@@ -100,19 +101,24 @@ class UserServiceAdmin:
 
         try:
             if is_existing_identity:
-                guardian_identity = await UserIdentityRepository.get_by_id(
-                    db_session, payload.existing_identity_id
+                guardian_credentials = await UserCredentialsRepository.get_by_public_id(
+                    db_session,
+                    payload.public_id,
+                    load_options=LoadOptionsSchema(load_identity=True),
                 )
-                if guardian_identity is None:
+                if guardian_credentials.identity is None:
                     raise IdentityNotFoundError()
 
-                guardian_credentials = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
-                    db_session, guardian_identity.id
+                if guardian_credentials.role == UserStatus.STUDENT:
+                    raise CannotCreateGuardianAccountForStudentsError()
+
+                personal_accounts = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
+                    db_session, guardian_credentials.identity_id
                 )
-                if guardian_credentials is not None:
+                if personal_accounts is not None:
                     raise GuardianAccountAlreadyExistsError()
 
-                identity_id = payload.existing_identity_id
+                identity_id = guardian_credentials.identity_id
             else:
                 identity = UserIdentity(
                     first_name=payload.first_name,
