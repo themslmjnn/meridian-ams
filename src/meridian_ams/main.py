@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from meridian_ams.api.health import router as health_router
+from meridian_ams.auth.routers import router as auth_router
 from meridian_ams.core.config import Settings, get_settings
 from meridian_ams.core.exceptions import register_exception_handlers
 from meridian_ams.core.logging import configure_logging
@@ -147,6 +148,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(auth_router)
 
     return app
 
