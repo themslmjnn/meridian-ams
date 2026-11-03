@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from meridian_ams.auth.models.activation import UserActivation
 from meridian_ams.auth.models.login_lockout import UserLoginLockout
-from meridian_ams.core.email.templates.account import build_account_activation_email
+from meridian_ams.core.email.templates.auth import build_account_activation_email
 from meridian_ams.core.security import generate_token
 from meridian_ams.emails.enums import EmailType
 from meridian_ams.emails.models import Email
