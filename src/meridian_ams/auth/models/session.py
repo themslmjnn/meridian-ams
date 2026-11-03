@@ -1,7 +1,8 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meridian_ams.database.base import (
     Base,
@@ -11,6 +12,8 @@ from meridian_ams.database.base import (
     UpdatedAtMixin,
 )
 
+if TYPE_CHECKING:
+    from meridian_ams.users.models.credentials import UserCredentials
 
 class UserSession(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "user_sessions"
@@ -33,4 +36,8 @@ class UserSession(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     device_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     last_active_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+
+    credentials: Mapped["UserCredentials"] = relationship(
+        back_populates="sessions"
     )

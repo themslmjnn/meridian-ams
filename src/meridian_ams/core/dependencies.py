@@ -1,7 +1,7 @@
 import uuid
-from collections.abc import AsyncIterator, Callable, cast
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, cast
 
 import structlog
 from fastapi import Depends, Request
