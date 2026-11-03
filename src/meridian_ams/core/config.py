@@ -44,10 +44,14 @@ class Settings(BaseSettings):
     ALGORITHM: Literal["HS256"] = "HS256"
     JWT_SECRET_KEY: SecretStr
 
-    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
-
     ACCESS_TOKEN_EXPIRES_MINUTES: int = Field(ge=15, le=30, default=15)
     REFRESH_TOKEN_EXPIRES_DAYS: int = Field(ge=7, le=30, default=7)
+
+    ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
+
+    MAX_LOGIN_ATTEMPTS: int = Field(ge=3, le=10, default=5)
+    LOCKOUT_DURATION_MINUTES: int = Field(ge=1, default=30)
+    MAX_SESSIONS_PER_USER: int = Field(ge=1, default=5)
 
     WORK_EMAIL_DOMAIN: str
 
