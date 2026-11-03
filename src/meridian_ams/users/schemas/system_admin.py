@@ -152,7 +152,7 @@ class CreateNewGuardian(CreateUserBase):
 class CreateGuardianFromExistingIdentity(BaseModel):
     type: Literal["existing_identity"]
 
-    identity_id: int = Field(ge=1)
+    public_id: uuid.UUID
 
     username: str = Field(min_length=6, max_length=20)
     email: str = Field(max_length=50)
@@ -166,6 +166,12 @@ class CreateGuardianFromExistingIdentity(BaseModel):
     @classmethod
     def _validate_email(cls, v: str) -> str:
         return validate_email(v)
+
+    @model_validator(mode="after")
+    def _validate_work_email_domain(self) -> "CreateGuardianFromExistingIdentity":
+        validate_work_email_domain_non_staff(self.email)
+
+        return self
 
 
 CreateUserRequest = Annotated[
