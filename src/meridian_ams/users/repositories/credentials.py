@@ -1,17 +1,58 @@
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload, selectinload
 
 from meridian_ams.users.models.credentials import UserCredentials
 from meridian_ams.users.models.identity import UserIdentity
 from meridian_ams.users.utils.enums import AccountType
+from meridian_ams.users.utils.schemas import LoadOptionsSchema
 
 
 class UserCredentialsRepository:
+    @staticmethod
+    def _build_load_options(
+        query: Select, load_options: LoadOptionsSchema | None = None
+    ) -> Select:
+        """
+        Apply joinedload options to a credentials query.
+
+        Centralised here so every lookup method uses the same flag set
+        consistently — no method has a different subset of flags.
+        """
+
+        if load_options is not None:
+            if load_options.load_identity:
+                query = query.options(joinedload(UserCredentials.identity))
+
+            if load_options.load_sessions:
+                query = query.options(selectinload(UserCredentials.sessions))
+
+            if load_options.load_activation:
+                query = query.options(joinedload(UserCredentials.activation))
+
+            if load_options.load_login_lockout:
+                query = query.options(joinedload(UserCredentials.login_lockout))
+
+        return query
+
     @staticmethod
     async def get_by_id(
         db_session: AsyncSession, credentials_id: int
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.id == credentials_id)
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def get_by_username(
+        db_session: AsyncSession,
+        username: str,
+        load_options: LoadOptionsSchema | None = None,
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(UserCredentials.username == username)
+        query = UserCredentialsRepository._build_load_options(query, load_options)
 
         result = await db_session.execute(query)
 
