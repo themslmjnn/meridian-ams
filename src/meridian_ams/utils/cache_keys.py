@@ -23,3 +23,9 @@ class SessionCacheKey:
 
         except (ValueError, AttributeError) as exc:
             raise ValueError(f"Malformed ATV cache value: {cached!r}") from exc
+
+
+class IdempotencyCacheKey:
+    @staticmethod
+    def idempotency_key(operation: str, actor_id: int, key: str) -> str:
+        return f"idempotency:{operation}:{actor_id}:{key}"

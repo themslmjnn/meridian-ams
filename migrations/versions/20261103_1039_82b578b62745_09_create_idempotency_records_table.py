@@ -66,6 +66,6 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_idempotency_records_expires_at"), table_name="idempotency_records"
     )
-    
+
     op.drop_table("idempotency_records")
     # ### end Alembic commands ###
