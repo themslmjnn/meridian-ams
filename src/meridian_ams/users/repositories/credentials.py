@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
@@ -46,9 +48,25 @@ class UserCredentialsRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_by_public_id(
+        db_session: AsyncSession,
+        public_id: uuid.UUID,
+        *,
+        load_options: LoadOptionsSchema | None = None,
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(UserCredentials.public_id == public_id)
+
+        query = UserCredentialsRepository._build_load_options(query, load_options)
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_by_username(
         db_session: AsyncSession,
         username: str,
+        *,
         load_options: LoadOptionsSchema | None = None,
     ) -> UserCredentials | None:
         query = select(UserCredentials).where(UserCredentials.username == username)
