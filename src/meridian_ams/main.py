@@ -13,6 +13,7 @@ from meridian_ams.core.exceptions import register_exception_handlers
 from meridian_ams.core.logging import configure_logging
 from meridian_ams.core.redis.client import build_redis
 from meridian_ams.database.connection import build_engine, build_session_factory
+from meridian_ams.users.routers import router as users_routers
 from meridian_ams.workers.email_worker import run_email_worker
 
 logger = structlog.get_logger(__name__)
@@ -150,6 +151,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Routers
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(users_routers)
 
     return app
 

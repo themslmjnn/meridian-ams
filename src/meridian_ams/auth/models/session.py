@@ -15,6 +15,7 @@ from meridian_ams.database.base import (
 if TYPE_CHECKING:
     from meridian_ams.users.models.credentials import UserCredentials
 
+
 class UserSession(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "user_sessions"
 
@@ -38,6 +39,4 @@ class UserSession(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         DateTime(timezone=True), nullable=True
     )
 
-    credentials: Mapped["UserCredentials"] = relationship(
-        back_populates="sessions"
-    )
+    credentials: Mapped["UserCredentials"] = relationship(back_populates="sessions")
