@@ -3,6 +3,13 @@ from sqlalchemy.exc import IntegrityError
 from meridian_ams.core.exceptions import AppException
 
 
+# HTTP403
+class CannotCreateGuardianAccountForStudentsError(AppException):
+    status_code = 403
+    detail = "Cannot create guardian account for students"
+    error_code = "GUARDIAN_ACCOUNT_FOR_STUDENTS"
+
+
 # HTTP404
 class IdentityNotFoundError(AppException):
     status_code = 404
