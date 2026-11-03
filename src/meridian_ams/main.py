@@ -30,18 +30,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     4. Verify Redis is reachable
        Both are mandatory, so a failure in either aborts startup.
     5. Attach the engine, session factory and Redis client to app.state
+    6. Start the background workers (email worker) as asyncio tasks
 
-    Shutdown (reverse of startup), one guarded step at a time:
-    1. Close the Redis client
-    2. Dispose the DB engine
+    Shutdown (reverse of startup):
+    1. Cancel the workers and wait for them. A worker that ended with an
+       error is logged.
+    2. Close the Redis client
+    3. Dispose the DB engine
        A failing step is logged and does not skip the next one. Shutdown
        runs in `finally`, so it also runs after a failed startup, and the
        resources built in step 2 are released even if nothing was attached.
-
-    Logs: `application_starting`, `postgresql_connected`, `redis_connected`,
-    `application_ready`, `application_shutting_down`, `redis_closed`,
-    `db_engine_disposed`, `shutdown_step_failed` (per failing step), and
-    `application_stopped` only if every shutdown step succeeded.
     """
 
     settings: Settings = app.state.settings
@@ -64,12 +62,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("redis_connected")
 
         app.state.engine = engine
-        app.state.async_session_factory = build_session_factory(engine)
+        app.state.session_factory = build_session_factory(engine)
         app.state.redis = redis
 
         tasks.append(
             asyncio.create_task(
-                run_email_worker(engine=app.state.engine), name="email_worker"
+                run_email_worker(
+                    session_factory=app.state.session_factory, settings=settings
+                ),
+                name="email_worker",
             )
         )
 
