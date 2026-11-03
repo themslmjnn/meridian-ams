@@ -19,7 +19,7 @@ logger = structlog.get_logger(__name__)
 
 async def check_contact_limit(
     db_session: AsyncSession,
-    actor_id: int,
+    actor_id: int | None,
     operation: str,
     *,
     username: str,
