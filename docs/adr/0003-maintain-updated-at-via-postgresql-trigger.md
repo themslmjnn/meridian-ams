@@ -42,10 +42,6 @@ We use option B.
   fetches the trigger-written value instead of expiring it. This matters in
   async code, where a lazy reload raises an error. `server_onupdate` is only
   a declaration to SQLAlchemy; the trigger is what actually changes the value.
-- The column carries a database comment pointing to this ADR
-  (`comment="Maintained by a trigger, see ADR-0003"` on `updated_at` in
-  `UpdatedAtMixin`), so someone reading the schema in `psql` finds the
-  explanation.
 - **The helper's output is frozen.** Existing migrations call it, and the test
   suite rebuilds the schema from them. If the trigger ever has to change, add a
   new helper (`..._v2`) for new migrations and leave the old one alone.
@@ -72,7 +68,6 @@ We use option B.
 **Negative / accepted**
 - Alembic autogenerate does not detect triggers. They are written by hand in
   migrations, through the helper.
-- Logic lives outside the model, which is why the column carries a comment.
 - The test database must be built with `alembic upgrade head`, not
   `metadata.create_all()`, or the triggers will be missing.
 - The whole-row comparison fails on columns of type `json` (no equality
