@@ -13,6 +13,7 @@ REQUIRED_FIELDS = [
     "REDIS_DB",
     "JWT_SECRET_KEY",
     "WORK_EMAIL_DOMAIN",
+    "RESEND_API_KEY",
 ]
 
 OPTIONAL_FIELDS = [
@@ -26,6 +27,20 @@ OPTIONAL_FIELDS = [
     "ALGORITHM",
     "ACCESS_TOKEN_EXPIRES_MINUTES",
     "REFRESH_TOKEN_EXPIRES_DAYS",
+    "IDEMPOTENCY_KEY_TTL",
+    "IDEMPOTENCY_PROCESSING_TTL",
+    "MAX_LOGIN_ATTEMPTS",
+    "LOCKOUT_DURATION_MINUTES",
+    "MAX_SESSIONS_PER_USER",
+    "ACTIVATION_TOKEN_EXPIRES_HOURS",
+    "EMAIL_WORKER_INTERVAL",
+    "EMAIL_WORKER_BATCH_SIZE",
+    "MAIL_FROM",
+    "MAIL_FROM_NAME",
+    "MAILTRAP_HOST",
+    "MAILTRAP_PORT",
+    "MAILTRAP_USERNAME",
+    "MAILTRAP_PASSWORD",
 ]
 
 JWT_SECRET = "jwt-secret-value-" + "x" * 20
@@ -47,6 +62,7 @@ def valid_env(monkeypatch: pytest.MonkeyPatch) -> pytest.MonkeyPatch:
     monkeypatch.setenv("REDIS_DB", "1")
     monkeypatch.setenv("JWT_SECRET_KEY", JWT_SECRET)
     monkeypatch.setenv("WORK_EMAIL_DOMAIN", "school.com")
+    monkeypatch.setenv("RESEND_API_KEY", "test_resend_api_key")
 
     return monkeypatch
 
@@ -94,12 +110,24 @@ class TestValidationRules:
             ("DB_CONNECT_TIMEOUT", "121"),
             ("REDIS_DB", "-1"),
             ("REDIS_DB", "16"),
-            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "0"),
-            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "169"),
             ("ACCESS_TOKEN_EXPIRES_MINUTES", "14"),
             ("ACCESS_TOKEN_EXPIRES_MINUTES", "31"),
             ("REFRESH_TOKEN_EXPIRES_DAYS", "6"),
             ("REFRESH_TOKEN_EXPIRES_DAYS", "31"),
+            ("MAX_LOGIN_ATTEMPTS", "2"),
+            ("MAX_LOGIN_ATTEMPTS", "11"),
+            ("LOCKOUT_DURATION_MINUTES", "0"),
+            ("LOCKOUT_DURATION_MINUTES", "121"),
+            ("MAX_SESSIONS_PER_USER", "0"),
+            ("MAX_SESSIONS_PER_USER", "11"),
+            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "0"),
+            ("ACTIVATION_TOKEN_EXPIRES_HOURS", "169"),
+            ("EMAIL_WORKER_INTERVAL", "0"),
+            ("EMAIL_WORKER_INTERVAL", "601"),
+            ("EMAIL_WORKER_BATCH_SIZE", "0"),
+            ("EMAIL_WORKER_BATCH_SIZE", "51"),
+            ("MAILTRAP_PORT", "0"),
+            ("MAILTRAP_PORT", "65536"),
         ],
     )
     def test_out_of_range_number_is_rejected(self, valid_env, field, value):

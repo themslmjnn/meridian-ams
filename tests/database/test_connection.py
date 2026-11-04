@@ -20,8 +20,6 @@ def development_settings(monkeypatch: pytest.MonkeyPatch) -> Settings:
     monkeypatch.setenv("JWT_SECRET_KEY", "jwt-secret-value-" + "x" * 20)
     monkeypatch.setenv("WORK_EMAIL_DOMAIN", "school.com")
     monkeypatch.setenv("RESEND_API_KEY", "resend-key")
-    monkeypatch.setenv("MAILTRAP_USERNAME", "mailtrap-user")
-    monkeypatch.setenv("MAILTRAP_PASSWORD", "mailtrap-password")
 
     return Settings(_env_file=None)
 
