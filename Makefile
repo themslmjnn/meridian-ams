@@ -18,7 +18,7 @@ mig-auto:
 	uv run alembic revision --autogenerate -m "$(m)"
 
 test:
-	uv run pytest -v $(p)
+	uv run pytest -v tests/$(p)/
 
 cov:
 	uv run pytest --cov --cov-report= $(p)
