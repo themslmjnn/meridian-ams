@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -13,6 +14,12 @@ from meridian_ams.auth.routers import router as auth_router
 from meridian_ams.core.config import Settings, get_settings
 from meridian_ams.core.exceptions import register_exception_handlers
 from meridian_ams.core.logging import configure_logging
+from meridian_ams.core.middleware import (
+    CorrelationIDMiddleware,
+    ExceptionHandlerMiddleware,
+    RequestLoggingMiddleware,
+    SecurityHeadersMiddleware,
+)
 from meridian_ams.core.redis.client import build_redis
 from meridian_ams.database.connection import build_engine, build_session_factory
 from meridian_ams.users.routers import router as users_routers
@@ -160,6 +167,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
     app.state.settings = settings
+
+    # Middleware (added innermost first)
+    app.add_middleware(ExceptionHandlerMiddleware)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
+    )
+    app.add_middleware(
+        SecurityHeadersMiddleware, hsts=settings.ENVIRONMENT == "production"
+    )
+    app.add_middleware(RequestLoggingMiddleware)
+    app.add_middleware(CorrelationIDMiddleware)
 
     # Exceptions
     register_exception_handlers(app)
