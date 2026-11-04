@@ -33,7 +33,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
-    async with request.app.state.async_session_factory() as db_session:
+    async with request.app.state.session_factory() as db_session:
         yield db_session
 
 
