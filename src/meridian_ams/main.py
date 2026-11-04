@@ -97,7 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
                 result, asyncio.CancelledError
             ):
                 is_shutdown_completed = False
-                
+
                 logger.error(
                     "worker_shutdown_error",
                     worker=task.get_name(),
@@ -133,9 +133,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
        otherwise they come from get_settings().
     2. Configure logging, before anything else can log.
     3. Create the FastAPI app and attach settings to app.state.
-    4. Register exception handlers, so every error leaves the app in the
+    4. Register middleware. Starlette treats the LAST one added as the
+       outermost, so they are added in reverse of execution order.
+       Request path, outermost to innermost:
+         CorrelationID -> RequestLogging -> SecurityHeaders -> CORS
+         -> ExceptionHandler -> routes
+       ExceptionHandler sits innermost so its 500/503 responses still get
+       CORS headers, security headers and a request ID, and so
+       RequestLogging sees the real status code.
+    5. Register exception handlers, so every error leaves the app in the
        standard shape.
-    5. Register routers.
+    6. Register routers.
 
     Resources (database, Redis) are not created here. The lifespan builds
     them, so tests that skip the lifespan must set them on app.state.
@@ -143,7 +151,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     settings = settings or get_settings()
 
-    configure_logging(settings.LOG_LEVEL)
+    configure_logging(
+        log_level=settings.LOG_LEVEL,
+        json_logs=settings.ENVIRONMENT == "production",
+        environment=settings.ENVIRONMENT,
+    )
 
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
