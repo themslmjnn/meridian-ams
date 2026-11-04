@@ -96,6 +96,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             if isinstance(result, BaseException) and not isinstance(
                 result, asyncio.CancelledError
             ):
+                is_shutdown_completed = False
+                
                 logger.error(
                     "worker_shutdown_error",
                     worker=task.get_name(),
