@@ -51,15 +51,15 @@ class Settings(BaseSettings):
     IDEMPOTENCY_PROCESSING_TTL: int = Field(60 * 5, ge=1)
 
     MAX_LOGIN_ATTEMPTS: int = Field(ge=3, le=10, default=5)
-    LOCKOUT_DURATION_MINUTES: int = Field(ge=1, default=30)
-    MAX_SESSIONS_PER_USER: int = Field(ge=1, default=5)
+    LOCKOUT_DURATION_MINUTES: int = Field(ge=1, le=120, default=30)
+    MAX_SESSIONS_PER_USER: int = Field(ge=1, le=10, default=5)
 
     ACTIVATION_TOKEN_EXPIRES_HOURS: int = Field(ge=1, le=168, default=48)
 
     WORK_EMAIL_DOMAIN: str
 
-    EMAIL_WORKER_INTERVAL: int = Field(ge=1, default=60)
-    EMAIL_WORKER_BATCH_SIZE: int = Field(ge=1, le=100, default=10)
+    EMAIL_WORKER_INTERVAL: int = Field(ge=1, le=600, default=60)
+    EMAIL_WORKER_BATCH_SIZE: int = Field(ge=1, le=50, default=10)
 
     RESEND_API_KEY: SecretStr
     MAIL_FROM: str = "noreply@meridian.edu"
