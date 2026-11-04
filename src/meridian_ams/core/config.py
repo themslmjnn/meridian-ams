@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
 
+    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+
     LOG_LEVEL: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     DB_HOST: NonEmptyStr
