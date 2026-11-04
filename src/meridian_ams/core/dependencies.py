@@ -7,7 +7,7 @@ import structlog
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from redis.asyncio import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from meridian_ams.auth.repositories.session import UserSessionRepository
 from meridian_ams.auth.tokens import decode_access_token
@@ -33,7 +33,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 
 
 async def get_db_session(request: Request) -> AsyncIterator[AsyncSession]:
-    async with request.app.state.session_factory() as db_session:
+    session_factory: async_sessionmaker[AsyncSession] = (
+        request.app.state.session_factory
+    )
+
+    async with session_factory() as db_session:
         yield db_session
 
 
