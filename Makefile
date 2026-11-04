@@ -9,7 +9,7 @@ format:
 migrate:
 	uv run alembic upgrade head
 
-migration:
+mig-empty:
 	@test -n "$(m)" || (echo 'usage: make migration m="message"'; exit 1)
 	uv run alembic revision -m "$(m)"
 
