@@ -1,8 +1,8 @@
 """05_create_emails_table
 
-Revision ID: 03e122a87665
+Revision ID: 67b39023a35c
 Revises: 2a1761e25c21
-Create Date: 2026-11-04 13:34:32.038481
+Create Date: 2026-11-04 13:39:00.628969
 
 """
 
@@ -17,7 +17,7 @@ from meridian_ams.database.triggers import (
 )
 
 # revision identifiers, used by Alembic.
-revision: str = "03e122a87665"
+revision: str = "67b39023a35c"
 down_revision: str | Sequence[str] | None = "2a1761e25c21"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -87,7 +87,7 @@ def upgrade() -> None:
             ["triggered_by"],
             ["user_credentials.id"],
             name=op.f("fk_emails_triggered_by_user_credentials"),
-            ondelete="SET NULL",
+            ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_emails")),
         sa.UniqueConstraint("public_id", name=op.f("uq_emails_public_id")),
