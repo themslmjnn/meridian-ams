@@ -3,9 +3,11 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import structlog
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -13,6 +15,11 @@ from meridian_ams.api.health import router as health_router
 from meridian_ams.auth.routers import router as auth_router
 from meridian_ams.core.config import Settings, get_settings
 from meridian_ams.core.exceptions import register_exception_handlers
+from meridian_ams.core.idempotency.service import (
+    _CachedResponseSignal,
+    make_cached_response,
+)
+from meridian_ams.core.limiter import limiter, rate_limit_exceeded_handler
 from meridian_ams.core.logging import configure_logging
 from meridian_ams.core.middleware import (
     CorrelationIDMiddleware,
@@ -167,8 +174,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
     app.state.settings = settings
+    app.state.limiter = limiter
 
     # Middleware (added innermost first)
+    app.add_middleware(SlowAPIMiddleware)
     app.add_middleware(ExceptionHandlerMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -186,6 +195,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Exceptions
     register_exception_handlers(app)
+
+    app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+    @app.exception_handler(_CachedResponseSignal)
+    async def cached_response_handler(request: Request, exc: _CachedResponseSignal):
+        return make_cached_response(exc)
 
     # Routers
     app.include_router(health_router)
