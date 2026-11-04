@@ -13,7 +13,7 @@ class LoginHistory(IdMixin, CreatedAtMixin, Base):
     __tablename__ = "login_history"
 
     credentials_id: Mapped[int] = mapped_column(
-        ForeignKey("user_credentials.id", ondelete="CASCADE"),
+        ForeignKey("user_credentials.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )

@@ -14,7 +14,7 @@ class UserActivation(IdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "user_activations"
 
     credentials_id: Mapped[int] = mapped_column(
-        ForeignKey("user_credentials.id", ondelete="CASCADE"),
+        ForeignKey("user_credentials.id", ondelete="RESTRICT"),
         unique=True,
         nullable=False,
     )

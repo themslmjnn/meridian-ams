@@ -23,7 +23,7 @@ class UserIdentity(IdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     phone_number: Mapped[str] = mapped_column(String(20), nullable=False)
 
     credentials: Mapped[list["UserCredentials"]] = relationship(
-        back_populates="identity", cascade="all, delete-orphan"
+        back_populates="identity"
     )
 
     __table_args__ = (

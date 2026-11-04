@@ -32,12 +32,12 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     status: Mapped[EmailStatus] = mapped_column(
         Enum(EmailStatus),
         nullable=False,
-        default=EmailStatus.PENDING,
+        server_default=EmailStatus.PENDING.name,
         index=True,
     )
 
-    retry_count: Mapped[int] = mapped_column(nullable=False, default=0)
-    max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
+    retry_count: Mapped[int] = mapped_column(nullable=False, server_default="0")
+    max_retries: Mapped[int] = mapped_column(nullable=False, default="3")
 
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -49,7 +49,7 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
         DateTime(timezone=True), nullable=True
     )
     triggered_by: Mapped[int | None] = mapped_column(
-        ForeignKey("user_credentials.id", ondelete="SET NULL"),
+        ForeignKey("user_credentials.id", ondelete="RESTRICT"),
         nullable=True,
         index=True,
     )

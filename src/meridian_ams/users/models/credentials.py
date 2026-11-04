@@ -24,7 +24,7 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
     __tablename__ = "user_credentials"
 
     identity_id: Mapped[int] = mapped_column(
-        ForeignKey("user_identities.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("user_identities.id", ondelete="RESTRICT"), nullable=False
     )
 
     username: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
@@ -44,21 +44,18 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
 
     activation: Mapped["UserActivation | None"] = relationship(
         back_populates="credentials",
-        cascade="all, delete-orphan",
         uselist=False,
     )
-    sessions: Mapped[list["UserSession"]] = relationship(
-        back_populates="credentials",
-        cascade="all, delete-orphan",
-    )
+
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="credentials")
+
     login_lockout: Mapped["UserLoginLockout | None"] = relationship(
         back_populates="credentials",
-        cascade="all, delete-orphan",
         uselist=False,
     )
+
     login_history: Mapped[list["LoginHistory"]] = relationship(  # noqa: F821
         back_populates="credentials",
-        cascade="all, delete-orphan",
     )
 
     __table_args__ = (

@@ -20,7 +20,7 @@ class UserSession(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     __tablename__ = "user_sessions"
 
     credentials_id: Mapped[int] = mapped_column(
-        ForeignKey("user_credentials.id", ondelete="CASCADE"),
+        ForeignKey("user_credentials.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
