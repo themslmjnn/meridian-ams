@@ -12,7 +12,7 @@ DEFAULT_CACHE_TTL_SECONDS = 300
 
 async def get_cache(redis: Redis, key: str) -> Any | None:
     try:
-        raw = await redis.get(key)
+        cached_value = await redis.get(key)
 
     except RedisError as exc:
         logger.warning(
@@ -23,11 +23,11 @@ async def get_cache(redis: Redis, key: str) -> Any | None:
 
         return None
 
-    if raw is None:
+    if cached_value is None:
         return None
 
     try:
-        return json.loads(raw)
+        return json.loads(cached_value)
 
     except ValueError:
         logger.warning(
@@ -45,6 +45,9 @@ async def set_cache(
     value: Any,
     ttl: int = DEFAULT_CACHE_TTL_SECONDS,
 ) -> None:
+    if value is None:
+        return
+
     payload = json.dumps(value)
 
     try:
