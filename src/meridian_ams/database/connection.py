@@ -15,7 +15,10 @@ def build_engine(settings: Settings) -> AsyncEngine:
     pool_kwargs: dict[str, Any] = (
         {"poolclass": NullPool}
         if settings.ENVIRONMENT == "test"
-        else {"pool_pre_ping": True, "pool_timeout": settings.DB_POOL_TIMEOUT}
+        else {
+            "pool_pre_ping": True,
+            "pool_timeout": settings.DB_POOL_TIMEOUT,
+        }
     )
 
     return create_async_engine(

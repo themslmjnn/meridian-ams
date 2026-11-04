@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
+from redis.asyncio import Redis
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from meridian_ams.api.health import router as health_router
 from meridian_ams.auth.routers import router as auth_router
@@ -47,8 +49,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     logger.info("application_starting", environment=settings.ENVIRONMENT)
 
-    engine = build_engine(settings)
-    redis = build_redis(settings)
+    engine: AsyncEngine = build_engine(settings)
+    redis: Redis = build_redis(settings)
 
     tasks: list[asyncio.Task[None]] = []
 
