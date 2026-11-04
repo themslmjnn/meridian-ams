@@ -66,8 +66,8 @@ class Settings(BaseSettings):
     MAIL_FROM_NAME: str = "Meridian AMS"
     MAILTRAP_HOST: str = "sandbox.smtp.mailtrap.io"
     MAILTRAP_PORT: int = Field(ge=1, le=65535, default=587)
-    MAILTRAP_USERNAME: str
-    MAILTRAP_PASSWORD: SecretStr
+    MAILTRAP_USERNAME: str | None = None
+    MAILTRAP_PASSWORD: SecretStr | None = None
 
     @field_validator("JWT_SECRET_KEY")
     @classmethod
