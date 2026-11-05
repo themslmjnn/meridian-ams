@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Enum, ForeignKey, Index, String, text
+from sqlalchemy import Enum, ForeignKey, Index, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from meridian_ams.database.base import (
@@ -59,6 +59,11 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
     )
 
     __table_args__ = (
+        UniqueConstraint(
+            "identity_id",
+            "account_type",
+            name="uq_user_credentials_identity_id_account_type",
+        ),
         Index(
             "uix_non_student_unique_email",
             "email",
