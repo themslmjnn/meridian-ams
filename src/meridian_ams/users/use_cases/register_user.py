@@ -2,15 +2,14 @@ from __future__ import annotations
 
 import structlog
 from fastapi import Request, status
-from redis import RedisError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from meridian_ams.core.idempotency.service import (
     acquire_idempotency_lock,
-    complete_idempotency_record,
     hash_payload,
-    mirror_complete_to_redis_after_commit,
+    mirror_complete_to_redis,
+    store_idempotency_record,
 )
 from meridian_ams.core.idempotency.utils.enums import IdempotencyOperation
 from meridian_ams.users.schemas.system_admin import (
@@ -23,8 +22,6 @@ logger = structlog.get_logger(__name__)
 
 
 class RegisterUserUseCase:
-    """Coordinates idempotency and user registration in a single transaction."""
-
     @staticmethod
     async def execute(
         request: Request,
@@ -56,41 +53,33 @@ class RegisterUserUseCase:
             payload_hash=payload_hash,
         )
 
-        result = await UserServiceAdmin.register_user(
-            request, db_session, actor_id, payload
-        )
+        result = await UserServiceAdmin.register_user(db_session, actor_id, payload)
 
         response = UserResponseDetailedAdmin.model_validate(result)
 
-        await complete_idempotency_record(
+        body = response.model_dump(mode="json")
+
+        expires_at = await store_idempotency_record(
             db_session,
             actor_id=actor_id,
             operation=IdempotencyOperation.REGISTER_USER,
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             http_status=status.HTTP_201_CREATED,
-            body=response.model_dump(mode="json"),
+            body=body,
         )
 
         await db_session.commit()
 
-        try:
-            await mirror_complete_to_redis_after_commit(
-                redis,
-                actor_id=actor_id,
-                operation=IdempotencyOperation.REGISTER_USER,
-                idempotency_key=idempotency_key,
-                payload_hash=payload_hash,
-                http_status=status.HTTP_201_CREATED,
-                body=response.model_dump(mode="json"),
-            )
-
-        except RedisError as exc:
-            logger.warning(
-                "idempotency_redis_mirror_failed",
-                actor_id=actor_id,
-                operation=IdempotencyOperation.REGISTER_USER,
-                error=str(exc),
-            )
+        await mirror_complete_to_redis(
+            redis,
+            actor_id=actor_id,
+            operation=IdempotencyOperation.REGISTER_USER,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            http_status=status.HTTP_201_CREATED,
+            body=body,
+            expires_at=expires_at,
+        )
 
         return response
