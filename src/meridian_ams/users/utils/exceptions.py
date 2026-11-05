@@ -3,13 +3,6 @@ from sqlalchemy.exc import IntegrityError
 from meridian_ams.core.exceptions import AppException
 
 
-# HTTP403
-class CannotCreateGuardianAccountForStudentsError(AppException):
-    status_code = 403
-    detail = "Cannot create guardian account for students"
-    error_code = "GUARDIAN_ACCOUNT_FOR_STUDENTS"
-
-
 # HTTP404
 class IdentityNotFoundError(AppException):
     status_code = 404
@@ -20,19 +13,19 @@ class IdentityNotFoundError(AppException):
 # HTTP409
 class UsernameAlreadyTakenError(AppException):
     status_code = 409
-    detail = "Username already exists"
-    error_code = "USERNAME_ALREADY_EXISTS"
+    detail = "Username already taken"
+    error_code = "USERNAME_ALREADY_TAKEN"
 
 
 class DuplicatePhoneNumberError(AppException):
     status_code = 409
-    detail = "Phone number already exists"
+    detail = "Phone number already taken"
     error_code = "DUPLICATE_PHONE"
 
 
 class DuplicateEmailError(AppException):
     status_code = 409
-    detail = "Email already exists"
+    detail = "Email already taken"
     error_code = "DUPLICATE_EMAIL"
 
 
@@ -48,10 +41,10 @@ class MaxStudentsPerEmailError(AppException):
     error_code = "MAX_STUDENTS_PER_EMAIL"
 
 
-class GuardianAccountAlreadyExistsError(AppException):
+class CredentialsAlreadyExists(AppException):
     status_code = 409
-    detail = "Guardian account already exists"
-    error_code = "DUPLICATE_ALREADY_GUARDIAN_ACCOUNT"
+    detail = "Credentials already exists"
+    error_code = "CREDENTIALS_ALREADY_EXISTS"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:
@@ -65,5 +58,5 @@ def handle_non_student_unique_email_error(error: IntegrityError) -> None:
 
 
 def handle_account_per_identity_error(error: IntegrityError) -> None:
-    if "uix_one_personal_account_per_identity" in str(error.orig):
-        raise GuardianAccountAlreadyExistsError()
+    if "uq_user_credentials_identity_id_account_type" in str(error.orig):
+        raise CredentialsAlreadyExists()
