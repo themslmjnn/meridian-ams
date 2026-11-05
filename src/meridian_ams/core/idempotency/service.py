@@ -8,18 +8,19 @@ from fastapi import Header, Response, status
 from fastapi.responses import JSONResponse
 from redis import RedisError
 from redis.asyncio import Redis
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from meridian_ams.core.advisory_locks import NAMESPACE_IDEMPOTENCY, compute_lock_key
 from meridian_ams.core.config import get_settings
-from meridian_ams.core.idempotency.models import IdempotencyRecord
 from meridian_ams.core.idempotency.repository import IdempotencyRepository
-from meridian_ams.core.idempotency.utils.enums import IdempotencyStatus
 from meridian_ams.core.idempotency.utils.exceptions import (
+    CachedResponseSignal,
     IdempotencyPayloadMismatch,
     IdempotencyRequestInProgress,
-    IdempotencyStateError,
 )
+from meridian_ams.database.errors import is_lock_timeout
 from meridian_ams.utils.cache_keys import IdempotencyCacheKey
 
 logger = structlog.get_logger(__name__)
@@ -69,24 +70,33 @@ async def acquire_idempotency_lock(
     payload_hash: str,
 ) -> None:
     """
-    Acquire an idempotency lock for this operation.
+    Serialize same-key requests and replay a stored result if one exists.
 
-    Uses the same SQLAlchemy session as the business operation so that
-    the PROCESSING record and all business data participate in a single
-    transaction. If the business operation fails and the transaction rolls
-    back, the PROCESSING record is also rolled back — no cleanup needed,
-    the client can retry freely with the same key.
+    Returns normally only when the caller should execute the operation; the
+    advisory lock is then held until the caller commits or rolls back.
+    Raises CachedResponseSignal for a replay, IdempotencyPayloadMismatch for a
+    reused key with a different payload, IdempotencyRequestInProgress when the
+    lock wait times out.
     """
-
     cache_key = IdempotencyCacheKey.idempotency_key(
         operation, actor_id, idempotency_key
     )
 
-    cached_data = await redis.get(cache_key)
-    if cached_data is not None:
-        _evaluate_cached(json.loads(cached_data), payload_hash)
+    cached_value = await _safe_redis_get(redis, cache_key)
+    if cached_value is not None:
+        if cached_value["request_hash"] != payload_hash:
+            raise IdempotencyPayloadMismatch()
 
-        return
+        raise CachedResponseSignal(cached_value["http_status"], cached_value["body"])
+
+    await _take_key_lock(db_session, operation, actor_id, idempotency_key)
+
+    await IdempotencyRepository.delete_expired(
+        db_session,
+        operation=operation,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
+    )
 
     existing = await IdempotencyRepository.get_record(
         db_session,
@@ -94,68 +104,27 @@ async def acquire_idempotency_lock(
         actor_id=actor_id,
         idempotency_key=idempotency_key,
     )
+    if existing is None:
+        return
 
-    if existing is not None:
-        if existing.status == IdempotencyStatus.PROCESSING:
-            try:
-                await redis.set(
-                    cache_key,
-                    json.dumps(
-                        {
-                            "status": "processing",
-                            "request_hash": existing.request_hash,
-                        }
-                    ),
-                    ex=get_settings().IDEMPOTENCY_PROCESSING_TTL,
-                )
+    if existing.request_hash != payload_hash:
+        raise IdempotencyPayloadMismatch()
 
-            except RedisError as exc:
-                logger.warning(
-                    "idempotency_processing_cache_mirror_failed",
-                    operation=operation,
-                    actor_id=actor_id,
-                    error=str(exc),
-                )
+    await mirror_complete_to_redis(
+        redis,
+        actor_id=actor_id,
+        operation=operation,
+        idempotency_key=idempotency_key,
+        payload_hash=existing.request_hash,
+        http_status=existing.http_status,
+        body=existing.response_body,
+        expires_at=existing.expires_at,
+    )
 
-            raise IdempotencyRequestInProgress()
-
-        if existing.request_hash != payload_hash:
-            raise IdempotencyPayloadMismatch()
-
-        await _mirror_complete_to_redis(
-            redis,
-            cache_key,
-            payload_hash=existing.request_hash,
-            http_status=existing.http_status,
-            body=existing.response_body,
-        )
-
-        raise _CachedResponseSignal(
-            status_code=existing.http_status,
-            body=existing.response_body,
-        )
-
-    try:
-        record = IdempotencyRecord(
-            operation=operation,
-            actor_id=actor_id,
-            key=idempotency_key,
-            request_hash=payload_hash,
-            status=IdempotencyStatus.PROCESSING,
-            expires_at=datetime.now(UTC)
-            + timedelta(seconds=get_settings().IDEMPOTENCY_KEY_TTL),
-        )
-
-        db_session.add(record)
-        await db_session.flush()
-
-    except IntegrityError as exc:
-        await db_session.rollback()
-
-        raise IdempotencyRequestInProgress() from exc
+    raise CachedResponseSignal(existing.http_status, existing.response_body)
 
 
-async def complete_idempotency_record(
+async def store_idempotency_record(
     db_session: AsyncSession,
     *,
     actor_id: int,
@@ -163,20 +132,14 @@ async def complete_idempotency_record(
     idempotency_key: str,
     payload_hash: str,
     http_status: int,
-    body: dict | list | str | None,
-) -> None:
-    """
-    Update the idempotency record from PROCESSING to COMPLETE.
+    body: dict | list | None,
+) -> datetime:
+    """Insert the completed record inside the caller's transaction. No commit."""
+    expires_at = datetime.now(UTC) + timedelta(
+        seconds=get_settings().IDEMPOTENCY_KEY_TTL
+    )
 
-    Uses the same session as the business operation — no commit here.
-    The use case commits PROCESSING + business data + COMPLETE atomically.
-
-    Redis is updated after the commit in the use case, not here, because
-    writing to Redis before the commit would create a window where Redis
-    says COMPLETE but PostgreSQL has not yet committed.
-    """
-
-    result = await IdempotencyRepository.update_record(
+    await IdempotencyRepository.add_record(
         db_session,
         operation=operation,
         actor_id=actor_id,
@@ -184,13 +147,13 @@ async def complete_idempotency_record(
         payload_hash=payload_hash,
         http_status=http_status,
         body=body,
+        expires_at=expires_at,
     )
 
-    if result != 1:
-        raise IdempotencyStateError()
+    return expires_at
 
 
-async def mirror_complete_to_redis_after_commit(
+async def mirror_complete_to_redis(
     redis: Redis,
     *,
     actor_id: int,
@@ -198,84 +161,100 @@ async def mirror_complete_to_redis_after_commit(
     idempotency_key: str,
     payload_hash: str,
     http_status: int,
-    body: dict,
+    body: dict | list | None,
+    expires_at: datetime,
 ) -> None:
-    """
-    Write the completed idempotency response to Redis after the DB commit.
+    """Best-effort Redis mirror. Never raises. TTL is the record's remaining life."""
 
-    Called by the use case after session.commit() succeeds. If this fails,
-    the next request will fall through to the DB, find COMPLETE, and
-    re-mirror to Redis — correctness is preserved, just one extra DB query.
-    """
+    ttl = int((expires_at - datetime.now(UTC)).total_seconds())
+    if ttl <= 0:
+        return
 
     cache_key = IdempotencyCacheKey.idempotency_key(
         operation, actor_id, idempotency_key
     )
 
-    await _mirror_complete_to_redis(
-        redis,
-        cache_key,
-        payload_hash,
-        http_status,
-        body=body,
-    )
+    try:
+        await redis.set(
+            cache_key,
+            json.dumps(
+                {
+                    "status": "complete",
+                    "request_hash": payload_hash,
+                    "http_status": http_status,
+                    "body": body,
+                }
+            ),
+            ex=ttl,
+        )
+
+    except RedisError as exc:
+        logger.warning(
+            "idempotency_redis_mirror_failed",
+            operation=operation,
+            actor_id=actor_id,
+            error=type(exc).__name__,
+        )
 
 
-# Internal helpers
-async def _mirror_complete_to_redis(
-    redis: Redis,
-    cache_key: str,
-    payload_hash: str,
-    http_status: int,
-    body: dict,
-) -> None:
-    await redis.set(
-        cache_key,
-        json.dumps(
+async def _take_key_lock(db_session, operation, actor_id, idempotency_key) -> None:
+    settings = get_settings()
+
+    try:
+        await db_session.execute(
+            text("SELECT set_config('lock_timeout', :ms, true)"),
+            {"ms": str(settings.IDEMPOTENCY_LOCK_TIMEOUT_MS)},
+        )
+
+        await db_session.execute(
+            text("SELECT pg_advisory_xact_lock(:ns, :key)"),
             {
-                "status": "complete",
-                "request_hash": payload_hash,
-                "http_status": http_status,
-                "body": body,
-            }
-        ),
-        ex=get_settings().IDEMPOTENCY_KEY_TTL,
-    )
+                "ns": NAMESPACE_IDEMPOTENCY,
+                "key": compute_lock_key(f"{operation}:{actor_id}:{idempotency_key}"),
+            },
+        )
+
+    except DBAPIError as exc:
+        if is_lock_timeout(exc):
+            await db_session.rollback()
+
+            raise IdempotencyRequestInProgress() from exc
+
+        raise
 
 
-def _evaluate_cached(data: dict, payload_hash: str) -> None:
-    """
-    Evaluate a Redis cache hit and raise the appropriate signal or exception.
-    Always raises — never returns normally.
-    """
+async def _safe_redis_get(redis: Redis, cache_key: str) -> dict | None:
+    """Redis read failure or a malformed entry means a cache miss. The DB decides."""
+    try:
+        cached_value = await redis.get(cache_key)
 
-    if data.get("status") == "processing":
-        raise IdempotencyRequestInProgress()
+    except RedisError as exc:
+        logger.warning("idempotency_redis_read_failed", error=type(exc).__name__)
 
-    if data.get("request_hash") != payload_hash:
-        raise IdempotencyPayloadMismatch()
+        return None
 
-    raise _CachedResponseSignal(
-        status_code=data["http_status"],
-        body=data["body"],
-    )
+    if cached_value is None:
+        return None
+
+    try:
+        data = json.loads(cached_value)
+
+    except ValueError:
+        logger.warning("idempotency_cache_entry_corrupt")
+
+        return None
+
+    if (
+        not isinstance(data, dict)
+        or data.get("status") != "complete"
+        or not {"request_hash", "http_status", "body"} <= data.keys()
+    ):
+        return None
+
+    return data
 
 
-class _CachedResponseSignal(Exception):
-    """
-    Signals the HTTP layer to return a previously cached idempotency response.
-
-    Not an AppException — this is not an error. It is an internal signal
-    that short-circuits the normal response path and replays a stored result.
-    Registered as an exception handler in main.py.
-    """
-
-    def __init__(self, status_code: int, body: dict | list | str | None) -> None:
-        self.status_code = status_code
-        self.body = body
-
-
-def make_cached_response(signal: _CachedResponseSignal) -> JSONResponse:
+def make_cached_response(signal: CachedResponseSignal) -> JSONResponse:
     """Convert a _CachedResponseSignal into a JSONResponse."""
 
     if signal.status_code == status.HTTP_204_NO_CONTENT:
