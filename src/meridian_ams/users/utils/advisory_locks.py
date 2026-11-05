@@ -1,22 +1,17 @@
-import hashlib
-
 import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from meridian_ams.core.advisory_locks import (
+    NAMESPACE_EMAIL,
+    NAMESPACE_PHONE_NUMBER,
+    compute_lock_key,
+)
+
 logger = structlog.get_logger(__name__)
 
-NAMESPACE_PHONE_NUMBER = 9001
-NAMESPACE_EMAIL = 9002
 
 ADVISORY_LOCK_SQL = "SELECT pg_advisory_xact_lock(:ns, :key)"
-
-
-def _compute_lock_key(value: str) -> int:
-    digest = hashlib.sha256(value.encode("utf-8")).digest()
-    unsigned = int.from_bytes(digest[:4], byteorder="big", signed=False)
-
-    return unsigned - 2**32 if unsigned >= 2**31 else unsigned
 
 
 async def acquire_contact_locks(
@@ -27,7 +22,7 @@ async def acquire_contact_locks(
     is_student: bool | None,
 ) -> None:
     if phone_number:
-        key = _compute_lock_key(phone_number)
+        key = compute_lock_key(phone_number)
 
         logger.debug(
             "acquiring_advisory_lock",
@@ -49,7 +44,7 @@ async def acquire_contact_locks(
         )
 
     if email and is_student:
-        key = _compute_lock_key(email)
+        key = compute_lock_key(email)
 
         logger.debug(
             "acquiring_advisory_lock",
