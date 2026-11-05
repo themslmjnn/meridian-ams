@@ -6,7 +6,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 from meridian_ams.users.utils.validators import (
-    validate_date_of_birth,
+    validate_date_of_birth_non_student,
+    validate_date_of_birth_student,
     validate_email,
     validate_name,
     validate_phone_number,
@@ -87,7 +88,7 @@ class CreateUserBase(BaseModel):
         return validate_email(v)
 
 
-class CreateStudent(CreateUserBase):
+class CreateStudentAdmin(CreateUserBase):
     type: Literal["student"]
 
     date_of_birth: date
@@ -96,16 +97,16 @@ class CreateStudent(CreateUserBase):
     @field_validator("date_of_birth")
     @classmethod
     def _validate_date_of_birth(cls, v: date) -> date:
-        return validate_date_of_birth(v)
+        return validate_date_of_birth_student(v)
 
     @model_validator(mode="after")
-    def _validate_work_email_domain(self) -> "CreateStudent":
+    def _validate_work_email_domain(self) -> "CreateStudentAdmin":
         validate_work_email_domain_non_staff(self.email)
 
         return self
 
 
-class CreateStaff(CreateUserBase):
+class CreateStaffAdmin(CreateUserBase):
     type: Literal["staff"]
 
     date_of_birth: date | None = None
@@ -119,17 +120,17 @@ class CreateStaff(CreateUserBase):
         if v is None:
             return None
 
-        return validate_date_of_birth(v)
+        return validate_date_of_birth_non_student(v)
 
     @model_validator(mode="after")
-    def _validate_work_email_domain(self) -> "CreateStaff":
+    def _validate_work_email_domain(self) -> "CreateStaffAdmin":
         validate_work_email_domain_staff(self.email)
 
         return self
 
 
-class CreateNewGuardian(CreateUserBase):
-    type: Literal["new_guardian"]
+class CreateGuardianAdmin(CreateUserBase):
+    type: Literal["guardian"]
 
     date_of_birth: date | None = None
     address: str | None = Field(min_length=15, max_length=150, default=None)
@@ -140,22 +141,24 @@ class CreateNewGuardian(CreateUserBase):
         if v is None:
             return None
 
-        return validate_date_of_birth(v)
+        return validate_date_of_birth_non_student(v)
 
     @model_validator(mode="after")
-    def _validate_work_email_domain(self) -> "CreateNewGuardian":
+    def _validate_work_email_domain(self) -> "CreateGuardianAdmin":
         validate_work_email_domain_non_staff(self.email)
 
         return self
 
 
-class CreateGuardianFromExistingIdentity(BaseModel):
+class CreateUserFromExistingIdentityAdmin(BaseModel):
     type: Literal["existing_identity"]
 
-    public_id: uuid.UUID
+    existing_user_public_id: uuid.UUID
 
     username: str = Field(min_length=6, max_length=20)
     email: str = Field(max_length=50)
+
+    role: Literal[UserRole.TEACHER, UserRole.DIRECTOR, UserRole.GUARDIAN]
 
     @field_validator("username")
     @classmethod
@@ -168,16 +171,19 @@ class CreateGuardianFromExistingIdentity(BaseModel):
         return validate_email(v)
 
     @model_validator(mode="after")
-    def _validate_work_email_domain(self) -> "CreateGuardianFromExistingIdentity":
-        validate_work_email_domain_non_staff(self.email)
+    def _validate_work_email_domain(self) -> "CreateUserFromExistingIdentityAdmin":
+        if self.role in [UserRole.TEACHER, UserRole.DIRECTOR]:
+            validate_work_email_domain_staff(self.email)
+        elif self.role == UserRole.GUARDIAN:
+            validate_work_email_domain_non_staff(self.email)
 
         return self
 
 
 CreateUserRequest = Annotated[
-    CreateStudent
-    | CreateStaff
-    | CreateNewGuardian
-    | CreateGuardianFromExistingIdentity,
+    CreateStudentAdmin
+    | CreateStaffAdmin
+    | CreateGuardianAdmin
+    | CreateUserFromExistingIdentityAdmin,
     Field(discriminator="type"),
 ]
