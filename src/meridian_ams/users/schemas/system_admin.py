@@ -44,15 +44,29 @@ class UserResponseDetailedAdmin(UserResponseBaseAdmin, BaseSchema):
     updated_at: datetime
 
 
-class CreateUserBase(BaseModel):
+class CredentialsFields(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    username: str = Field(min_length=6, max_length=20)
+    email: str = Field(max_length=50)
+
+    @field_validator("username")
+    @classmethod
+    def _validate_username(cls, v: str) -> str:
+        return validate_username(v)
+
+    @field_validator("email")
+    @classmethod
+    def _validate_email(cls, v: str) -> str:
+        return validate_email(v)
+
+
+class CreateUserBase(CredentialsFields):
     first_name: str = Field(min_length=3, max_length=30)
     last_name: str = Field(min_length=3, max_length=30)
     middle_name: str | None = Field(min_length=3, max_length=30, default=None)
 
     phone_number: str
-
-    username: str = Field(min_length=6, max_length=20)
-    email: str = Field(max_length=50)
 
     @field_validator("first_name")
     @classmethod
@@ -77,22 +91,12 @@ class CreateUserBase(BaseModel):
     def _validate_phone(cls, v: str) -> str:
         return validate_phone_number(v)
 
-    @field_validator("username")
-    @classmethod
-    def _validate_username(cls, v: str) -> str:
-        return validate_username(v)
-
-    @field_validator("email", mode="after")
-    @classmethod
-    def _validate_email(cls, v: str) -> str:
-        return validate_email(v)
-
 
 class CreateStudentAdmin(CreateUserBase):
     type: Literal["student"]
 
     date_of_birth: date
-    address: str = Field(min_length=15, max_length=100)
+    address: str = Field(min_length=15, max_length=150)
 
     @field_validator("date_of_birth")
     @classmethod
@@ -155,20 +159,7 @@ class CreateUserFromExistingIdentityAdmin(BaseModel):
 
     existing_user_public_id: uuid.UUID
 
-    username: str = Field(min_length=6, max_length=20)
-    email: str = Field(max_length=50)
-
     role: Literal[UserRole.TEACHER, UserRole.DIRECTOR, UserRole.GUARDIAN]
-
-    @field_validator("username")
-    @classmethod
-    def _validate_username(cls, v: str) -> str:
-        return validate_username(v)
-
-    @field_validator("email", mode="after")
-    @classmethod
-    def _validate_email(cls, v: str) -> str:
-        return validate_email(v)
 
     @model_validator(mode="after")
     def _validate_work_email_domain(self) -> "CreateUserFromExistingIdentityAdmin":
