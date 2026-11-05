@@ -37,7 +37,7 @@ class Email(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Base):
     )
 
     retry_count: Mapped[int] = mapped_column(nullable=False, server_default="0")
-    max_retries: Mapped[int] = mapped_column(nullable=False, default="3")
+    max_retries: Mapped[int] = mapped_column(nullable=False, server_default="3")
 
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
