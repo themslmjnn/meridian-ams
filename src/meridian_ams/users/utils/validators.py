@@ -4,7 +4,13 @@ from datetime import date
 import phonenumbers
 from pydantic_core import PydanticCustomError
 
-from meridian_ams.users.utils.constants import STUDENT_MAX_AGE, STUDENT_MIN_AGE
+from meridian_ams.users.utils.constants import (
+    NON_STUDENT_MAX_AGE,
+    NON_STUDENT_MIN_AGE,
+    STUDENT_MAX_AGE,
+    STUDENT_MIN_AGE,
+)
+from meridian_ams.users.utils.helpers import calculate_age
 
 _NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$")
 
@@ -23,7 +29,7 @@ def validate_name(value: str, field: str) -> str:
     )
 
 
-def validate_date_of_birth(birth_date: date) -> date:
+def validate_date_of_birth_student(birth_date: date) -> date:
     today = date.today()
 
     if birth_date >= today:
@@ -32,21 +38,44 @@ def validate_date_of_birth(birth_date: date) -> date:
             "Date of birth must be in the past",
         )
 
-    age = (
-        today.year
-        - birth_date.year
-        - ((today.month, today.day) < (birth_date.month, birth_date.day))
-    )
+    age = calculate_age(birth_date, today)
 
     if age < STUDENT_MIN_AGE:
         raise PydanticCustomError(
             "date_of_birth_too_young",
-            f"User must be at least {STUDENT_MIN_AGE} years old",
+            f"Student must be at least {STUDENT_MIN_AGE} years old",
         )
+
     if age > STUDENT_MAX_AGE:
         raise PydanticCustomError(
             "date_of_birth_too_old",
             f"Student must be {STUDENT_MAX_AGE} years old or younger",
+        )
+
+    return birth_date
+
+
+def validate_date_of_birth_non_student(birth_date: date) -> date:
+    today = date.today()
+
+    if birth_date >= today:
+        raise PydanticCustomError(
+            "date_of_birth_not_in_past",
+            "Date of birth must be in the past",
+        )
+
+    age = calculate_age(birth_date, today)
+
+    if age < NON_STUDENT_MIN_AGE:
+        raise PydanticCustomError(
+            "date_of_birth_too_young",
+            f"User must be at least {NON_STUDENT_MIN_AGE} years old",
+        )
+
+    if age > NON_STUDENT_MAX_AGE:
+        raise PydanticCustomError(
+            "date_of_birth_too_old",
+            f"User must be {NON_STUDENT_MAX_AGE} years old or younger",
         )
 
     return birth_date
