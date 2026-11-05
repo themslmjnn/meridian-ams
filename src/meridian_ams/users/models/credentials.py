@@ -54,7 +54,7 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
         uselist=False,
     )
 
-    login_history: Mapped[list["LoginHistory"]] = relationship(  # noqa: F821
+    login_history: Mapped[list["LoginHistory"]] = relationship(
         back_populates="credentials",
     )
 
@@ -64,12 +64,6 @@ class UserCredentials(IdMixin, PublicIdMixin, CreatedAtMixin, UpdatedAtMixin, Ba
             "email",
             unique=True,
             postgresql_where=text("account_type != 'STUDENT'"),
-        ),
-        Index(
-            "uix_one_personal_account_per_identity",
-            "identity_id",
-            unique=True,
-            postgresql_where=text("account_type = 'PERSONAL'"),
         ),
         Index(
             "ix_gin_credentials_email",
