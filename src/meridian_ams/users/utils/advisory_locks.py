@@ -24,6 +24,7 @@ async def acquire_contact_locks(
     *,
     phone_number: str | None,
     email: str | None,
+    is_student: bool | None,
 ) -> None:
     if phone_number:
         key = _compute_lock_key(phone_number)
@@ -47,7 +48,7 @@ async def acquire_contact_locks(
             key=key,
         )
 
-    if email:
+    if email and is_student:
         key = _compute_lock_key(email)
 
         logger.debug(
