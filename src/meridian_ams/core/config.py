@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRES_DAYS: int = Field(ge=7, le=30, default=7)
 
     IDEMPOTENCY_KEY_TTL: int = Field(60 * 60 * 24, ge=1)
-    IDEMPOTENCY_PROCESSING_TTL: int = Field(60 * 5, ge=1)
+    IDEMPOTENCY_LOCK_TIMEOUT_MS: int = 5000
 
     MAX_LOGIN_ATTEMPTS: int = Field(ge=3, le=10, default=5)
     LOCKOUT_DURATION_MINUTES: int = Field(ge=1, le=120, default=30)
