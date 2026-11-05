@@ -146,7 +146,7 @@ def validate_email(email: str) -> str:
     except EmailNotValidError as exc:
         raise PydanticCustomError("invalid_email", "Invalid email address") from exc
 
-    local = result.normalized.rpartition("@")[0]
+    local = result.normalized.rpartition("@")[2]
     if "+" in local:
         raise PydanticCustomError(
             "email_plus_alias_not_allowed", "Email must not contain a '+' alias"

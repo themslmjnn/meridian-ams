@@ -9,6 +9,9 @@ from meridian_ams.users.models.identity import UserIdentity
 from meridian_ams.users.utils.enums import AccountType
 from meridian_ams.users.utils.schemas import LoadOptionsSchema
 
+_STUDENT_POOL = frozenset({AccountType.STUDENT})
+_NON_STUDENT_POOL = frozenset({AccountType.WORK, AccountType.PERSONAL})
+
 
 class UserCredentialsRepository:
     @staticmethod
@@ -99,18 +102,17 @@ class UserCredentialsRepository:
         *,
         exclude_credentials_id: int | None = None,
     ) -> int:
-        account_type_condition = (
-            frozenset({AccountType.STUDENT}),
-            frozenset({AccountType.WORK, AccountType.PERSONAL}),
-        )[account_type != AccountType.STUDENT]
+        pool = (
+            _STUDENT_POOL if account_type == AccountType.STUDENT else _NON_STUDENT_POOL
+        )
 
         query = (
-            select(func.count())
+            select(func.count(func.distinct(UserCredentials.identity_id)))
             .select_from(UserCredentials)
             .join(UserIdentity, UserCredentials.identity_id == UserIdentity.id)
             .where(
                 UserIdentity.phone_number == phone_number,
-                UserCredentials.account_type.in_(account_type_condition),
+                UserCredentials.account_type.in_(pool),
             )
         )
 
@@ -130,7 +132,7 @@ class UserCredentialsRepository:
         exclude_credentials_id: int | None = None,
     ) -> int:
         query = (
-            select(func.count())
+            select(func.count(func.distinct(UserCredentials.identity_id)))
             .select_from(UserCredentials)
             .where(
                 UserCredentials.email == email,
