@@ -4,6 +4,8 @@ from datetime import date
 from typing import Annotated
 
 import phonenumbers
+from email_validator import EmailNotValidError
+from email_validator import validate_email as _validate_email_address
 from pydantic import BeforeValidator, Field
 from pydantic_core import PydanticCustomError
 
@@ -150,19 +152,22 @@ def validate_username(username: str) -> str:
     return username
 
 
-_EMAIL_PATTERN = re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9.+_-]*@[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z]{2,}$"
-)
-
-
 def validate_email(email: str) -> str:
-    if not _EMAIL_PATTERN.fullmatch(email.strip()):
-        raise PydanticCustomError(
-            "invalid_email",
-            "Invalid email address",
+    try:
+        result = _validate_email_address(
+            email.strip(), check_deliverability=False, allow_smtputf8=False
         )
 
-    return email.strip().lower()
+    except EmailNotValidError as exc:
+        raise PydanticCustomError("invalid_email", "Invalid email address") from exc
+
+    local = result.normalized.rpartition("@")[0]
+    if "+" in local:
+        raise PydanticCustomError(
+            "email_plus_alias_not_allowed", "Email must not contain a '+' alias"
+        )
+
+    return result.normalized.lower()
 
 
 def validate_work_email_domain_staff(email: str) -> None:
