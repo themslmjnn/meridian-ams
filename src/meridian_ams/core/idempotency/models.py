@@ -16,10 +16,7 @@ class IdempotencyRecord(IdMixin, CreatedAtMixin, Base):
     actor_id: Mapped[int] = mapped_column(nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
-    status: Mapped[IdempotencyStatus] = mapped_column(
-        nullable=False, default=IdempotencyStatus.PROCESSING
-    )
-    http_status: Mapped[int | None] = mapped_column(nullable=True)
+    http_status: Mapped[int] = mapped_column(nullable=False)
 
     response_body: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(
