@@ -63,6 +63,21 @@ class UserCredentialsRepository:
         return result.scalar_one_or_none()
 
     @staticmethod
+    async def get_by_identity_id(
+        db_session: AsyncSession,
+        identity_id: int,
+        account_type: AccountType,
+    ) -> UserCredentials | None:
+        query = select(UserCredentials).where(
+            UserCredentials.identity_id == identity_id,
+            UserCredentials.account_type == account_type,
+        )
+
+        result = await db_session.execute(query)
+
+        return result.scalar_one_or_none()
+
+    @staticmethod
     async def get_by_username(
         db_session: AsyncSession,
         username: str,
@@ -129,16 +144,3 @@ class UserCredentialsRepository:
         result = await db_session.execute(query)
 
         return result.scalar_one()
-
-    @staticmethod
-    async def get_personal_accounts_by_identity_id(
-        db_session: AsyncSession, identity_id: int
-    ) -> UserCredentials | None:
-        query = select(UserCredentials).where(
-            UserCredentials.identity_id == identity_id,
-            UserCredentials.account_type == AccountType.PERSONAL,
-        )
-
-        result = await db_session.execute(query)
-
-        return result.scalar_one_or_none()
