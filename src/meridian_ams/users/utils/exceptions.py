@@ -41,10 +41,23 @@ class MaxStudentsPerEmailError(AppException):
     error_code = "MAX_STUDENTS_PER_EMAIL"
 
 
-class CredentialsAlreadyExists(AppException):
+class CredentialsAlreadyExistsError(AppException):
     status_code = 409
     detail = "Credentials already exists"
     error_code = "CREDENTIALS_ALREADY_EXISTS"
+
+
+# HTTP422
+class StudentNotEligibleForAdditionalAccountError(AppException):
+    status_code = 422
+    detail = "Only graduated students can be given an additional account"
+    error_code = "STUDENT_NOT_ELIGIBLE_FOR_ADDITIONAL_ACCOUNT"
+
+
+class IdentityBelowMinimumAgeError(AppException):
+    status_code = 422
+    detail = "Identity does not meet the minimum age for this account"
+    error_code = "IDENTITY_BELOW_MINIMUM_AGE"
 
 
 def handle_username_integrity_error(error: IntegrityError) -> None:
@@ -59,4 +72,4 @@ def handle_non_student_unique_email_error(error: IntegrityError) -> None:
 
 def handle_account_per_identity_error(error: IntegrityError) -> None:
     if "uq_user_credentials_identity_id_account_type" in str(error.orig):
-        raise CredentialsAlreadyExists()
+        raise CredentialsAlreadyExistsError()

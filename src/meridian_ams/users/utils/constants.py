@@ -1,5 +1,12 @@
+from meridian_ams.users.utils.enums import UserStatus
+
 STUDENT_MIN_AGE = 6
 STUDENT_MAX_AGE = 21
+NON_STUDENT_MIN_AGE = 25
+NON_STUDENT_MAX_AGE = 90
 
 STAFF_AND_GUARDIAN_MAX_SHARED_CONTACT = 1
 STUDENT_MAX_SHARED_CONTACT = 3
+
+
+ALUMNI_STATUSES: frozenset[UserStatus] = frozenset({UserStatus.GRADUATED})
