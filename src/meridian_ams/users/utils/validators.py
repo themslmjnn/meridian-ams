@@ -1,7 +1,10 @@
 import re
+import unicodedata
 from datetime import date
+from typing import Annotated
 
 import phonenumbers
+from pydantic import BeforeValidator, Field
 from pydantic_core import PydanticCustomError
 
 from meridian_ams.users.utils.constants import (
@@ -12,21 +15,28 @@ from meridian_ams.users.utils.constants import (
 )
 from meridian_ams.users.utils.helpers import calculate_age
 
-_NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ]+(?:['\-][A-Za-zÀ-ÖØ-öø-ÿ]+)*$")
+_LATIN = "A-Za-zÀ-ÖØ-öø-ÿ"
+_CYRILLIC = "А-Яа-яЁё"
+_NAME_PATTERNS = tuple(
+    re.compile(rf"[{alpha}]+(?:[ '\-][{alpha}]+)*") for alpha in (_LATIN, _CYRILLIC)
+)
+
+
+def _nfc(value: object) -> object:
+    return unicodedata.normalize("NFC", value) if isinstance(value, str) else value
+
+
+NameStr = Annotated[str, BeforeValidator(_nfc), Field(min_length=3, max_length=30)]
 
 
 def validate_name(value: str, field: str) -> str:
-    if not _NAME_PATTERN.fullmatch(value):
+    if not any(p.fullmatch(value) for p in _NAME_PATTERNS):
         raise PydanticCustomError(
             f"invalid_{field}_characters",
-            f"{field.capitalize()} can only contain letters, hyphens, and apostrophes",
+            f"{field.replace('_', ' ').capitalize()} must use only Latin or only "
+            "Russian letters, with optional hyphens or apostrophes",
         )
-
-    return re.sub(
-        r"([A-Za-zÀ-ÖØ-öø-ÿ]+)",
-        lambda m: m.group(0).capitalize(),
-        value,
-    )
+    return value
 
 
 def validate_date_of_birth_student(birth_date: date) -> date:

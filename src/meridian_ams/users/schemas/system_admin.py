@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 from meridian_ams.users.utils.validators import (
+    NameStr,
     validate_date_of_birth_non_student,
     validate_date_of_birth_student,
     validate_email,
@@ -19,6 +20,8 @@ from meridian_ams.utils.base_schema import BaseSchema
 
 
 class UserResponseBaseAdmin(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     public_id: uuid.UUID
 
     first_name: str
@@ -26,8 +29,6 @@ class UserResponseBaseAdmin(BaseModel):
     middle_name: str | None
 
     role: UserRole
-
-    model_config = ConfigDict(extra="ignore")
 
 
 class UserResponseDetailedAdmin(UserResponseBaseAdmin, BaseSchema):
@@ -62,25 +63,25 @@ class CredentialsFields(BaseModel):
 
 
 class CreateUserBase(CredentialsFields):
-    first_name: str = Field(min_length=3, max_length=30)
-    last_name: str = Field(min_length=3, max_length=30)
-    middle_name: str | None = Field(min_length=3, max_length=30, default=None)
+    first_name: NameStr = Field(min_length=3, max_length=30)
+    last_name: NameStr = Field(min_length=3, max_length=30)
+    middle_name: NameStr | None = Field(min_length=3, max_length=30, default=None)
 
     phone_number: str
 
     @field_validator("first_name")
     @classmethod
-    def _validate_first_name(cls, v: str) -> str:
+    def _validate_first_name(cls, v: NameStr) -> str:
         return validate_name(value=v, field="first_name")
 
     @field_validator("last_name")
     @classmethod
-    def _validate_last_name(cls, v: str) -> str:
+    def _validate_last_name(cls, v: NameStr) -> str:
         return validate_name(value=v, field="last_name")
 
     @field_validator("middle_name")
     @classmethod
-    def _validate_middle_name(cls, v: str | None) -> str | None:
+    def _validate_middle_name(cls, v: NameStr | None) -> str | None:
         if v is None:
             return None
 
