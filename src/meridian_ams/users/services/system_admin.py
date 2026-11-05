@@ -1,5 +1,7 @@
+import uuid
 from datetime import UTC, datetime, timedelta
-from typing import assert_never
+from types import MappingProxyType
+from typing import Final, assert_never
 
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -17,28 +19,112 @@ from meridian_ams.users.models.identity import UserIdentity
 from meridian_ams.users.repositories.base import UserResponseRepository
 from meridian_ams.users.repositories.credentials import UserCredentialsRepository
 from meridian_ams.users.schemas.system_admin import (
-    CreateGuardianFromExistingIdentity,
-    CreateNewGuardian,
-    CreateStaff,
-    CreateStudent,
+    CreateGuardianAdmin,
+    CreateStaffAdmin,
+    CreateStudentAdmin,
+    CreateUserFromExistingIdentityAdmin,
     CreateUserRequest,
     UserResponseDetailedAdmin,
 )
 from meridian_ams.users.utils.advisory_locks import acquire_contact_locks
+from meridian_ams.users.utils.constants import ALUMNI_STATUSES, NON_STUDENT_MIN_AGE
 from meridian_ams.users.utils.enums import AccountType, UserRole, UserStatus
 from meridian_ams.users.utils.exceptions import (
-    CannotCreateGuardianAccountForStudentsError,
-    GuardianAccountAlreadyExistsError,
+    CredentialsAlreadyExistsError,
+    IdentityBelowMinimumAgeError,
     IdentityNotFoundError,
+    StudentNotEligibleForAdditionalAccountError,
     handle_account_per_identity_error,
     handle_non_student_unique_email_error,
     handle_username_integrity_error,
 )
-from meridian_ams.users.utils.helpers import check_contact_limit
+from meridian_ams.users.utils.helpers import calculate_age, check_contact_limit
 from meridian_ams.users.utils.schemas import LoadOptionsSchema
 from meridian_ams.utils.exceptions import raise_unhandled_integrity_error
 
 logger = structlog.get_logger(__name__)
+
+ACCOUNT_TYPE_BY_ROLE: Final = MappingProxyType(
+    {
+        UserRole.STUDENT: AccountType.STUDENT,
+        UserRole.TEACHER: AccountType.WORK,
+        UserRole.DIRECTOR: AccountType.WORK,
+        UserRole.GUARDIAN: AccountType.PERSONAL,
+    }
+)
+
+NewIdentityPayload = CreateStudentAdmin | CreateStaffAdmin | CreateGuardianAdmin
+
+
+def _resolve_role(payload: CreateUserRequest) -> UserRole:
+    match payload:
+        case CreateStudentAdmin():
+            return UserRole.STUDENT
+        case CreateGuardianAdmin():
+            return UserRole.GUARDIAN
+        case CreateStaffAdmin() | CreateUserFromExistingIdentityAdmin():
+            return payload.role
+        case _:
+            assert_never(payload)
+
+
+async def _create_identity(
+    db_session: AsyncSession, payload: NewIdentityPayload
+) -> int:
+    identity = UserIdentity(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        middle_name=payload.middle_name,
+        phone_number=payload.phone_number,
+        date_of_birth=payload.date_of_birth,
+        address=payload.address,
+    )
+
+    db_session.add(identity)
+    await db_session.flush()
+
+    return identity.id
+
+
+async def _resolve_existing_identity_id(
+    db_session: AsyncSession,
+    existing_user_public_id: uuid.UUID,
+    account_type: AccountType,
+) -> int:
+    referenced = await UserCredentialsRepository.get_by_public_id(
+        db_session,
+        existing_user_public_id,
+        load_options=LoadOptionsSchema(load_identity=True),
+    )
+    if referenced is None:
+        raise IdentityNotFoundError()
+
+    identity = referenced.identity
+
+    student_account = await UserCredentialsRepository.get_by_identity_id(
+        db_session, identity.id, AccountType.STUDENT
+    )
+    if student_account is not None and student_account.status not in ALUMNI_STATUSES:
+        raise StudentNotEligibleForAdditionalAccountError(
+            f"Student account is {student_account.status.value}; "
+            "only graduated students can be given an additional account"
+        )
+
+    if (
+        identity.date_of_birth is not None
+        and calculate_age(identity.date_of_birth) < NON_STUDENT_MIN_AGE
+    ):
+        raise IdentityBelowMinimumAgeError(
+            f"Identity must be at least {NON_STUDENT_MIN_AGE} years old"
+        )
+
+    existing_credentials = await UserCredentialsRepository.get_by_identity_id(
+        db_session, identity.id, account_type
+    )
+    if existing_credentials is not None:
+        raise CredentialsAlreadyExistsError()
+
+    return identity.id
 
 
 class UserServiceAdmin:
@@ -50,37 +136,26 @@ class UserServiceAdmin:
     ) -> UserResponseDetailedAdmin:
         settings = get_settings()
 
-        is_existing_identity = False
+        resolved_role = _resolve_role(payload)
+        account_type = ACCOUNT_TYPE_BY_ROLE[resolved_role]
 
-        match payload:
-            case CreateStudent(type="student"):
-                resolved_role = UserRole.STUDENT
-                account_type = AccountType.STUDENT
+        existing_identity_id: int | None = None
+        phone_number: str | None = None
 
-            case CreateStaff(type="staff"):
-                resolved_role = payload.role
-                account_type = AccountType.WORK
+        if isinstance(payload, CreateUserFromExistingIdentityAdmin):
+            existing_identity_id = await _resolve_existing_identity_id(
+                db_session, payload.existing_user_public_id, account_type
+            )
+        else:
+            phone_number = payload.phone_number
 
-            case CreateNewGuardian(type="new_guardian"):
-                resolved_role = UserRole.GUARDIAN
-                account_type = AccountType.PERSONAL
-
-            case CreateGuardianFromExistingIdentity(type="existing_identity"):
-                resolved_role = UserRole.GUARDIAN
-                account_type = AccountType.PERSONAL
-                is_existing_identity = True
-
-            case _:
-                assert_never(payload)
-
-        is_student = resolved_role == UserRole.STUDENT
-
-        phone_number = None if is_existing_identity else payload.phone_number
+        is_student = account_type == AccountType.STUDENT
 
         await acquire_contact_locks(
             db_session,
             phone_number=phone_number,
             email=payload.email,
+            is_student=is_student,
         )
 
         await check_contact_limit(
@@ -100,39 +175,12 @@ class UserServiceAdmin:
         )
 
         try:
-            if is_existing_identity:
-                guardian_credentials = await UserCredentialsRepository.get_by_public_id(
-                    db_session,
-                    payload.public_id,
-                    load_options=LoadOptionsSchema(load_identity=True),
-                )
-                if guardian_credentials.identity is None:
-                    raise IdentityNotFoundError()
+            if existing_identity_id is None:
+                assert not isinstance(payload, CreateUserFromExistingIdentityAdmin)
 
-                if guardian_credentials.role == UserStatus.STUDENT:
-                    raise CannotCreateGuardianAccountForStudentsError()
-
-                personal_accounts = await UserCredentialsRepository.get_personal_accounts_by_identity_id(
-                    db_session, guardian_credentials.identity_id
-                )
-                if personal_accounts is not None:
-                    raise GuardianAccountAlreadyExistsError()
-
-                identity_id = guardian_credentials.identity_id
+                identity_id = await _create_identity(db_session, payload)
             else:
-                identity = UserIdentity(
-                    first_name=payload.first_name,
-                    last_name=payload.last_name,
-                    middle_name=payload.middle_name,
-                    phone_number=payload.phone_number,
-                    date_of_birth=payload.date_of_birth,
-                    address=payload.address,
-                )
-
-                db_session.add(identity)
-                await db_session.flush()
-
-                identity_id = identity.id
+                identity_id = existing_identity_id
 
             credentials = UserCredentials(
                 identity_id=identity_id,
@@ -146,10 +194,6 @@ class UserServiceAdmin:
             db_session.add(credentials)
             await db_session.flush()
 
-            subject, html_body = build_account_activation_email(
-                payload.username, raw_activation_token
-            )
-
             db_session.add(
                 UserActivation(
                     credentials_id=credentials.id,
@@ -157,7 +201,13 @@ class UserServiceAdmin:
                     activation_token_expires_at=activation_token_expires_at,
                 )
             )
+
             db_session.add(UserLoginLockout(credentials_id=credentials.id))
+
+            subject, html_body = build_account_activation_email(
+                payload.username, raw_activation_token
+            )
+
             db_session.add(
                 Email(
                     recipient_email=payload.email,
