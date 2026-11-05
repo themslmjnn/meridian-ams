@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Meridian AMS"
+    APP_URL: str = "http://localhost:8000"
 
     ENVIRONMENT: Literal["development", "test", "staging", "production"]
 
@@ -70,6 +71,8 @@ class Settings(BaseSettings):
     MAILTRAP_PORT: int = Field(ge=1, le=65535, default=587)
     MAILTRAP_USERNAME: str | None = None
     MAILTRAP_PASSWORD: SecretStr | None = None
+
+    COOKIE_SECURE: bool = False
 
     @field_validator("JWT_SECRET_KEY")
     @classmethod
