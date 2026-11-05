@@ -25,3 +25,17 @@ class IdempotencyStateError(AppException):
     status_code = 500
     detail = "Idempotency record in unexpected state"
     error_code = "IDEMPOTENCY_STATE_ERROR"
+
+
+class CachedResponseSignal(Exception):
+    """
+    Signals the HTTP layer to return a previously cached idempotency response.
+
+    Not an AppException — this is not an error. It is an internal signal
+    that short-circuits the normal response path and replays a stored result.
+    Registered as an exception handler in main.py.
+    """
+
+    def __init__(self, status_code: int, body: dict | list | str | None) -> None:
+        self.status_code = status_code
+        self.body = body
