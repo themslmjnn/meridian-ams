@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 
 import phonenumbers
@@ -41,56 +41,41 @@ def validate_name(value: str, field: str) -> str:
     return value
 
 
-def validate_date_of_birth_student(birth_date: date) -> date:
-    today = date.today()
-
-    if birth_date >= today:
+def _validate_date_of_birth(
+    birth_date: date, *, min_age: int, max_age: int, subject: str
+) -> date:
+    if birth_date >= datetime.now(UTC).date():
         raise PydanticCustomError(
-            "date_of_birth_not_in_past",
-            "Date of birth must be in the past",
+            "date_of_birth_not_in_past", "Date of birth must be in the past"
         )
 
-    age = calculate_age(birth_date, today)
-
-    if age < STUDENT_MIN_AGE:
+    age = calculate_age(birth_date)
+    if age < min_age:
         raise PydanticCustomError(
-            "date_of_birth_too_young",
-            f"Student must be at least {STUDENT_MIN_AGE} years old",
+            "date_of_birth_too_young", f"{subject} must be at least {min_age} years old"
         )
 
-    if age > STUDENT_MAX_AGE:
+    if age > max_age:
         raise PydanticCustomError(
-            "date_of_birth_too_old",
-            f"Student must be {STUDENT_MAX_AGE} years old or younger",
+            "date_of_birth_too_old", f"{subject} must be {max_age} years old or younger"
         )
 
     return birth_date
+
+
+def validate_date_of_birth_student(birth_date: date) -> date:
+    return _validate_date_of_birth(
+        birth_date, min_age=STUDENT_MIN_AGE, max_age=STUDENT_MAX_AGE, subject="Student"
+    )
 
 
 def validate_date_of_birth_non_student(birth_date: date) -> date:
-    today = date.today()
-
-    if birth_date >= today:
-        raise PydanticCustomError(
-            "date_of_birth_not_in_past",
-            "Date of birth must be in the past",
-        )
-
-    age = calculate_age(birth_date, today)
-
-    if age < NON_STUDENT_MIN_AGE:
-        raise PydanticCustomError(
-            "date_of_birth_too_young",
-            f"User must be at least {NON_STUDENT_MIN_AGE} years old",
-        )
-
-    if age > NON_STUDENT_MAX_AGE:
-        raise PydanticCustomError(
-            "date_of_birth_too_old",
-            f"User must be {NON_STUDENT_MAX_AGE} years old or younger",
-        )
-
-    return birth_date
+    return _validate_date_of_birth(
+        birth_date,
+        min_age=NON_STUDENT_MIN_AGE,
+        max_age=NON_STUDENT_MAX_AGE,
+        subject="User",
+    )
 
 
 def validate_phone_number(phone_number: str) -> str:
